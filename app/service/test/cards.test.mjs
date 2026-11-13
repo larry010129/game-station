@@ -31,6 +31,40 @@ test("Wi-Fi: disconnected adapter and no output", () => {
   assert.equal(parseWifi("The Wireless AutoConfig Service (wlansvc) is not running."), null);
 });
 
+test("Wi-Fi: Traditional Chinese labels and state word still parse", () => {
+  const text = `
+    名稱                   : Wi-Fi
+    描述                   : Intel(R) Wi-Fi 6E AX211 160MHz
+    GUID                   : 1d2c3b4a-0000-0000-0000-aabbccddeeff
+    實體位址               : aa:bb:cc:dd:ee:ff
+    狀態                   : 已連線
+    SSID                   : 12345
+    BSSID                  : 11:22:33:44:55:66
+    網路類型               : 基礎結構
+    無線電類型             : 802.11ax
+    驗證                   : WPA2-個人
+    加密                   : CCMP
+    連線模式               : 設定檔
+    頻帶                   : 5 GHz
+    通道                   : 44
+    接收速率 (Mbps)        : 866.7
+    傳輸速率 (Mbps)        : 720
+    訊號                   : 82%
+    設定檔                 : Home
+  `;
+  const w = parseWifi(text);
+  assert.equal(w.connected, true);
+  assert.equal(w.ssid, "12345"); // a numeric SSID must not be mistaken for the channel
+  assert.equal(w.signal, 82);
+  assert.equal(w.radio, "802.11ax");
+  assert.equal(w.band, "5 GHz");
+  assert.equal(w.channel, 44);
+  assert.equal(w.rateMbps, 866.7);
+  const off = parseWifi(["    名稱                   : Wi-Fi", "    狀態                   : 已中斷連線"].join("\n"));
+  assert.equal(off.connected, false);
+  assert.equal(off.signal, null);
+});
+
 test("jitter and loss: steady ping with one dropped reply", () => {
   const s = summarize([10, 12, 10, null, 11]);
   assert.equal(s.lossPct, 20);

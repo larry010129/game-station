@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGameMode } from "../gamemode.mjs";
-import { isProtected, validProcessName } from "../system.mjs";
+import { cleanStep, createGameMode } from "../gamemode.mjs";
+import { PowerRefusedError, isProtected, validProcessName } from "../system.mjs";
 
 const BEST = "ded574b5-45a0-4f42-8737-46345c09c238";
 const BALANCED = "00000000-0000-0000-0000-000000000000";
@@ -17,14 +17,27 @@ function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) 
     failUndo: new Set(), // call names that should throw once armed
     slow: false,
     crashOnSave: null,
+    ignore: new Set(), // power GUIDs Windows silently ignores
+    breakReadOn: null, // power GUID after which getPowerOverlay throws
+    readBroken: false,
+    afterSet: new Map(), // power GUID -> () => Error thrown after the set took effect
+    beforeSet: new Map(), // power GUID -> () => Error thrown without changing anything
+    journalReadError: null, // makes the journal read throw (corrupt / locked file)
+    journalReads: 0,
   };
   const system = {
     detectOverwatch: async () => ({ exe: EXE, appId: "1" }),
-    getPowerOverlay: async () => env.overlay,
+    getPowerOverlay: async () => {
+      if (env.readBroken) throw new Error("read-back boom");
+      return env.overlay;
+    },
     setPowerOverlay: async (g) => {
       env.calls.push(["setPower", g]);
       if (env.failUndo.has("setPower")) throw new Error("boom");
-      if (!powerIgnored) env.overlay = g;
+      if (env.beforeSet.has(g)) throw env.beforeSet.get(g)();
+      if (!powerIgnored && !env.ignore.has(g)) env.overlay = g;
+      if (env.breakReadOn === g) env.readBroken = true; // the set worked, but reading it back now throws
+      if (env.afterSet.has(g)) throw env.afterSet.get(g)(); // the set worked, then the call "timed out"
     },
     getGpuPreference: async () => env.gpu,
     setGpuPreference: async (exe, v) => {
@@ -43,7 +56,12 @@ function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) 
   const deps = {
     system,
     journalFile: "fake-journal.json",
-    readJson: () => JSON.parse(JSON.stringify(env.disk)),
+    readJson: () => {
+      env.journalReads++;
+      if (env.journalReadError) throw env.journalReadError;
+      return JSON.parse(JSON.stringify(env.disk));
+    },
+    keepBad: (f) => env.calls.push(["keepBad", f]),
     writeJson: (_f, v) => {
       if (env.crashOnSave?.(v)) throw new Error("disk full");
       env.disk = JSON.parse(JSON.stringify(v));
@@ -245,4 +263,160 @@ test("validProcessName rejects anything that could inject into a command", () =>
   for (const n of ["", "-x", "a'b", "a;b", "a,b", "$(x)", "a\nb", "x".repeat(70)]) {
     assert.equal(validProcessName(n), false, JSON.stringify(n));
   }
+});
+
+test("power: already on Best is left alone, never downgraded to Better", async () => {
+  const { env, make } = makeEnv({ overlay: BEST });
+  const gm = make();
+  await gm.applyStep(step("power"));
+  assert.equal(env.overlay, BEST);
+  assert.equal(env.calls.filter((c) => c[0] === "setPower").length, 0);
+  assert.equal(env.disk.entries[0].undo.unchanged, true);
+  await gm.restoreStep(step("power"));
+  assert.equal(env.calls.filter((c) => c[0] === "setPower").length, 0);
+  assert.equal(env.overlay, BEST);
+});
+
+const BETTER = "3af9b8d9-7c97-431d-ad78-34a8bfea439f";
+
+test("power: set succeeded but read-back throws -> no downgrade to Better, undo still restores", async () => {
+  const { env, make } = makeEnv({ overlay: BALANCED });
+  env.breakReadOn = BEST;
+  const gm = make();
+  await gm.applyStep(step("power"));
+  const sets = env.calls.filter((c) => c[0] === "setPower");
+  assert.deepEqual(sets, [["setPower", BEST]]); // Better was never tried on top of an unverified Best
+  assert.equal(env.overlay, BEST);
+  assert.notEqual(env.disk.entries[0].undo.unchanged, true);
+  env.readBroken = false;
+  await gm.restoreStep(step("power"));
+  assert.equal(env.overlay, BALANCED);
+  assert.equal(env.disk.entries.length, 0);
+});
+
+test("power: Best ignored, Better set but unreadable -> restore still puts the old mode back", async () => {
+  const { env, logs, make } = makeEnv({ overlay: BALANCED });
+  env.ignore.add(BEST); // Best: set ok, read-back confirms nothing moved
+  env.breakReadOn = BETTER; // Better: set ok, read-back throws
+  const gm = make();
+  await gm.applyStep(step("power"));
+  assert.equal(env.calls.filter((c) => c[0] === "setPower").length, 2);
+  assert.notEqual(env.disk.entries[0].undo.unchanged, true);
+  assert.ok(logs.some((l) => /could not be verified/.test(l)));
+  env.overlay = BETTER; // the unverified set did take effect
+  env.readBroken = false;
+  await gm.restoreStep(step("power"));
+  assert.equal(env.overlay, BALANCED);
+});
+
+test("power: read-back confirms the old value for every target -> unchanged, nothing to restore", async () => {
+  const { env, make } = makeEnv({ overlay: BALANCED, powerIgnored: true });
+  const gm = make();
+  await gm.applyStep(step("power"));
+  assert.equal(env.disk.entries[0].undo.unchanged, true);
+  assert.equal(env.calls.filter((c) => c[0] === "setPower").length, 2);
+});
+
+const timeoutErr = () => Object.assign(new Error("Command failed: timed out after 15000 ms"), { killed: true, signal: "SIGTERM" });
+
+test("power: a set that times out is unverified -> loop stops, not marked unchanged, restore re-sets the previous mode", async () => {
+  const { env, logs, make } = makeEnv({ overlay: BALANCED });
+  env.afterSet.set(BEST, timeoutErr); // Best was applied, then the call timed out
+  const gm = make();
+  await gm.applyStep(step("power"));
+  assert.deepEqual(env.calls.filter((c) => c[0] === "setPower"), [["setPower", BEST]]); // Better never stacked on top
+  assert.notEqual(env.disk.entries[0].undo.unchanged, true);
+  assert.ok(logs.some((l) => /could not be verified/.test(l)));
+  env.afterSet.clear();
+  await gm.restoreStep(step("power"));
+  assert.equal(env.overlay, BALANCED); // restore set the previous mode again
+  assert.equal(env.disk.entries.length, 0);
+});
+
+test("power: only a typed Windows refusal means unchanged and lets the next target be tried", async () => {
+  const { env, make } = makeEnv({ overlay: BALANCED });
+  env.beforeSet.set(BEST, () => new PowerRefusedError(5)); // Windows said no to Best
+  const gm = make();
+  await gm.applyStep(step("power"));
+  assert.deepEqual(env.calls.filter((c) => c[0] === "setPower").map((c) => c[1]), [BEST, BETTER]);
+  assert.equal(env.overlay, BETTER);
+  assert.notEqual(env.disk.entries[0].undo.unchanged, true); // Better did apply
+
+  const b = makeEnv({ overlay: BALANCED });
+  b.env.beforeSet.set(BEST, () => new PowerRefusedError(5));
+  b.env.beforeSet.set(BETTER, () => new PowerRefusedError(5));
+  const gm2 = b.make();
+  await gm2.applyStep(step("power"));
+  assert.equal(b.env.disk.entries[0].undo.unchanged, true); // refused everywhere: nothing to restore
+});
+
+test("power: a plain failure that is not a typed refusal (kill, timeout before any answer) is unverified too", async () => {
+  const { env, make } = makeEnv({ overlay: BALANCED });
+  env.beforeSet.set(BEST, timeoutErr);
+  const gm = make();
+  await gm.applyStep(step("power"));
+  assert.equal(env.calls.filter((c) => c[0] === "setPower").length, 1); // stopped after the first
+  assert.notEqual(env.disk.entries[0].undo.unchanged, true);
+});
+
+test("an unreadable journal is never treated as empty: steps refuse, a copy is kept, health reports it", async () => {
+  const { env, logs, make } = makeEnv({ gpu: null });
+  env.disk = { entries: [{ id: "keep", step: step("gpu"), undo: { kind: "gpu", exe: EXE, previous: null }, status: "applied" }] };
+  const before = JSON.stringify(env.disk);
+  env.journalReadError = Object.assign(new SyntaxError("Unexpected token } in JSON"), { code: undefined });
+  const gm = make();
+  assert.ok(gm.journalError());
+  assert.equal(gm.journalFailed(), 1);
+  assert.equal(gm.journal().journalError, gm.journalError());
+  assert.ok(env.calls.some((c) => c[0] === "keepBad"));
+  assert.ok(logs.some((l) => /could not be read/.test(l)));
+  await assert.rejects(gm.applyStep(step("gpu")), (e) => e.status === 409 && /journal could not be read/.test(e.message));
+  await gm.recoverIfNeeded();
+  assert.equal(env.gpu, null); // no step ran
+  assert.equal(JSON.stringify(env.disk), before); // and the file on disk was never rewritten
+  // Locked file (EBUSY) is the same, not "no journal".
+  env.journalReadError = Object.assign(new Error("busy"), { code: "EBUSY" });
+  assert.match(make().journalError(), /EBUSY/);
+});
+
+test("a missing journal is fine and a healthy one reports no error", async () => {
+  const { env, make } = makeEnv({ gpu: null });
+  const gm = make();
+  assert.equal(gm.journalError(), null);
+  assert.equal(gm.journalFailed(), 0);
+  assert.equal((await gm.applyStep(step("gpu"))).ok, true);
+  assert.equal(env.disk.entries.length, 1);
+});
+
+test("the default journal reader treats only ENOENT as 'no journal'", async () => {
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { readJsonStrict } = await import("../paths.mjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cs-journal-"));
+  try {
+    const f = path.join(dir, "journal.json");
+    assert.deepEqual(readJsonStrict(f, { entries: [] }), { entries: [] }); // ENOENT -> fallback
+    fs.writeFileSync(f, "{ not json");
+    assert.throws(() => readJsonStrict(f, { entries: [] })); // corrupt -> throws
+    assert.throws(() => readJsonStrict(dir, { entries: [] })); // unreadable (EISDIR) -> throws
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("journal entries keep only the step id and label, never the rest of a client object", async () => {
+  const { env, make } = makeEnv({ gpu: null });
+  const gm = make();
+  await gm.applyStep({ id: "gpu", label: "GPU", before: "x", after: "y", huge: "z".repeat(10_000), nested: { a: 1 } });
+  assert.deepEqual(env.disk.entries[0].step, { id: "gpu", label: "GPU" });
+});
+
+test("cleanStep: only a string id from the known set gets through; the rest is a 400", () => {
+  for (const bad of [null, undefined, {}, { id: 1 }, { id: ["gpu"] }, { id: { toString: () => "gpu" } }, { id: true }, { id: "bogus" }, { id: "__proto__" }, { id: "" }]) {
+    assert.throws(() => cleanStep(bad), (e) => e.status === 400, JSON.stringify(bad));
+  }
+  assert.deepEqual(cleanStep({ id: "gpu", label: "G", before: "a", after: "b", extra: 1 }), { id: "gpu", label: "G", before: "a", after: "b" });
+  assert.deepEqual(cleanStep({ id: "poll", label: 5, before: {}, entryId: "e1" }), { id: "poll", label: "poll", entryId: "e1" });
+  assert.equal(cleanStep({ id: "power", label: "x".repeat(500) }).label.length, 200);
 });

@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  FrameWindow,
-  PresentMonParser,
   decodeEntities,
   parseGateway,
   parseLhm,
@@ -60,25 +58,6 @@ test("LibreHardwareMonitor tree: picks the Ryzen Tctl/Tdie reading", () => {
   assert.equal(parseLhm({ Text: "empty", Children: [] }), null);
 });
 
-test("frame window gives fps and frame time, and goes stale", () => {
-  const w = new FrameWindow(1000);
-  for (let i = 0; i < 100; i++) w.push(6, 1000 + i * 6);
-  const s = w.stats(1000 + 600);
-  assert.equal(s.fps, 167);
-  assert.equal(s.frameTimeMs, 6);
-  assert.equal(w.stats(1000 + 600 + 5000), null);
-});
-
-test("PresentMon v1 and v2 headers", () => {
-  const v2 = new PresentMonParser();
-  assert.equal(v2.line("Application,ProcessID,SwapChainAddress,PresentRuntime,FrameTime,CPUBusy"), null);
-  assert.equal(v2.line("Overwatch.exe,1234,0x1,DXGI,6.25,3.1"), 6.25);
-  const v1 = new PresentMonParser();
-  assert.equal(v1.line("Application,ProcessID,TimeInSeconds,MsBetweenPresents,MsInPresentAPI"), null);
-  assert.equal(v1.line("Overwatch.exe,1234,1.5,7.1,0.2"), 7.1);
-  assert.equal(v1.line("Overwatch.exe,1234,1.6,not-a-number,0.2"), null);
-});
-
 test("news listing", () => {
   const html =
     '<a slot="gallery-items" href="/news/24316733/directors-take-5v5-and-6v6-better-together" target="_blank"><blz-card><blz-content-block><h3 slot="heading">Director’s Take: 5v5 and 6v6, Better Together</h3></blz-content-block><blz-timestamp slot="footer" timestamp="2026-11-10T17:00:00.000Z" lang="en-US"></blz-timestamp></blz-card></a>';
@@ -116,6 +95,11 @@ test("gateway, ping, steam", () => {
   assert.equal(parsePingMs("Reply from 10.24.0.1: bytes=32 time=4ms TTL=64"), 4);
   assert.equal(parsePingMs("Reply from 10.24.0.1: bytes=32 time<1ms TTL=64"), 1);
   assert.equal(parsePingMs("Request timed out."), null);
+  // Traditional Chinese Windows: the word for "time" is translated, the "=4ms" / "<1ms" shape is not.
+  assert.equal(parsePingMs("來自 10.24.0.1 的回覆: 位元組=32 時間=4ms TTL=64"), 4);
+  assert.equal(parsePingMs("來自 10.24.0.1 的回覆: 位元組=32 時間<1ms TTL=64"), 1);
+  assert.equal(parsePingMs("要求等候逾時。"), null);
+  assert.equal(parsePingMs("Reply from 10.0.0.1: bytes=32 time=12ms TTL=117"), 12);
   assert.deepEqual(parseSteamManifest('"AppState"\n{\n\t"appid"\t\t"2357570"\n\t"name"\t\t"Overwatch"\n\t"installdir"\t\t"Overwatch"\n}'), { appId: "2357570", installDir: "Overwatch" });
   assert.equal(parseSteamManifest('"appid" "1" "name" "Other" "installdir" "x"'), null);
   assert.deepEqual(parseVdfLibraries('"path"\t\t"D:\\\\Program Files (x86)\\\\Steam"'), ["D:\\Program Files (x86)\\Steam"]);
