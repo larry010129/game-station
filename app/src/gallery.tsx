@@ -5,10 +5,10 @@ import "@fontsource/outfit/400.css";
 import "@fontsource/outfit/500.css";
 import "./styles/app.css";
 import "./styles/meta.css";
-import { CardGallery } from "./components/CardGallery";
+import { SimpleCardGallery } from "./components/SimpleCardGallery";
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
   const root = createRoot(rootElement);
-  root.render(<CardGallery />);
+  root.render(<SimpleCardGallery />);
 }
