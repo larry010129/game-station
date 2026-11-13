@@ -1,4 +1,5 @@
 import path from "node:path";
+import { OVERWATCH_APP_ID } from "./constants.mjs";
 import { DATA_DIR, readJson, writeJson } from "./paths.mjs";
 
 const FILE = path.join(DATA_DIR, "players.json");
@@ -24,13 +25,23 @@ export const REGION_SHARES = [
  * Polls every 10 minutes, keeps the hourly average, stores it on disk.
  */
 export function createPlayers(config, log) {
-  const appId = config.steamAppId ?? 2357570;
+  const appId = config.steamAppId ?? OVERWATCH_APP_ID;
   let hours = readJson(FILE, { hours: [] }).hours ?? [];
   let latest = null;
   let error = null;
   let timer = null;
+  /** Shared in-flight poll so start/interval do not stack concurrent Steam calls. */
+  let pending = null;
 
-  async function poll() {
+  function poll() {
+    if (pending) return pending;
+    pending = read().finally(() => {
+      pending = null;
+    });
+    return pending;
+  }
+
+  async function read() {
     try {
       const res = await fetch(
         `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${appId}`,
@@ -67,6 +78,7 @@ export function createPlayers(config, log) {
     stop() {
       if (timer) clearInterval(timer);
     },
+    // Disk/memory only — never wait on the Steam poll (start() already runs it).
     snapshot() {
       return {
         source: "Steam (Overwatch 2 players on Steam)",

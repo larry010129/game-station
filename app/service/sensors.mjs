@@ -1,21 +1,20 @@
-import { spawn } from "node:child_process";
-import fs from "node:fs";
-import net from "node:net";
 import os from "node:os";
-import { FrameWindow, PresentMonParser, parseGateway, parseNvidiaLine, parsePingMs, parseTypeperfLine } from "./parsers.mjs";
-import { run, powershell, isRunning } from "./system.mjs";
-
-const PRESENTMON_CANDIDATES = [
-  "C:\\Program Files\\PresentMon\\PresentMon.exe",
-  "C:\\Program Files\\Intel\\PresentMon\\PresentMon.exe",
-  `${process.env.LOCALAPPDATA ?? ""}\\Programs\\PresentMon\\PresentMon.exe`,
-];
+import { tcpMs as tcpMsReal } from "./netstats.mjs";
+import { parseGateway, parseNvidiaLine, parsePingMs, parseTypeperfLine } from "./parsers.mjs";
+import { run as runCmd, powershell as powershellCmd, isRunning as isRunningCmd } from "./system.mjs";
+import { killTree, spawnSafe } from "./spawn.mjs";
 
 /**
  * Reads this PC. Each source is optional: when one is missing its value stays
  * null and `notes` says why, so the dashboard never shows an invented number.
  */
-export function createSensors(config, log) {
+export function createSensors(config, log, deps = {}) {
+  // `deps` (tests only) swaps the child-process spawner and the system probes for fakes.
+  const spawn = deps.spawnSafe ?? spawnSafe;
+  const run = deps.run ?? runCmd;
+  const powershell = deps.powershell ?? powershellCmd;
+  const isRunning = deps.isRunning ?? isRunningCmd;
+  const tcpMs = deps.tcpMs ?? tcpMsReal;
   const s = {
     gpu: { at: 0 },
     cpu: { at: 0, utility: null, performance: null },
@@ -24,8 +23,6 @@ export function createSensors(config, log) {
     battery: { pct: null, onAc: null },
     game: null,
     gateway: null,
-    frames: new FrameWindow(),
-    presentMon: { path: null, state: "missing", detail: "" },
     gpuName: null,
     slow: false,
     // Per-source health: "pending" | "live" | "unavailable". `detail` is a user-facing hint.
@@ -35,12 +32,9 @@ export function createSensors(config, log) {
     },
   };
   const children = new Set();
+  let gpuNameReady = Promise.resolve();
   const timers = new Set();
   let stopping = false;
-
-  const presentMonPath = [config.presentMonPath, ...PRESENTMON_CANDIDATES].find((p) => p && fs.existsSync(p)) ?? null;
-  s.presentMon.path = presentMonPath;
-  s.presentMon.state = presentMonPath ? "idle" : "missing";
 
   function every(fn, normalMs, slowMs = normalMs) {
     const pick = (ms) => (typeof ms === "function" ? ms() : ms);
@@ -67,10 +61,28 @@ export function createSensors(config, log) {
     let delay = 5000;
     const MAX_DELAY = 5 * 60 * 1000;
     let missingReported = false;
+    const schedule = () => {
+      if (!restart || stopping) return;
+      // Drop the entry when it fires, or every restart would leave a dead handle in the set for the life of the service.
+      const entry = { clear: () => clearTimeout(t) };
+      const t = setTimeout(() => {
+        timers.delete(entry);
+        start();
+      }, delay);
+      timers.add(entry);
+      delay = Math.min(delay * 2, MAX_DELAY);
+    };
     const start = () => {
       if (stopping) return null;
       const startedAt = Date.now();
-      const child = spawn(file, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      // spawnSafe keeps a start failure from becoming an uncaught exception. Its own logging is silenced
+      // because the "error" handler below owns the message (a missing tool is reported only once).
+      const child = spawn(file, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }, () => {}, name);
+      if (!child) {
+        log(`${name} could not start`);
+        schedule();
+        return null;
+      }
       children.add(child);
       let buf = "";
       let failed = false;
@@ -100,11 +112,7 @@ export function createSensors(config, log) {
         children.delete(child);
         onExit?.(child);
         if (!failed && Date.now() - startedAt > 30000) delay = 5000;
-        if (restart && !stopping) {
-          const t = setTimeout(start, delay);
-          timers.add({ clear: () => clearTimeout(t) });
-          delay = Math.min(delay * 2, MAX_DELAY);
-        }
+        schedule();
       });
       return child;
     };
@@ -113,7 +121,7 @@ export function createSensors(config, log) {
 
   function start() {
     // GPU: NVIDIA's own driver tool, one reading a second.
-    run("nvidia-smi", ["--query-gpu=name", "--format=csv,noheader"])
+    gpuNameReady = run("nvidia-smi", ["--query-gpu=name", "--format=csv,noheader"])
       .then((n) => (s.gpuName = n.trim()))
       .catch(() => {});
     stream(
@@ -149,7 +157,7 @@ export function createSensors(config, log) {
       },
     );
 
-    // Which game is running. PresentMon is not started: FPS cards were removed.
+    // Which game is running.
     every(async () => {
       let found = null;
       for (const g of config.games) {
@@ -180,7 +188,7 @@ export function createSensors(config, log) {
           s.ping.router = parsePingMs(e.stdout ?? "");
         }
       }
-      s.ping.region = await tcpConnectMs(config.regionHost, 443);
+      s.ping.region = await tcpMs(config.regionHost, 443, 2000);
     }, 5000, 15000);
 
     // Battery and charger.
@@ -193,74 +201,6 @@ export function createSensors(config, log) {
         s.battery = { pct: Number(m[1]), onAc: [2, 3, 6, 7, 8, 9].includes(Number(m[2])) };
       }
     }, 30000, 60000);
-  }
-
-  const PM_ADMIN_HINT = "PresentMon needs to run as administrator, or your account must be in the 'Performance Log Users' group.";
-  const PM_ACCESS = /access|denied|administrator|performance log|privilege|elevat/i;
-
-  function startPresentMon(game) {
-    if (!s.presentMon.path) return;
-    stopPresentMon();
-    s.presentMon = { ...s.presentMon, state: "starting", detail: "" };
-    const parser = new PresentMonParser();
-    const args = config.presentMonArgs.map((a) => a.replace("{process}", game));
-    let sawFrame = false;
-    let child = null;
-    const current = () => child && s.presentMonChild === child;
-    const fail = (text) => {
-      const detail = PM_ACCESS.test(text) ? PM_ADMIN_HINT : text.slice(0, 140);
-      s.presentMon = { ...s.presentMon, state: "error", detail };
-    };
-    child = stream(
-      "PresentMon",
-      s.presentMon.path,
-      args,
-      (line) => {
-        if (!current()) return;
-        const ms = parser.line(line);
-        if (ms != null) {
-          if (!sawFrame) {
-            sawFrame = true;
-            s.presentMon = { ...s.presentMon, state: "live", detail: "" };
-          }
-          s.frames.push(ms);
-        } else if (parser.index < 0 && /error|access|denied|administrator|performance log/i.test(line)) {
-          fail(line);
-        }
-      },
-      {
-        restart: false,
-        onMissing: () => {
-          if (current()) s.presentMon = { ...s.presentMon, state: "missing", detail: "" };
-        },
-        onExit: (c) => {
-          // Exited by itself (not via stopPresentMon): keep "error" if set, else go idle.
-          if (s.presentMonChild === c) {
-            s.presentMonChild = null;
-            if (s.presentMon.state !== "error") s.presentMon = { ...s.presentMon, state: "idle", detail: "" };
-          }
-        },
-      },
-    );
-    if (!child) return;
-    child.stderr.on("data", (d) => {
-      const text = d.toString().trim().split(/\r?\n/)[0];
-      if (current() && text) fail(text);
-    });
-    s.presentMonChild = child;
-  }
-
-  function stopPresentMon() {
-    const c = s.presentMonChild;
-    s.presentMonChild = null; // detach first so late output from the dying child is ignored
-    if (c && c.exitCode == null && !c.killed) {
-      try {
-        c.kill();
-      } catch {
-        // Already gone.
-      }
-    }
-    s.presentMon = { ...s.presentMon, state: s.presentMon.path ? "idle" : "missing", detail: "" };
   }
 
   function cpuLoadFallback() {
@@ -284,43 +224,26 @@ export function createSensors(config, log) {
   function sample() {
     const now = Date.now();
     const fresh = (at, ms = 5000) => now - at < ms;
-    const frame = s.frames.stats(now);
-    const baseMhz = os.cpus()[0]?.speed ?? 0;
     const cpuOk = fresh(s.cpu.at);
     const fallbackLoad = cpuOk ? null : cpuLoadFallback();
     if (cpuOk) s.cpuTimes = os.cpus().map((c) => c.times);
-    const notes = {};
-    if (!frame) {
-      if (!s.game) notes.fps = "Start a game to see frame rate.";
-      else if (s.presentMon.state === "missing") notes.fps = "Frame rate needs PresentMon. See the README.";
-      else if (s.presentMon.state === "error") notes.fps = `PresentMon couldn't read frames: ${s.presentMon.detail || "unknown error"}`;
-      else notes.fps = "Waiting for PresentMon to report frames.";
-    }
-    if (s.sources.nvidia.state === "unavailable") notes.gpu = s.sources.nvidia.detail;
-    if (s.sources.typeperf.state === "unavailable") notes.cpu = s.sources.typeperf.detail;
     return {
       t: now,
-      fps: frame ? frame.fps : null,
-      frameTimeMs: frame ? frame.frameTimeMs : null,
       gpuTemp: fresh(s.gpu.at) && s.gpu.temp != null ? Math.round(s.gpu.temp) : null,
       cpuLoad: cpuOk && s.cpu.utility != null ? Math.min(100, Math.round(s.cpu.utility)) : fallbackLoad,
       gpuLoad: fresh(s.gpu.at) ? s.gpu.load ?? null : null,
-      cpuClockGhz: cpuOk && s.cpu.performance != null && baseMhz ? +((baseMhz * s.cpu.performance) / 100000).toFixed(2) : null,
-      gpuPowerW: fresh(s.gpu.at) && s.gpu.powerW != null ? Math.round(s.gpu.powerW) : null,
       pingRegionMs: s.ping.region,
       pingRouterMs: s.ping.router,
       batteryPct: s.battery.pct,
       onAc: s.battery.onAc,
       game: s.game,
-      notes,
     };
   }
 
   function stop() {
     stopping = true;
     timers.forEach((t) => t.clear());
-    s.presentMonChild = null;
-    children.forEach((c) => c.kill());
+    children.forEach((c) => killTree(c));
   }
 
   return {
@@ -329,31 +252,32 @@ export function createSensors(config, log) {
     sample,
     setSlow: (v) => (s.slow = v),
     state: s,
+    /** Pending restart/poll timers (for tests). */
+    timerCount: () => timers.size,
     machine: async () => {
       const cs = await powershell("$c=Get-CimInstance Win32_ComputerSystem; \"$($c.Manufacturer)|$($c.Model)\"").catch(() => "");
+      await gpuNameReady; // nvidia-smi was started with the sensors; it is usually done by now
       const [maker = "", model = ""] = cs.trim().split("|");
-      const brand = maker.replace(/ASUSTeK COMPUTER INC\./i, "ASUS").replace(/\s*(Inc\.?|Corporation|Co\.?,? Ltd\.?)$/i, "").trim();
-      const cleaned = model.replace(/\s+[A-Z0-9]+_[A-Z0-9]+$/, "").trim();
-      const withoutBrand = cleaned.replace(new RegExp(`^${brand.split(/\s+/)[0]}\\s+`, "i"), "").replace(/^ASUS\\s+/i, "");
-      const name = `${brand} ${withoutBrand}`.replace(/\s+/g, " ").trim();
-      const cpu = (os.cpus()[0]?.model ?? "").replace(/\s+with .*$/i, "").replace(/^AMD |^Intel\(R\) Core\(TM\) /i, "").replace(/\s+/g, " ").trim();
-      const gpu = (s.gpuName ?? "").replace(/NVIDIA GeForce | Laptop GPU/g, "").trim();
-      return { name: name || os.hostname(), cpu: cpu || "CPU", gpu: gpu || "GPU" };
+      return machineName({ maker, model, cpuModel: os.cpus()[0]?.model, gpuName: s.gpuName, hostname: os.hostname() });
     },
   };
 }
 
-function tcpConnectMs(host, port, timeoutMs = 2000) {
-  return new Promise((resolve) => {
-    let t0 = 0;
-    const sock = net.connect({ host, port });
-    const done = (v) => {
-      sock.destroy();
-      resolve(v);
-    };
-    sock.setTimeout(timeoutMs, () => done(null));
-    sock.on("lookup", () => (t0 = performance.now()));
-    sock.on("connect", () => done(Math.max(1, Math.round(performance.now() - t0))));
-    sock.on("error", () => done(null));
-  });
+/** Removes `word` from the start of `text` when it is a whole leading word. Never builds a RegExp from outside text. */
+function stripLeadingWord(text, word) {
+  if (!word || !text.toLowerCase().startsWith(word.toLowerCase())) return text;
+  const rest = text.slice(word.length);
+  return /^\s/.test(rest) ? rest.trimStart() : text;
+}
+
+/** Friendly "ASUS TUF Gaming A16" style name plus short CPU and GPU names, from raw WMI / os / nvidia-smi strings. */
+export function machineName(raw) {
+  const [maker, model, cpuModel, gpuName, hostname] = [raw.maker, raw.model, raw.cpuModel, raw.gpuName, raw.hostname].map((v) => String(v ?? ""));
+  const brand = maker.replace(/ASUSTeK COMPUTER INC\./i, "ASUS").replace(/\s*(Inc\.?|Corporation|Co\.?,? Ltd\.?)$/i, "").trim();
+  const cleaned = model.replace(/\s+[A-Z0-9]+_[A-Z0-9]+$/, "").trim();
+  const withoutBrand = stripLeadingWord(stripLeadingWord(cleaned, brand.split(/\s+/)[0]), "ASUS");
+  const name = `${brand} ${withoutBrand}`.replace(/\s+/g, " ").trim();
+  const cpu = cpuModel.replace(/\s+with .*$/i, "").replace(/^AMD |^Intel\(R\) Core\(TM\) /i, "").replace(/\s+/g, " ").trim();
+  const gpu = gpuName.replace(/NVIDIA GeForce | Laptop GPU/g, "").trim();
+  return { name: name || hostname, cpu: cpu || "CPU", gpu: gpu || "GPU" };
 }

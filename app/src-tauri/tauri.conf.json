@@ -25,7 +25,7 @@
       "csp": {
         "default-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' asset: http://asset.localhost blob: data: https://efnrodzdhzvdgmctpjdx.supabase.co",
+        "img-src": "'self' asset: http://asset.localhost blob: data: https://efnrodzdhzvdgmctpjdx.supabase.co https://i.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com https://cdn.discordapp.com",
         "font-src": "'self' data:",
         "connect-src": "'self' http://127.0.0.1:8787 ipc: http://ipc.localhost"
       }
@@ -37,7 +37,7 @@
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "externalBin": ["binaries/node"],
     "resources": {
-      "../service/": "service/"
+      "service-stage/service/": "service/"
     }
   }
 }

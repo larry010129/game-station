@@ -9,8 +9,10 @@ export const REGIONS = [
   { id: "asia", name: "Asia", host: "kr.actual.battle.net", port: 1119 },
 ];
 
+/** Time for a TCP connect in ms (at least 1), or null when it fails or times out. The one ping helper. */
 export function tcpMs(host, port = 443, timeout = 1500) {
   return new Promise((resolve) => {
+    // Start the clock before the lookup: for an IP address no "lookup" event ever fires.
     const t0 = performance.now();
     const sock = net.connect({ host, port });
     const done = (v) => {
@@ -18,26 +20,46 @@ export function tcpMs(host, port = 443, timeout = 1500) {
       resolve(v);
     };
     sock.setTimeout(timeout, () => done(null));
-    sock.once("connect", () => done(Math.round(performance.now() - t0)));
+    sock.once("connect", () => done(Math.max(1, Math.round(performance.now() - t0))));
     sock.once("error", () => done(null));
   });
 }
 
-/** Pulls the Wi-Fi fields out of `netsh wlan show interfaces` (English Windows). */
+const FIELD = /^\s*(.+?)\s+:\s+(.*?)\s*$/;
+const NUMBER = /^\d+(?:\.\d+)?$/;
+
+/**
+ * Pulls the Wi-Fi fields out of `netsh wlan show interfaces`. Windows translates every label
+ * (and the state word), so fields are recognised by the shape of their value, not by their name:
+ * `82%` is the signal, `802.11ax` the radio, `5 GHz` the band, and the plain numbers that follow
+ * the band are channel, receive rate and transmit rate, in that order. "SSID" is never translated.
+ */
 export function parseWifi(text) {
-  const get = (label) => new RegExp(`^\\s*${label}\\s*:\\s*(.+?)\\s*$`, "mi").exec(text)?.[1] ?? null;
-  const state = get("State");
-  if (!state) return null;
-  const signal = get("Signal");
+  const rows = String(text ?? "")
+    .split(/\r?\n/)
+    .map((l) => FIELD.exec(l))
+    .filter(Boolean)
+    .map((m) => ({ key: m[1], value: m[2] }));
+  if (!rows.length) return null;
+  const ssidAt = rows.findIndex((r) => /^ssid$/i.test(r.key));
+  // The state row sits right above SSID; with no SSID row (disconnected) it is the last row.
+  const stateRow = ssidAt > 0 ? rows[ssidAt - 1] : rows[rows.length - 1];
+  const state = stateRow.value;
+  const ssid = ssidAt >= 0 && rows[ssidAt].value ? rows[ssidAt].value : null;
+  // English "connected" is exact ("disconnected" must not match); a translated state counts as connected when an SSID is shown.
+  const connected = /^[\x20-\x7e]+$/.test(state) ? /^connected$/i.test(state) : Boolean(ssid);
+  const bandAt = rows.findIndex((r) => /^\d+(?:\.\d+)?\s*GHz$/i.test(r.value));
+  const nums = rows.slice(bandAt >= 0 ? bandAt + 1 : ssidAt + 1).filter((r) => NUMBER.test(r.value));
+  const signal = rows.find((r) => /^\d{1,3}\s*%$/.test(r.value));
   return {
     state,
-    connected: /^connected$/i.test(state),
-    ssid: get("SSID"),
-    signal: signal ? Number(signal.replace("%", "")) : null,
-    radio: get("Radio type"),
-    band: get("Band"),
-    channel: get("Channel") ? Number(get("Channel")) : null,
-    rateMbps: get("Receive rate \\(Mbps\\)") ? Number(get("Receive rate \\(Mbps\\)")) : null,
+    connected,
+    ssid,
+    signal: signal ? Number(signal.value.replace(/\s*%/, "")) : null,
+    radio: rows.find((r) => /^802\.11/i.test(r.value))?.value ?? null,
+    band: bandAt >= 0 ? rows[bandAt].value : null,
+    channel: nums[0] ? Number(nums[0].value) : null,
+    rateMbps: nums[1] ? Number(nums[1].value) : null,
   };
 }
 
@@ -104,8 +126,10 @@ export function createNetStats(config, log) {
     stop() {
       if (timer) clearInterval(timer);
     },
-    snapshot() {
+    async snapshot() {
       lastAsk = Date.now();
+      // The first ask has to measure. Later asks return the last reading while the timer keeps going.
+      if (ring.length === 0 && regions.every((r) => r.ms == null)) await tick();
       return { host: config.regionHost, regions, jitter: summarize(ring), wifi };
     },
   };

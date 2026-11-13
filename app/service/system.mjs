@@ -16,8 +16,12 @@ export function run(file, args = [], { timeout = 15000 } = {}) {
   });
 }
 
+// Windows PowerShell 5 writes a pipe in the OEM code page (Big5 here). Node reads UTF-8.
+const UTF8_OUT =
+  "$csUtf8 = New-Object System.Text.UTF8Encoding $false; [Console]::InputEncoding = $csUtf8; [Console]::OutputEncoding = $csUtf8; $OutputEncoding = $csUtf8; ";
+
 export function powershell(script, opts) {
-  return run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], opts);
+  return run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", UTF8_OUT + script], opts);
 }
 
 const GUID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -60,10 +64,23 @@ export async function getPowerOverlay() {
   return out.trim().toLowerCase();
 }
 
+/** Windows answered the set call with a non-zero code: it ran and changed nothing. Any other failure (timeout, kill) is unverified. */
+export class PowerRefusedError extends Error {
+  constructor(code) {
+    super(`Windows refused the power mode change (code ${code})`);
+    this.name = "PowerRefusedError";
+    this.code = "POWER_REFUSED";
+  }
+}
+
 export async function setPowerOverlay(guid) {
   if (!GUID.test(guid)) throw new Error("Not a power mode id");
   const out = await powershell(`${OVERLAY_PRELUDE}[CsPower]::PowerSetActiveOverlayScheme([Guid]'${guid}')`);
-  if (out.trim() !== "0") throw new Error(`Windows refused the power mode change (code ${out.trim()})`);
+  const code = out.trim();
+  if (code === "0") return;
+  // Only a numeric Windows result code proves the call ran and was refused; anything else (empty, garbled) is unverified.
+  if (/^\d+$/.test(code)) throw new PowerRefusedError(code);
+  throw new Error(`The power mode change gave an unreadable answer (${code.slice(0, 80) || "no output"})`);
 }
 
 const GPU_KEY = "HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences";
@@ -150,18 +167,29 @@ export async function isRunning(imageName) {
   }
 }
 
-/** Finds the Steam install of Overwatch: executable path and Steam app id. */
-export async function detectOverwatch() {
+/** Steam's install folder and every `steamapps` directory of its libraries. null when Steam is not installed. */
+export async function steamLibraries() {
   try {
     const out = await run("reg", ["query", "HKCU\\Software\\Valve\\Steam", "/v", "SteamPath"]);
-    const steam = /SteamPath\s+REG_SZ\s+(.+)/.exec(out)?.[1]?.trim().replace(/\//g, "\\");
-    if (!steam) return null;
-    const libs = new Set([steam]);
-    const vdf = path.join(steam, "steamapps", "libraryfolders.vdf");
+    const root = /SteamPath\s+REG_SZ\s+(.+)/.exec(out)?.[1]?.trim().replace(/\//g, "\\");
+    if (!root) return null;
+    const libs = new Set([root]);
+    const vdf = path.join(root, "steamapps", "libraryfolders.vdf");
     if (fs.existsSync(vdf)) parseVdfLibraries(fs.readFileSync(vdf, "utf8")).forEach((l) => libs.add(l));
-    for (const lib of libs) {
-      const apps = path.join(lib, "steamapps");
-      if (!fs.existsSync(apps)) continue;
+    // Steam can list one library under two spellings; the caller de-duplicates games by app id.
+    const dirs = [...libs].map((l) => path.join(l, "steamapps")).filter((d) => fs.existsSync(d));
+    return { root, dirs };
+  } catch {
+    return null; // Steam not installed
+  }
+}
+
+/** Finds the Steam install of Overwatch: executable path and Steam app id. */
+export async function detectOverwatch() {
+  const steam = await steamLibraries();
+  if (!steam) return null;
+  try {
+    for (const apps of steam.dirs) {
       for (const f of fs.readdirSync(apps)) {
         if (!/^appmanifest_\d+\.acf$/.test(f)) continue;
         const m = parseSteamManifest(fs.readFileSync(path.join(apps, f), "utf8"));
@@ -171,7 +199,7 @@ export async function detectOverwatch() {
       }
     }
   } catch {
-    // Steam not installed.
+    // unreadable library folder
   }
   return null;
 }

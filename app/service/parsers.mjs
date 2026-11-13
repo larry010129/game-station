@@ -59,50 +59,6 @@ export function parseLhm(root) {
   return Math.round(best ? best.value : Math.max(...found.map((f) => f.value)));
 }
 
-/** Keeps the frame times of the last second so frame rate is smooth and honest. */
-export class FrameWindow {
-  constructor(windowMs = 1000) {
-    this.windowMs = windowMs;
-    this.frames = [];
-    this.lastAt = 0;
-  }
-  push(ms, at = Date.now()) {
-    this.frames.push({ ms, at });
-    this.lastAt = at;
-    const cutoff = at - this.windowMs;
-    while (this.frames.length && this.frames[0].at < cutoff) this.frames.shift();
-  }
-  stats(now = Date.now(), maxAgeMs = 2000) {
-    if (!this.frames.length || now - this.lastAt > maxAgeMs) return null;
-    const total = this.frames.reduce((s, f) => s + f.ms, 0);
-    const avg = total / this.frames.length;
-    return { fps: Math.round(1000 / avg), frameTimeMs: Math.round(avg * 10) / 10 };
-  }
-}
-
-/**
- * PresentMon writes CSV to stdout. Version 1 names the column MsBetweenPresents,
- * version 2 calls it FrameTime, so the column is found from the header.
- */
-export class PresentMonParser {
-  constructor() {
-    this.index = -1;
-  }
-  line(text) {
-    const l = text.trim();
-    if (!l) return null;
-    if (this.index < 0) {
-      if (/application/i.test(l) && /(frametime|msbetweenpresents)\b/i.test(l)) {
-        const cols = l.split(",").map((c) => c.trim().toLowerCase());
-        this.index = cols.findIndex((c) => c === "frametime" || c === "msbetweenpresents");
-      }
-      return null;
-    }
-    const ms = Number(l.split(",")[this.index]);
-    return Number.isFinite(ms) && ms > 0 && ms < 5000 ? ms : null;
-  }
-}
-
 /** Blizzard's news listing: cards inside `<a slot="gallery-items" href="/news/ID/slug">`. */
 export function parseNews(html, origin = "https://overwatch.blizzard.com") {
   const out = [];
@@ -224,9 +180,13 @@ export function parseGateway(text) {
   return best ? best.ip : null;
 }
 
-/** `ping -n 1`: "time=4ms" or "time<1ms". */
+/**
+ * `ping -n 1`: the reply time. Windows localises the word ("time", "時間", ...) but always
+ * prints it as `=4ms` or `<1ms`, so the number is found by its sign and unit only. `TTL=64` and
+ * `bytes=32` have no "ms" after them, so they never match.
+ */
 export function parsePingMs(text) {
-  const m = /time\s*([=<])\s*(\d+)\s*ms/i.exec(text);
+  const m = /([=<])\s*(\d+)\s*ms\b/i.exec(text);
   return m ? (m[1] === "<" ? 1 : Number(m[2])) : null;
 }
 
@@ -241,4 +201,15 @@ export function parseSteamManifest(text) {
 
 export function parseVdfLibraries(text) {
   return [...text.matchAll(/"path"\s+"([^"]+)"/g)].map((m) => m[1].replace(/\\\\/g, "\\"));
+}
+
+/** Any installed Steam game from an appmanifest file. Tools and runtimes are skipped. */
+export function parseSteamApp(text) {
+  const name = /"name"\s+"([^"]*)"/.exec(text);
+  const id = /"appid"\s+"(\d+)"/.exec(text);
+  if (!name || !id) return null;
+  if (/^(steamworks common|steam linux runtime|proton|steamvr)/i.test(name[1])) return null;
+  const last = Number(/"LastPlayed"\s+"(\d+)"/.exec(text)?.[1] ?? 0);
+  const size = Number(/"SizeOnDisk"\s+"(\d+)"/.exec(text)?.[1] ?? 0);
+  return { appId: id[1], name: name[1], lastPlayed: last ? last * 1000 : 0, sizeBytes: size };
 }

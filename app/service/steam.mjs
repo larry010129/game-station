@@ -1,6 +1,7 @@
 // Overwatch 2 on Steam: recent Steam news, from Steam's public news endpoint (no key).
 // (Steam's review-score endpoint does not answer for this app, so reviews are not shown.)
-const APP = 2357570;
+import { OVERWATCH_APP_ID as APP } from "./constants.mjs";
+
 const TTL = 10 * 60_000;
 
 export function parseNews(json) {

@@ -34,6 +34,8 @@ fn start_service(app: &tauri::AppHandle) -> Result<Child, String> {
         .parent()
         .ok_or("no exe dir")?
         .to_path_buf();
+    // Tauri strips the target triple from externalBin when bundling, so the installed name is node.exe;
+    // the triple name only exists in a plain cargo build next to the binary.
     let node = ["node.exe", "node-x86_64-pc-windows-msvc.exe"]
         .iter()
         .map(|n| exe_dir.join(n))

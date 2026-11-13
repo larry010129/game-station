@@ -1,22 +1,39 @@
-import { spawn } from "node:child_process";
+import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import * as realSystem from "./system.mjs";
-import { JOURNAL_FILE, readJson, writeJson } from "./paths.mjs";
+import { JOURNAL_FILE, readJsonStrict, writeJson } from "./paths.mjs";
+import { STEP_IDS } from "./settings.mjs";
+import { launchSteamGame, spawnDetached } from "./spawn.mjs";
 
 const { BEST_PERFORMANCE, OVERLAYS } = realSystem;
 const BETTER_PERFORMANCE = "3af9b8d9-7c97-431d-ad78-34a8bfea439f";
 
-function defaultLaunch(ow) {
-  if (ow.appId) {
-    spawn("cmd.exe", ["/c", "start", "", `steam://rungameid/${ow.appId}`], {
-      windowsHide: true,
-      detached: true,
-      stdio: "ignore",
-    }).unref();
-  } else {
-    spawn(ow.exe, [], { windowsHide: false, detached: true, stdio: "ignore" }).unref();
-  }
+function defaultLaunch(ow, log) {
+  if (ow.appId) launchSteamGame(ow.appId, log);
+  else spawnDetached(ow.exe, [], { windowsHide: false }, log, "overwatch");
 }
+
+/**
+ * Validates a step sent by a client and keeps only what we use: id, label, before, after (strings, length-capped)
+ * and an optional entryId. Throws an Error with status 400 for a missing, non-string or unknown id.
+ */
+export function cleanStep(body) {
+  const id = body?.id;
+  if (typeof id !== "string" || !STEP_IDS.includes(id)) {
+    throw Object.assign(new Error(typeof id === "string" ? "Unknown game-mode step" : "Missing step"), { status: 400 });
+  }
+  const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : undefined);
+  const out = { id, label: str(body.label, 200) ?? id };
+  const before = str(body.before, 120);
+  const after = str(body.after, 120);
+  if (before !== undefined) out.before = before;
+  if (after !== undefined) out.after = after;
+  if (typeof body.entryId === "string") out.entryId = body.entryId.slice(0, 80);
+  return out;
+}
+
+/** Runs fn; a throw or rejection becomes `fallback`, so one failing read cannot sink a whole response. */
+const attempt = (fn, fallback) => Promise.resolve().then(fn).catch(() => fallback);
 
 /**
  * Game mode with a write-ahead undo journal.
@@ -30,7 +47,9 @@ function defaultLaunch(ow) {
  * Optional `deps` (all default to the real thing):
  *   system      overrides for the functions imported from system.mjs
  *   journalFile path of the journal file
- *   readJson / writeJson   journal storage
+ *   readJson / writeJson   journal storage. readJson must throw for anything but a missing file
+ *               (default: readJsonStrict); a throw means "journal unreadable", see below.
+ *   keepBad     (file) => void, keeps an unreadable journal as <file>.bad
  *   launch      (overwatch) => void, starts the game
  *   newId       () => string, entry id generator
  *   now         () => number
@@ -38,13 +57,33 @@ function defaultLaunch(ow) {
 export function createGameMode(config, sensors, log, deps = {}) {
   const sys = { ...realSystem, ...(deps.system ?? {}) };
   const journalFile = deps.journalFile ?? JOURNAL_FILE;
-  const read = deps.readJson ?? readJson;
+  const read = deps.readJson ?? readJsonStrict;
+  const keepBad =
+    deps.keepBad ??
+    ((file) => {
+      fs.copyFileSync(file, `${file}.bad`);
+    });
   const write = deps.writeJson ?? writeJson;
-  const launch = deps.launch ?? defaultLaunch;
+  const launch = deps.launch ?? ((ow) => defaultLaunch(ow, log));
   const newId = deps.newId ?? randomUUID;
   const now = deps.now ?? Date.now;
 
-  const loaded = read(journalFile, { entries: [] });
+  // A journal that exists but cannot be read (corrupt, locked) must never be treated as empty: the next save
+  // would overwrite the only record of what to undo. Keep a copy, say so loudly, and refuse to start new steps.
+  let journalError = null;
+  let loaded = { entries: [] };
+  try {
+    loaded = read(journalFile, { entries: [] });
+  } catch (e) {
+    journalError = `The game-mode undo journal could not be read (${e?.code ?? e?.message ?? "unknown error"}). Game mode is disabled until it is fixed or deleted.`;
+    log(`!! ${journalError} File: ${journalFile}`);
+    try {
+      keepBad(journalFile);
+      log(`!! a copy was kept as ${journalFile}.bad`);
+    } catch (copyErr) {
+      log(`!! could not keep a copy of the unreadable journal: ${copyErr?.message ?? copyErr}`);
+    }
+  }
   let journal = { entries: Array.isArray(loaded?.entries) ? loaded.entries : [] };
   // Entries from older versions had no id or status: treat them as applied.
   for (const e of journal.entries) {
@@ -72,7 +111,8 @@ export function createGameMode(config, sensors, log, deps = {}) {
   }
 
   function journalFailed() {
-    return journal.entries.filter((e) => (e.retries ?? 0) > 0).length;
+    const failedUndos = journal.entries.filter((e) => (e.retries ?? 0) > 0).length;
+    return journalError ? failedUndos + 1 : failedUndos;
   }
 
   // ---- undo -------------------------------------------------------------
@@ -124,6 +164,7 @@ export function createGameMode(config, sensors, log, deps = {}) {
 
   async function recoverIfNeeded() {
     return locked(async () => {
+      if (journalError) log(`!! ${journalError}`);
       if (!journal.entries.length) return { restored: 0, failed: 0 };
       log(`restoring ${journal.entries.length} leftover game-mode steps`);
       let restored = 0;
@@ -149,8 +190,8 @@ export function createGameMode(config, sensors, log, deps = {}) {
     const [overlay, gpu, closing, running] = await Promise.all([
       sys.getPowerOverlay().catch(() => null),
       ow ? sys.getGpuPreference(ow.exe).catch(() => null) : null,
-      sys.findProcesses(config.closeApps),
-      ow ? sys.isRunning("Overwatch.exe") : false,
+      attempt(() => sys.findProcesses(config.closeApps), []),
+      ow ? attempt(() => sys.isRunning("Overwatch.exe"), false) : false,
     ]);
     const overlayName = OVERLAYS[overlay] ?? (overlay ? overlay.slice(0, 8) : "Unknown");
 
@@ -196,23 +237,13 @@ export function createGameMode(config, sensors, log, deps = {}) {
       name: "Streaming",
       steps: [
         ranked.steps[0],
-        {
-          id: "close",
-          label: "Close Spotify and OneDrive",
-          before: closing.length ? `${closing.length} running` : "None running",
-          after: "Closed",
-        },
-        {
-          id: "obs",
-          label: "Switch OBS to the Gaming scene",
-          before: "Not linked",
-          after: "Not available yet",
-        },
+        ranked.steps[1],
         ranked.steps[3],
       ],
     };
 
-    return [ranked, streaming];
+    const off = new Set(config.disabledSteps ?? []);
+    return [ranked, streaming].map((p) => ({ ...p, steps: p.steps.filter((s) => !off.has(s.id)) }));
   }
 
   // ---- apply ------------------------------------------------------------
@@ -245,30 +276,57 @@ export function createGameMode(config, sensors, log, deps = {}) {
     switch (step.id) {
       case "power": {
         const previous = u.previous;
+        // Already on Best: never "fall back" to Better, which would be a downgrade.
+        if (previous === BEST_PERFORMANCE) {
+          log(`power mode unchanged (${OVERLAYS[previous] ?? previous}); already on Best performance`);
+          u.unchanged = true;
+          break;
+        }
         const targets = [BEST_PERFORMANCE, BETTER_PERFORMANCE].filter((g) => g !== previous);
         let applied = null;
         let lastErr = null;
+        let unverified = false; // the PC may have changed and we cannot prove otherwise
         for (const guid of targets) {
           try {
             await sys.setPowerOverlay(guid);
+          } catch (e) {
+            lastErr = e;
+            // Only Windows itself saying "refused" (a typed error) proves nothing changed. A timeout or a kill
+            // leaves the set call possibly applied: stop here, never stack another target on top of it, and keep
+            // the undo so restore puts the previous mode back.
+            if (e?.code === "POWER_REFUSED") continue;
+            unverified = true;
+            break;
+          }
+          try {
             const current = await sys.getPowerOverlay();
             if (current !== previous) {
               applied = current;
               break;
             }
+            // Read-back confirms the value is still the previous one: Windows ignored it; try the next target.
           } catch (e) {
+            // The set went through but cannot be confirmed. Never try a lower target on top of it
+            // (that could downgrade Best to Better); keep the undo so restore puts the old mode back.
             lastErr = e;
+            unverified = true;
+            break;
           }
         }
         if (!applied) {
           const label = OVERLAYS[previous] ?? previous;
-          log(
-            lastErr
-              ? `power mode unchanged (${label}): ${lastErr.message}`
-              : `power mode unchanged (${label}); Windows ignored the request`,
-          );
-          // Continue the profile: this laptop's slider often will not move from the CLI.
-          u.unchanged = true;
+          if (unverified) {
+            log(`power mode may have changed but could not be verified (${lastErr?.message}); it will be restored to ${label} on undo`);
+            // u.unchanged stays unset so restore still sets the previous mode.
+          } else {
+            log(
+              lastErr
+                ? `power mode unchanged (${label}): ${lastErr.message}`
+                : `power mode unchanged (${label}); Windows ignored the request`,
+            );
+            // Continue the profile: this laptop's slider often will not move from the CLI.
+            u.unchanged = true;
+          }
         }
         break;
       }
@@ -300,6 +358,7 @@ export function createGameMode(config, sensors, log, deps = {}) {
 
   async function applyLocked(step) {
     if (!step || typeof step.id !== "string") throw new Error("Missing step");
+    if (journalError) throw Object.assign(new Error(journalError), { status: 409 });
 
     // Applying twice must not snapshot the already-changed value as "previous".
     const existing = journal.entries.find((e) => e.step.id === step.id);
@@ -309,7 +368,8 @@ export function createGameMode(config, sensors, log, deps = {}) {
     }
 
     const undo = await snapshot(step);
-    const entry = { id: newId(), step, undo, status: "pending", at: now(), retries: 0 };
+    // Only the id and label are kept: the step object comes from a client and must not grow the journal.
+    const entry = { id: newId(), step: { id: step.id, label: typeof step.label === "string" ? step.label.slice(0, 200) : step.id }, undo, status: "pending", at: now(), retries: 0 };
     journal.entries.push(entry);
     try {
       save(); // write-ahead: on disk before anything changes
@@ -351,7 +411,9 @@ export function createGameMode(config, sensors, log, deps = {}) {
     applyStep: (step) => locked(() => applyLocked(step)),
     restoreStep: (step) => locked(() => restoreLocked(step)),
     /** Entries plus how many have failed an undo at least once (journalFailed). */
-    journal: () => ({ entries: journal.entries, journalFailed: journalFailed() }),
+    journal: () => ({ entries: journal.entries, journalFailed: journalFailed(), journalError }),
+    /** Why the journal could not be read (null when it is fine). While set, apply refuses. */
+    journalError: () => journalError,
     journalFailed,
   };
 }

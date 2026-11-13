@@ -1,9 +1,18 @@
 import path from "node:path";
 import { DATA_DIR, readJson, writeJson } from "./paths.mjs";
+import { META_MODES, buildHeroFromRankRows, buildRankView, heroCountersReady, modeChoice, parseHeroPage, parseMapHeroes, parseMaps, parsePicks, parseTierList, rankChoice, rscText } from "./counterwatch-parse.mjs";
+
+// The pure parsing and view-building helpers live in counterwatch-parse.mjs; re-exported so existing imports keep working.
+export * from "./counterwatch-parse.mjs";
 
 // Overwatch hero stats from counterwatch.gg: tier list, per-map hero picks and the best pick per role.
 // The site is a Next.js app that embeds each page's data in the HTML, so there is no private API to call:
 // we read the same public pages a browser would, once per day, at startup, and when asked.
+// Mode: Counterwatch publishes 5V5 and 6V6 separately. Tier list and best-one-tricks have HTML at
+// `/tier-list` (5V5) and `/tier-list/6v6` (and the same for best-onetricks). Maps and hero pages
+// SSR as 5V5; their 6V6 views load the public CDN slice (statCategory "6V6"), same as rank filters.
+// A rank other than All is not in the HTML. The site's rank dropdown loads a public stats slice
+// (5V5 or 6V6, all game types) from its CDN. Grandmaster+ is Grandmaster and Champion together.
 // robots.txt allows these pages. The site says its numbers refresh daily around 07:00 UTC.
 
 const FILE = path.join(DATA_DIR, "counterwatch.json");
@@ -14,208 +23,60 @@ const PAUSE_MS = 1500;
 const MIN_MANUAL_GAP_MS = 60_000;
 
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-const rnd = (n, d = 4) => (typeof n === "number" ? Math.round(n * 10 ** d) / 10 ** d : null);
 
-/** Joins the page's streamed `self.__next_f.push([1,"..."])` chunks back into one text. */
-export function rscText(html) {
-  let out = "";
-  for (const m of html.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)) {
-    try {
-      out += JSON.parse(`"${m[1]}"`);
-    } catch {
-      // a chunk we cannot decode is skipped
-    }
-  }
-  return out;
+// Where the site's rank dropdown loads the current mode slices. Rediscovered from the page if this prefix 404s.
+const ARTIFACT = {
+  base: "https://d1mq7b321rqlzy.cloudfront.net",
+  prefix: "a/b8200ceb531a2b9103f4f9b08bb96a96",
+  headerName: "x-cw-client",
+  headerValue: "cw-stats-v1",
+};
+
+function saneArtifact(ep) {
+  if (!ep?.base?.startsWith("https://") || !/^a\/[a-f0-9]+$/.test(ep.prefix ?? "")) return null;
+  if (!/^[\w-]+$/.test(ep.headerName ?? "") || !ep.headerValue) return null;
+  return { base: ep.base.replace(/\/$/, ""), prefix: ep.prefix, headerName: ep.headerName, headerValue: ep.headerValue };
 }
 
-/** Pulls the JSON value that follows `"key":` out of the text, matching brackets and skipping strings. */
-export function extractJson(text, key, from = 0) {
-  const at = text.indexOf(`"${key}":`, from);
-  if (at < 0) return undefined;
-  let i = at + key.length + 3;
-  const open = text[i];
-  if (open !== "[" && open !== "{") return undefined;
-  const close = open === "[" ? "]" : "}";
-  let depth = 0;
-  let inStr = false;
-  for (let j = i; j < text.length; j++) {
-    const c = text[j];
-    if (inStr) {
-      if (c === "\\") j++;
-      else if (c === '"') inStr = false;
-    } else if (c === '"') inStr = true;
-    else if (c === open) depth++;
-    else if (c === close && --depth === 0) {
+async function discoverArtifact(fetchFn = (...a) => fetch(...a)) {
+  const res = await fetchFn(`${BASE}/tier-list`, {
+    headers: { "User-Agent": "CommandStation/0.2 (personal Overwatch stats viewer; one refresh a day)", Accept: "text/html" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new Error(`tier list answered ${res.status}`);
+  const html = await res.text();
+  const srcs = [...new Set([...html.matchAll(/src="(\/_next\/static\/chunks\/[^"]+\.js)"/g)].map((m) => m[1]))];
+  const chunks = await Promise.all(
+    srcs.map(async (src) => {
       try {
-        return JSON.parse(text.slice(i, j + 1));
+        const js = await fetchFn(`https://www.counterwatch.gg${src}`, {
+          headers: { "User-Agent": "CommandStation/0.2 (personal Overwatch stats viewer; one refresh a day)", Accept: "*/*" },
+          signal: AbortSignal.timeout(20_000),
+        });
+        return js.ok ? js.text() : "";
       } catch {
-        return undefined;
+        return "";
       }
-    }
+    }),
+  );
+  for (const js of chunks) {
+    const prefix = js.match(/STATS_ARTIFACT_PREFIX",0,"([^"]+)"/);
+    if (!prefix) continue;
+    const base = js.match(/STATS_ARTIFACT_BASE_URL",0,"(https:[^"]+)"/);
+    const header = js.match(/STATS_ARTIFACT_CLIENT_HEADER",0,\{name:"([^"]+)",value:"([^"]+)"\}/);
+    const ep = saneArtifact({
+      base: base?.[1] ?? ARTIFACT.base,
+      prefix: prefix[1],
+      headerName: header?.[1] ?? ARTIFACT.headerName,
+      headerValue: header?.[2] ?? ARTIFACT.headerValue,
+    });
+    if (ep) return ep;
   }
-  return undefined;
+  throw new Error("rank stats source not found");
 }
 
-const hero = (h) => ({
-  id: h.heroId ?? h.hero_id,
-  name: h.displayName,
-  role: h.roleName ?? h.role_name,
-  winRate: rnd(h.shrunkWinRate ?? h.shrunk_win_rate),
-  rawWinRate: rnd(h.winRate ?? h.win_rate),
-  pickRate: rnd(h.pickrate ?? h.map_share),
-  matches: Math.round(h.totalMatches ?? h.total_matches ?? 0),
-  img: h.imageUrl ?? h.image ?? null,
-});
-
-export function parseTierList(text) {
-  const tiers = extractJson(text, "canonicalTiers");
-  if (!Array.isArray(tiers) || !tiers.length) throw new Error("tier list not found on the page");
-  const windows = extractJson(text, "windows") ?? [];
-  const current = windows.find((w) => w.kind === "patch") ?? windows[0] ?? null;
-  const season = windows.find((w) => w.kind === "season") ?? null;
-  return {
-    tiers: tiers.map((t) => ({
-      tier: t.tier,
-      heroes: (t.heroes ?? []).map((h) => ({ ...hero(h), slug: (h.heroHref ?? "").split("/").pop() || null, kd: rnd(h.deaths ? h.kills / h.deaths : null, 2) })),
-    })),
-    patch: current && { name: current.name, since: current.startsOn },
-    season: season && { name: season.name, number: season.seasonNumber, since: season.startsOn },
-  };
-}
-
-export function parseMaps(text) {
-  const rows = extractJson(text, "rows");
-  if (!Array.isArray(rows) || !rows.length) throw new Error("map stats not found on the page");
-  return rows.map((r) => ({
-    name: r.cleanedMapName ?? r.mapName,
-    slug: r.mapSlug,
-    mode: r.gameModeName,
-    share: rnd((parseFloat(r.sharePct) || 0) / 100),
-    matches: Math.round(r.totalMatches ?? 0),
-    mostPlayed: (r.topHeroes?.mostPlayed ?? []).map(hero),
-    best: (r.topHeroes?.bestPerforming ?? []).map(hero),
-  }));
-}
-
-export function parsePicks(text) {
-  const picks = extractJson(text, "canonicalPicks");
-  if (!Array.isArray(picks) || !picks.length) throw new Error("best picks not found on the page");
-  return picks.map((p) => ({
-    role: p.role,
-    top: p.top?.hero ? { ...hero(p.top.hero), why: p.top.why ?? [] } : null,
-    others: (p.mentions ?? []).map((m) => hero(m.hero ?? m)).slice(0, 3),
-  }));
-}
-
-const titleCase = (s) =>
-  String(s ?? "")
-    .toLowerCase()
-    .replace(/(^|[\s_-])([a-z])/g, (_, a, b) => a + b.toUpperCase())
-    .replace(/_/g, " ");
-
-const combat = (o) =>
-  o && {
-    kills: rnd(o.kills, 1),
-    deaths: rnd(o.deaths, 1),
-    assists: rnd(o.assists, 1),
-    damage: rnd(o.damage, 0),
-    healing: rnd(o.healing, 0),
-    mitigation: rnd(o.mitigation, 0),
-  };
-
-/** Confidence word Counterwatch shows next to the win rate (from match volume). */
-export function confidenceFromMatches(matches) {
-  const n = Math.round(matches ?? 0);
-  if (n >= 50_000) return { label: "Very high", dots: 4 };
-  if (n >= 20_000) return { label: "High", dots: 3 };
-  if (n >= 5_000) return { label: "Good", dots: 2 };
-  if (n >= 1_000) return { label: "Fair", dots: 1 };
-  return { label: "Low", dots: 0 };
-}
-
-/** Hero detail page: combat vs role avg, poke/dive/rush fit, maps, honourable mention. */
-export function parseHeroPage(text, slug) {
-  const h = extractJson(text, "hero");
-  if (!h?.heroId && !h?.heroRawName) throw new Error(`hero stats not found for ${slug}`);
-  const roleAvg = extractJson(text, "roleAvg") ?? {};
-  const roleMax = extractJson(text, "roleMax") ?? {};
-  const archetype = extractJson(text, "archetypeScore") ?? {};
-  const otp = extractJson(text, "otpStatus");
-  const bestMaps = extractJson(text, "bestMaps");
-  const worstMaps = extractJson(text, "worstMaps");
-  const modeStats = extractJson(text, "modeStats");
-  const heroMeta = extractJson(text, "heroMeta");
-  const meta = heroMeta?.[h.heroId] ?? null;
-  const img =
-    (text.match(/"heroImageUrl":"([^"]+)"/) || [])[1] ??
-    meta?.image ??
-    null;
-  const roleColor = (text.match(/"roleColor":"([^"]+)"/) || [])[1] ?? null;
-  const name = meta?.name || titleCase(h.heroRawName?.replace(/_/g, " ") || "") || "Hero";
-  const styles = ["POKE", "RUSH", "DIVE"];
-  const scores = Object.fromEntries(styles.map((k) => [k, rnd(archetype[k] ?? 0, 2) ?? 0]));
-  const lean = styles.reduce((a, b) => (scores[b] > scores[a] ? b : a), "POKE");
-  const leanBlurbs = [...text.matchAll(/"children":"([^"]{0,80}leans [^"]{3,200})"/gi)].map((m) => m[1]);
-  const leanBlurb =
-    leanBlurbs.sort((a, b) => b.length - a.length)[0] ?? `${name} leans ${lean.toLowerCase()}.`;
-  const matches = Math.round(h.totalMatches ?? 0);
-  return {
-    id: h.heroId,
-    slug,
-    name,
-    role: h.roleName ?? meta?.role ?? null,
-    roleColor,
-    img,
-    winRate: rnd(h.shrunkWinRate ?? h.winRate),
-    rawWinRate: rnd(h.winRate),
-    matches,
-    confidence: confidenceFromMatches(matches),
-    stats: combat(h),
-    roleAvg: {
-      ...combat(roleAvg),
-      heroCount: Math.round(roleAvg.heroCount ?? 0) || null,
-    },
-    roleMax: combat(roleMax),
-    archetype: scores,
-    lean,
-    leanBlurb,
-    mention:
-      otp?.kind === "mention"
-        ? {
-            label: "Honourable mention",
-            why: otp.mention?.contextLabel ?? null,
-            detail: otp.mention?.contextDetail ?? null,
-          }
-        : null,
-    bestMaps: Array.isArray(bestMaps)
-      ? bestMaps.slice(0, 5).map((m) => ({
-          name: m.mapName,
-          slug: m.mapSlug,
-          winRate: rnd(m.shrunkWinRate ?? m.winRate),
-          matches: Math.round(m.totalMatches ?? 0),
-        }))
-      : [],
-    worstMaps: Array.isArray(worstMaps)
-      ? worstMaps.slice(0, 3).map((m) => ({
-          name: m.mapName,
-          slug: m.mapSlug,
-          winRate: rnd(m.shrunkWinRate ?? m.winRate),
-          matches: Math.round(m.totalMatches ?? 0),
-        }))
-      : [],
-    modes: Array.isArray(modeStats)
-      ? modeStats.map((m) => ({
-          mode: m.mode,
-          winRate: rnd(m.shrunkWinRate ?? m.winRate),
-          matches: Math.round(m.totalMatches ?? 0),
-        }))
-      : [],
-  };
-}
-
-async function page(url, log) {
-  const res = await fetch(url, {
+async function page(url, log, fetchFn = (...a) => fetch(...a)) {
+  const res = await fetchFn(url, {
     headers: { "User-Agent": "CommandStation/0.2 (personal Overwatch stats viewer; one refresh a day)", Accept: "text/html" },
     signal: AbortSignal.timeout(20_000),
   });
@@ -229,38 +90,95 @@ async function page(url, log) {
 /**
  * Keeps the Counterwatch numbers on disk. `snapshot()` is what the dashboard reads;
  * a failed refresh keeps the last good data and says what went wrong.
+ *
+ * Optional `deps` (all default to the real thing, as in createGameMode):
+ *   file        path of the cache file
+ *   fetch       fetch-compatible function for every network call
+ *   pause       (ms) => Promise, the polite gap between page loads
+ *   readJson / writeJson   cache storage
  */
-export function createCounterwatch(config, log) {
-  let data = readJson(FILE, null);
+export function createCounterwatch(config, log, deps = {}) {
+  const file = deps.file ?? FILE;
+  const doFetch = deps.fetch ?? ((...a) => fetch(...a));
+  const wait = deps.pause ?? pause;
+  const read = deps.readJson ?? readJson;
+  const write = deps.writeJson ?? writeJson;
+  const getPage = (url) => page(url, log, doFetch);
+  let data = read(file, null);
   let error = null;
   let busy = null;
   let lastTry = 0;
   let timer = null;
+  /** In-memory All-ranks CDN rows per mode (too large for the daily JSON file). */
+  const modeSliceMem = new Map();
   const heroBusy = new Map();
+  const mapBusy = new Map();
+  const rankBusy = new Map();
+
+  function fillPicks(picks, known) {
+    const fill = (h) => (h && !h.name ? { ...h, name: known.get(h.id)?.name ?? null, img: known.get(h.id)?.img ?? null } : h);
+    return picks.map((p) => ({ ...p, top: fill(p.top), others: p.others.map(fill).filter((h) => h.name) }));
+  }
 
   async function run() {
-    const next = { fetchedAt: Date.now(), source: "counterwatch.gg", url: BASE, heroes: data?.heroes ?? {} };
-    const tier = parseTierList(await page(`${BASE}/tier-list`, log));
-    await pause(PAUSE_MS);
+    const next = {
+      fetchedAt: Date.now(),
+      source: "counterwatch.gg",
+      url: BASE,
+    };
+    const tier = parseTierList(await getPage(`${BASE}/tier-list`));
+    await wait(PAUSE_MS);
     next.tiers = tier.tiers;
     next.patch = tier.patch;
     next.season = tier.season;
-    next.maps = parseMaps(await page(`${BASE}/maps`, log));
-    await pause(PAUSE_MS);
-    next.picks = parsePicks(await page(`${BASE}/best-onetricks`, log));
+    next.maps = parseMaps(await getPage(`${BASE}/maps`));
+    await wait(PAUSE_MS);
+    next.picks = parsePicks(await getPage(`${BASE}/best-onetricks`));
     // The picks page names heroes only by id; the tier list knows their display names and portraits.
-    const known = new Map(next.tiers.flatMap((t) => t.heroes).map((h) => [h.id, h]));
-    const fill = (h) => (h && !h.name ? { ...h, name: known.get(h.id)?.name ?? null, img: known.get(h.id)?.img ?? null } : h);
-    next.picks = next.picks.map((p) => ({ ...p, top: fill(p.top), others: p.others.map(fill).filter((h) => h.name) }));
-    // Stamp each cached hero detail with the tier letter from the fresh list.
-    const tierOf = new Map(next.tiers.flatMap((t) => t.heroes.map((h) => [h.id, t.tier])));
+    const known5 = new Map(next.tiers.flatMap((t) => t.heroes).map((h) => [h.id, h]));
+    next.picks = fillPicks(next.picks, known5);
+    await wait(PAUSE_MS);
+    const tier6 = parseTierList(await getPage(`${BASE}/tier-list/6v6`));
+    await wait(PAUSE_MS);
+    let picks6 = parsePicks(await getPage(`${BASE}/best-onetricks/6v6`));
+    const known6 = new Map(tier6.tiers.flatMap((t) => t.heroes).map((h) => [h.id, h]));
+    picks6 = fillPicks(picks6, known6);
+    // Maps HTML is 5V5-only; 6V6 map lists come from the public All-ranks CDN slice.
+    let maps6 = [];
+    try {
+      const rows6 = await loadDivisionRows("6V6", ["All"]);
+      modeSliceMem.set("6v6", { fetchedAt: Date.now(), rows: rows6 });
+      maps6 = buildRankView(rows6, known6).maps;
+    } catch (e) {
+      log(`counterwatch: 6v6 maps slice failed: ${e.message}`);
+      maps6 = data?.modes?.["6v6"]?.maps ?? [];
+    }
+    next.modes = {
+      "5v5": { tiers: next.tiers, maps: next.maps, picks: next.picks },
+      "6v6": { tiers: tier6.tiers, maps: maps6, picks: picks6 },
+    };
+    // The scrape takes a minute. Hero, map and rank pages (and the rank source) can be cached by
+    // other requests meanwhile, so the per-page caches are taken from `data` as it is right now,
+    // not as it was when this refresh began, or those writes would be lost.
+    const tierOf5 = new Map(next.tiers.flatMap((t) => t.heroes.map((h) => [h.id, t.tier])));
+    const tierOf6 = new Map(tier6.tiers.flatMap((t) => t.heroes.map((h) => [h.id, t.tier])));
     next.heroes = Object.fromEntries(
-      Object.entries(next.heroes).map(([slug, h]) => [slug, { ...h, tier: tierOf.get(h.id) ?? h.tier ?? null }]),
+      Object.entries(data?.heroes ?? {}).map(([k, h]) => {
+        const mode = String(k).startsWith("6v6:") ? "6v6" : "5v5";
+        const tierOf = mode === "6v6" ? tierOf6 : tierOf5;
+        // Stamp each cached hero detail with the tier letter from the fresh list for its mode.
+        return [k, { ...h, tier: tierOf.get(h.id) ?? h.tier ?? null }];
+      }),
     );
+    next.mapPages = data?.mapPages ?? {};
+    next.ranks = data?.ranks ?? {};
+    next.artifact = data?.artifact ?? null;
     data = next;
     error = null;
-    writeJson(FILE, data);
-    log(`counterwatch: updated (${next.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes, ${next.maps.length} maps)`);
+    write(file, data);
+    log(
+      `counterwatch: updated 5v5 (${next.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes, ${next.maps.length} maps) · 6v6 (${tier6.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes, ${maps6.length} maps)`,
+    );
   }
 
   /** One refresh at a time. `force` skips the 1 minute gap between manual tries. */
@@ -280,27 +198,128 @@ export function createCounterwatch(config, log) {
     return busy;
   }
 
-  function snapshot() {
+  /** Resolves when the startup refresh (or a manual one) has finished grabbing pages. */
+  function settle() {
+    return busy ?? Promise.resolve();
+  }
+
+  function modePack(mode) {
+    const choice = modeChoice(mode) ?? META_MODES[0];
+    const packed = data?.modes?.[choice.value];
+    if (packed) return { mode: choice.value, ...packed };
+    // Older on-disk cache before modes existed: treat top-level fields as 5v5.
+    if (choice.value === "5v5") {
+      return { mode: "5v5", tiers: data?.tiers ?? [], maps: data?.maps ?? [], picks: data?.picks ?? [] };
+    }
+    return { mode: choice.value, tiers: [], maps: [], picks: [] };
+  }
+
+  function snapshot(mode) {
+    const pack = modePack(mode);
+    const { mapPages: _pages, ranks: _ranks, artifact: _artifact, modes: _modes, heroes: allHeroes, ...rest } =
+      data ?? { fetchedAt: null, tiers: [], maps: [], picks: [], heroes: {}, source: "counterwatch.gg", url: BASE };
     return {
-      ...(data ?? { fetchedAt: null, tiers: [], maps: [], picks: [], heroes: {}, source: "counterwatch.gg", url: BASE }),
-      heroes: data?.heroes ?? {},
+      fetchedAt: rest.fetchedAt ?? null,
+      source: rest.source ?? "counterwatch.gg",
+      url: rest.url ?? BASE,
+      patch: rest.patch ?? null,
+      season: rest.season ?? null,
+      mode: pack.mode,
+      tiers: pack.tiers ?? [],
+      maps: pack.maps ?? [],
+      picks: pack.picks ?? [],
+      heroes: allHeroes ?? {},
       error,
       updating: busy != null,
     };
   }
 
-  function tierFor(id) {
-    for (const t of data?.tiers ?? []) {
+  function tierFor(id, mode = "5v5") {
+    const pack = modePack(mode);
+    for (const t of pack.tiers ?? []) {
       if (t.heroes.some((h) => h.id === id)) return t.tier;
     }
     return null;
   }
 
+  function knownFor(mode) {
+    return new Map((modePack(mode).tiers ?? []).flatMap((t) => t.heroes).map((h) => [h.id, h]));
+  }
+
+  function heroCacheKey(mode, slug) {
+    return mode === "5v5" ? slug : `${mode}:${slug}`;
+  }
+
+  function mapCacheKey(mode, slug) {
+    return mode === "5v5" ? slug : `${mode}:${slug}`;
+  }
+
+  function rankCacheKey(mode, rank) {
+    return mode === "5v5" ? rank : `${mode}:${rank}`;
+  }
+
+  function artifactHeaders(ep) {
+    return { [ep.headerName]: ep.headerValue, Accept: "application/json" };
+  }
+
+  async function loadManifest(ep) {
+    const res = await doFetch(`${ep.base}/${ep.prefix}/manifest.v2.json`, {
+      headers: artifactHeaders(ep),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`rank manifest answered ${res.status}`);
+    return res.json();
+  }
+
+  async function endpoint() {
+    const saved = saneArtifact(data?.artifact);
+    const first = saved ?? ARTIFACT;
+    const man = await loadManifest(first);
+    if (man) return { ep: first, manifest: man };
+    const found = await discoverArtifact(doFetch);
+    data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), artifact: found };
+    write(file, data);
+    const retry = await loadManifest(found);
+    if (!retry) throw new Error("rank manifest not found");
+    log?.(`counterwatch: rank source refreshed`);
+    return { ep: found, manifest: retry };
+  }
+
+  async function loadDivisionRows(statCategory, divisions) {
+    const { ep, manifest } = await endpoint();
+    const list = manifest?.stats?.slices;
+    if (!Array.isArray(list)) throw new Error("rank manifest was not readable");
+    const slices = divisions
+      .map((division) => list.find((s) => s.game === "Overwatch" && s.statCategory === statCategory && s.division === division))
+      .filter(Boolean);
+    if (!slices.length) return [];
+    const bodies = await Promise.all(
+      slices.map(async (slice) => {
+        const url = String(slice.path).startsWith("http") ? slice.path : `${ep.base}/${slice.path}`;
+        const res = await doFetch(url, { headers: artifactHeaders(ep), signal: AbortSignal.timeout(25_000) });
+        if (!res.ok) throw new Error(`rank slice answered ${res.status}`);
+        return res.json();
+      }),
+    );
+    return bodies.flatMap((body) => (Array.isArray(body?.current) ? body.current : []));
+  }
+
+  async function ensureModeSlice(modeValue) {
+    const choice = modeChoice(modeValue) ?? META_MODES[0];
+    const cached = modeSliceMem.get(choice.value);
+    if (cached?.rows?.length && Date.now() - (cached.fetchedAt ?? 0) < DAY) return cached.rows;
+    const rows = await loadDivisionRows(choice.category, ["All"]);
+    modeSliceMem.set(choice.value, { fetchedAt: Date.now(), rows });
+    return rows;
+  }
+
   /**
-   * Loads one hero detail page (combat, archetype, maps). Cached on disk until the
-   * daily refresh window, or until `force`. Safe to call from the dashboard card.
+   * Loads one hero detail. 5V5 uses the HTML hero page; 6V6 uses the public CDN All slice
+   * (hero HTML SSR is 5V5-only). Cached on disk until the daily refresh window, or until `force`.
    */
-  function heroDetail(slug, { force = false } = {}) {
+  function heroDetail(slug, { force = false, mode } = {}) {
+    const modeVal = (modeChoice(mode) ?? META_MODES[0]).value;
     const key = String(slug || "")
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, "");
@@ -309,40 +328,213 @@ export function createCounterwatch(config, log) {
       err.status = 400;
       return Promise.reject(err);
     }
-    const cached = data?.heroes?.[key];
-    if (!force && cached && data?.fetchedAt && Date.now() - (cached.fetchedAt ?? 0) < DAY) {
-      return Promise.resolve({ ...cached, tier: tierFor(cached.id) ?? cached.tier, error: null });
+    const cacheKey = heroCacheKey(modeVal, key);
+    const cached = data?.heroes?.[cacheKey] ?? (modeVal === "5v5" ? data?.heroes?.[key] : null);
+    const busyKey = `${modeVal}:${key}`;
+    if (modeVal === "5v5") {
+      // Old caches truncated overall matchups to ~4 and/or lack byRole — role tabs looked empty. Refetch those.
+      if (!force && heroCountersReady(cached) && data?.fetchedAt && Date.now() - (cached.fetchedAt ?? 0) < DAY) {
+        return Promise.resolve({ ...cached, mode: modeVal, tier: tierFor(cached.id, modeVal) ?? cached.tier, error: null });
+      }
+      if (heroBusy.has(busyKey)) return heroBusy.get(busyKey);
+      const job = getPage(`${BASE}/heroes/${key}`)
+        .then((text) => {
+          const parsed = parseHeroPage(text, key);
+          parsed.tier = tierFor(parsed.id, modeVal);
+          parsed.mode = modeVal;
+          parsed.fetchedAt = Date.now();
+          parsed.url = `${BASE}/heroes/${key}`;
+          data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), heroes: { ...(data?.heroes ?? {}), [cacheKey]: parsed } };
+          write(file, data);
+          log(`counterwatch: hero ${key} (5v5) updated`);
+          return { ...parsed, error: null };
+        })
+        .catch((e) => {
+          log(`counterwatch: hero ${key} (5v5) failed: ${e.message}`);
+          if (cached) return { ...cached, mode: modeVal, tier: tierFor(cached.id, modeVal) ?? cached.tier, error: e.message };
+          const err = new Error(e.message);
+          err.status = 502;
+          throw err;
+        })
+        .finally(() => heroBusy.delete(busyKey));
+      heroBusy.set(busyKey, job);
+      return job;
     }
-    if (heroBusy.has(key)) return heroBusy.get(key);
-    const job = page(`${BASE}/heroes/${key}`, log)
-      .then((text) => {
-        const parsed = parseHeroPage(text, key);
-        parsed.tier = tierFor(parsed.id);
+    // 6v6: public slice — counters/archetype are not embedded there.
+    if (!force && cached && Date.now() - (cached.fetchedAt ?? 0) < DAY) {
+      return Promise.resolve({ ...cached, mode: modeVal, tier: tierFor(cached.id, modeVal) ?? cached.tier, error: null });
+    }
+    if (heroBusy.has(busyKey)) return heroBusy.get(busyKey);
+    const job = ensureModeSlice(modeVal)
+      .then((rows) => {
+        const parsed = buildHeroFromRankRows(rows, key, knownFor(modeVal));
+        parsed.tier = tierFor(parsed.id, modeVal);
+        parsed.mode = modeVal;
         parsed.fetchedAt = Date.now();
         parsed.url = `${BASE}/heroes/${key}`;
-        data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), heroes: { ...(data?.heroes ?? {}), [key]: parsed } };
-        writeJson(FILE, data);
-        log(`counterwatch: hero ${key} updated`);
+        data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), heroes: { ...(data?.heroes ?? {}), [cacheKey]: parsed } };
+        write(file, data);
+        log(`counterwatch: hero ${key} (6v6) updated`);
         return { ...parsed, error: null };
       })
       .catch((e) => {
-        log(`counterwatch: hero ${key} failed: ${e.message}`);
-        if (cached) return { ...cached, tier: tierFor(cached.id) ?? cached.tier, error: e.message };
+        log(`counterwatch: hero ${key} (6v6) failed: ${e.message}`);
+        if (cached) return { ...cached, mode: modeVal, tier: tierFor(cached.id, modeVal) ?? cached.tier, error: e.message };
         const err = new Error(e.message);
         err.status = 502;
         throw err;
       })
-      .finally(() => heroBusy.delete(key));
-    heroBusy.set(key, job);
+      .finally(() => heroBusy.delete(busyKey));
+    heroBusy.set(busyKey, job);
+    return job;
+  }
+
+  /** Full hero list for one map. 5V5 uses the map HTML page; 6V6 uses the CDN All slice. */
+  function mapHeroes(slug, { force = false, mode } = {}) {
+    const modeVal = (modeChoice(mode) ?? META_MODES[0]).value;
+    const key = String(slug || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "");
+    if (!key) {
+      const err = new Error("Missing map slug");
+      err.status = 400;
+      return Promise.reject(err);
+    }
+    const cacheKey = mapCacheKey(modeVal, key);
+    const cached = data?.mapPages?.[cacheKey] ?? (modeVal === "5v5" ? data?.mapPages?.[key] : null);
+    const known = knownFor(modeVal);
+    const decorate = (list) =>
+      list.map((h) => {
+        const k = known.get(h.id);
+        return k ? { ...h, name: k.name ?? h.name, img: k.img ?? null, slug: k.slug ?? null } : h;
+      });
+    const busyKey = `${modeVal}:${key}`;
+    if (modeVal === "6v6") {
+      const fromPack = (modePack("6v6").maps ?? []).find((m) => m.slug === key);
+      if (!force && fromPack?.heroes?.length) {
+        return Promise.resolve({ slug: key, mode: modeVal, heroes: decorate(fromPack.heroes), error: null });
+      }
+      if (!force && cached && Date.now() - (cached.fetchedAt ?? 0) < DAY) {
+        return Promise.resolve({ slug: key, mode: modeVal, heroes: decorate(cached.heroes), error: null });
+      }
+      if (mapBusy.has(busyKey)) return mapBusy.get(busyKey);
+      const job = ensureModeSlice("6v6")
+        .then((rows) => {
+          const view = buildRankView(rows, known);
+          const map = view.maps.find((m) => m.slug === key);
+          const heroes = decorate(map?.heroes ?? []);
+          const pageData = { fetchedAt: Date.now(), heroes };
+          data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), mapPages: { ...(data?.mapPages ?? {}), [cacheKey]: pageData } };
+          write(file, data);
+          log(`counterwatch: map ${key} (6v6) updated (${heroes.length} heroes)`);
+          return { slug: key, mode: modeVal, heroes, error: null };
+        })
+        .catch((e) => {
+          log(`counterwatch: map ${key} (6v6) failed: ${e.message}`);
+          if (cached) return { slug: key, mode: modeVal, heroes: decorate(cached.heroes), error: e.message };
+          const err = new Error(e.message);
+          err.status = 502;
+          throw err;
+        })
+        .finally(() => mapBusy.delete(busyKey));
+      mapBusy.set(busyKey, job);
+      return job;
+    }
+    if (!force && cached && Date.now() - (cached.fetchedAt ?? 0) < DAY) {
+      return Promise.resolve({ slug: key, mode: modeVal, heroes: decorate(cached.heroes), error: null });
+    }
+    if (mapBusy.has(busyKey)) return mapBusy.get(busyKey);
+    const job = getPage(`${BASE}/maps/${key}`)
+      .then((text) => {
+        const heroes = decorate(parseMapHeroes(text));
+        const pageData = { fetchedAt: Date.now(), heroes };
+        data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), mapPages: { ...(data?.mapPages ?? {}), [cacheKey]: pageData } };
+        write(file, data);
+        log(`counterwatch: map ${key} (5v5) updated (${heroes.length} heroes)`);
+        return { slug: key, mode: modeVal, heroes, error: null };
+      })
+      .catch((e) => {
+        log(`counterwatch: map ${key} (5v5) failed: ${e.message}`);
+        if (cached) return { slug: key, mode: modeVal, heroes: decorate(cached.heroes), error: e.message };
+        const err = new Error(e.message);
+        err.status = 502;
+        throw err;
+      })
+      .finally(() => mapBusy.delete(busyKey));
+    mapBusy.set(busyKey, job);
+    return job;
+  }
+
+  /**
+   * Tier list and map heroes for one rank. All stays on the daily snapshot for that mode.
+   * Any other rank is the site's CDN slice for the mode's statCategory, cached for a day.
+   * A rank with no rows comes back empty instead of the all-ranks list.
+   */
+  function rank(name, { force = false, mode } = {}) {
+    const modeChoiceResolved = modeChoice(mode) ?? META_MODES[0];
+    const modeVal = modeChoiceResolved.value;
+    const choice = rankChoice(name);
+    if (!choice) {
+      const err = new Error("Unknown rank");
+      err.status = 400;
+      return Promise.reject(err);
+    }
+    const pack = (view, fetchedAt, err = null) => ({
+      rank: choice.value,
+      label: choice.label,
+      mode: modeVal,
+      empty: view.empty,
+      fetchedAt,
+      error: err,
+      tiers: view.tiers,
+      maps: view.maps,
+    });
+    if (choice.value === "All") {
+      const m = modePack(modeVal);
+      const tiers = m.tiers ?? [];
+      return Promise.resolve(
+        pack({ empty: tiers.length === 0, tiers, maps: (m.maps ?? []).map((x) => ({ ...x, heroes: x.heroes ?? [] })) }, data?.fetchedAt ?? null),
+      );
+    }
+    const key = rankCacheKey(modeVal, choice.value);
+    const cached = data?.ranks?.[key] ?? (modeVal === "5v5" ? data?.ranks?.[choice.value] : null);
+    const busyKey = key;
+    if (!force && cached && Date.now() - (cached.fetchedAt ?? 0) < DAY) {
+      return Promise.resolve(pack(cached, cached.fetchedAt));
+    }
+    if (rankBusy.has(busyKey)) return rankBusy.get(busyKey);
+    const job = (async () => {
+      const rows = await loadDivisionRows(modeChoiceResolved.category, choice.divisions);
+      if (!rows.length) return { empty: true, tiers: [], maps: [] };
+      return buildRankView(rows, knownFor(modeVal));
+    })()
+      .then((view) => {
+        const pageData = { fetchedAt: Date.now(), empty: view.empty, tiers: view.tiers, maps: view.maps };
+        data = { ...(data ?? { tiers: [], maps: [], picks: [], source: "counterwatch.gg", url: BASE }), ranks: { ...(data?.ranks ?? {}), [key]: pageData } };
+        write(file, data);
+        log(`counterwatch: rank ${choice.value} (${modeVal}) updated (${view.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes)`);
+        return pack(pageData, pageData.fetchedAt);
+      })
+      .catch((e) => {
+        log(`counterwatch: rank ${choice.value} (${modeVal}) failed: ${e.message}`);
+        if (cached) return pack(cached, cached.fetchedAt, e.message);
+        const err = new Error(e.message);
+        err.status = 502;
+        throw err;
+      })
+      .finally(() => rankBusy.delete(busyKey));
+    rankBusy.set(busyKey, job);
     return job;
   }
 
   return {
     start() {
-      // Every launch, then hourly in case the app stays open past the next daily update.
-      refresh({ force: true });
+      // Only when the cache is missing or a day old (the site updates once a day); then hourly in case
+      // the app stays open past the next update. The reload button forces one at any time.
+      const stale = () => !data?.fetchedAt || Date.now() - data.fetchedAt > DAY;
+      if (stale()) refresh({ force: true });
       timer = setInterval(() => {
-        if (!data || Date.now() - data.fetchedAt > DAY) refresh({ force: true });
+        if (stale()) refresh({ force: true });
       }, CHECK_MS);
       timer.unref?.();
     },
@@ -350,7 +542,10 @@ export function createCounterwatch(config, log) {
       if (timer) clearInterval(timer);
     },
     refresh,
+    settle,
     snapshot,
     heroDetail,
+    mapHeroes,
+    rank,
   };
 }

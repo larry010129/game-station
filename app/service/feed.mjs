@@ -21,7 +21,8 @@ export function createFeed(config, log) {
   const cfg = config.feed;
   let cache = readJson(FEED_CACHE_FILE, { items: [], fetchedAt: 0, seen: {} });
   let timer = null;
-  let running = false;
+  /** Shared in-flight pull so refresh/start share one network job (GET never awaits this). */
+  let job = null;
 
   function items() {
     return cache.items ?? [];
@@ -44,9 +45,19 @@ export function createFeed(config, log) {
     return res.text();
   }
 
+  function inflight() {
+    return job;
+  }
+
   async function refresh() {
-    if (running) return items();
-    running = true;
+    if (job) return job;
+    job = pull().finally(() => {
+      job = null;
+    });
+    return job;
+  }
+
+  async function pull() {
     const collected = [];
     const errors = [];
     const succeeded = new Set();
@@ -75,10 +86,10 @@ export function createFeed(config, log) {
         }
       }
 
-      for (const r of cfg.reddit) {
+      for (const r of cfg.reddit ?? []) {
         await sleep(cfg.redditGapMs);
         const key = `reddit:${r.sub}`;
-        const url = `https://www.reddit.com/r/${r.sub}/.rss`;
+        const url = `https://www.reddit.com/r/${encodeURIComponent(r.sub)}/.rss`;
         try {
           const xml = await fetchText(url);
           collected.push(...parseRedditAtom(xml, r.sub, r.kind));
@@ -137,7 +148,7 @@ export function createFeed(config, log) {
 
       if (errors.length) log(`feed partial: ${errors.join("; ")}`);
     } finally {
-      running = false;
+      // The shared job is cleared by refresh(); this keeps the try legal.
     }
     return items();
   }
@@ -153,5 +164,5 @@ export function createFeed(config, log) {
     if (timer) clearInterval(timer);
   }
 
-  return { start, stop, items, refresh, fetchedAt: () => cache.fetchedAt ?? 0 };
+  return { start, stop, items, refresh, inflight, fetchedAt: () => cache.fetchedAt ?? 0 };
 }

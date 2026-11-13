@@ -5,6 +5,12 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-fullscreen-on-monitor",
+    "core:window:allow-set-decorations",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-set-position",
     "opener:default",
     {
       "identifier": "opener:allow-open-url",

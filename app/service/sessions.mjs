@@ -45,7 +45,11 @@ export function createSessions(sensors, log) {
       maxPing: s.maxPing,
     });
     history = history.slice(-KEEP_SESSIONS);
-    writeJson(SESSIONS_FILE, { sessions: history });
+    try {
+      writeJson(SESSIONS_FILE, { sessions: history });
+    } catch (e) {
+      log(`could not save session history: ${e.message}`);
+    }
   }
 
   function tick() {

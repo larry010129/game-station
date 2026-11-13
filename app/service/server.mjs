@@ -5,7 +5,7 @@ export const DEFAULT_ORIGINS = ["http://localhost:1420", "http://127.0.0.1:1420"
 /**
  * Tiny localhost-only API for the dashboard. It binds to 127.0.0.1, and also
  * refuses requests from other web origins (so a random web page cannot drive it),
- * requests with a foreign Host header (DNS rebinding), and non-JSON POSTs
+ * requests with a foreign Host header (DNS rebinding), browser requests marked Sec-Fetch-Site: cross-site, and non-JSON POSTs
  * (which would otherwise be CORS "simple requests").
  */
 export function createServer({ host, port, handlers, log, allowedOrigins = [] }) {
@@ -22,6 +22,16 @@ export function createServer({ host, port, handlers, log, allowedOrigins = [] })
     const origin = req.headers.origin;
     if (!hostOk(req.headers.host)) {
       send(res, 403, { error: "Forbidden host" });
+      return;
+    }
+    // Browsers label every request. The dashboard itself is "cross-site" to the service (localhost:1420 or
+    // tauri.localhost calling 127.0.0.1:8787), so an allowlisted Origin is authorised on its own. What this
+    // catches is a cross-site request with NO Origin (a no-cors GET from a random page); non-browser clients send
+    // no header at all and are still welcome. The Spotify sign-in redirect is a cross-site navigation by nature;
+    // it is protected by the OAuth `state` check instead.
+    const isSpotifyCallback = req.method === "GET" && req.url?.split("?")[0] === "/api/spotify/callback";
+    if (req.headers["sec-fetch-site"] === "cross-site" && origin === undefined && !isSpotifyCallback) {
+      send(res, 403, { error: "Forbidden cross-site request" });
       return;
     }
     if (origin !== undefined) {
@@ -68,9 +78,17 @@ export function createServer({ host, port, handlers, log, allowedOrigins = [] })
         return;
       }
       const result = await handler(body, url);
+      if (result && typeof result.__html === "string") {
+        // Only the Spotify sign-in landing page answers with HTML.
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store" });
+        res.end(result.__html);
+        return;
+      }
       send(res, 200, result);
     } catch (e) {
       log(`request failed: ${e.message}`);
+      // Answer first, then let the connection close: destroying the request early would drop the 413 too.
+      if (e.status === 413) res.setHeader("Connection", "close");
       send(res, e.status ?? 500, { error: e.message || "Server error" });
     }
   });
@@ -104,11 +122,18 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let tooBig = false;
     req.on("data", (c) => {
       size += c.length;
+      // Already refused: keep draining so the 413 can be delivered, but never take an endless upload.
+      if (tooBig) {
+        if (size > 32_000_000) req.destroy();
+        return;
+      }
       if (size > 1_000_000) {
+        tooBig = true;
+        chunks.length = 0;
         reject(Object.assign(new Error("Body too large"), { status: 413 }));
-        req.destroy();
         return;
       }
       chunks.push(c);
