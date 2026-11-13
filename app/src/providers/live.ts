@@ -4,9 +4,21 @@ import type { FeedItem, GameModeStep, PlayersData, Profile, Provider, Sample } f
 const PORT = /^\d{2,5}$/.test(new URLSearchParams(location.search).get("svc") ?? "") ? new URLSearchParams(location.search).get("svc") : "8787";
 const BASE = `http://127.0.0.1:${PORT}`;
 
+/** Throws the server's `{error}` text when it sent one, else "<path> → <status>". Shared by get and post. */
+async function failure(path: string, res: Response): Promise<Error> {
+  let msg = `${path} → ${res.status}`;
+  try {
+    const err = (await res.json()) as { error?: string };
+    if (err.error) msg = err.error;
+  } catch {
+    // keep status message
+  }
+  return new Error(msg);
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw await failure(path, res);
   return res.json() as Promise<T>;
 }
 
@@ -16,16 +28,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    let msg = `${path} → ${res.status}`;
-    try {
-      const err = (await res.json()) as { error?: string };
-      if (err.error) msg = err.error;
-    } catch {
-      // keep status message
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) throw await failure(path, res);
   return res.json() as Promise<T>;
 }
 
@@ -38,11 +41,14 @@ export async function liveAvailable(timeoutMs = 600): Promise<boolean> {
   }
 }
 
-/** Talks to the local Node service on this PC only. */
-export async function createLiveProvider(): Promise<Provider> {
-  const machine = await get<Provider["machine"]>("/api/machine");
-  const { profiles } = await get<{ profiles: Profile[] }>("/api/profiles");
+/** The hardware this PC reports. */
+export const loadMachine = () => get<Provider["machine"]>("/api/machine");
 
+/** The saved game mode profiles. */
+export const loadProfiles = () => get<{ profiles: Profile[] }>("/api/profiles").then((r) => r.profiles);
+
+/** The provider, once the machine and profiles are in hand. */
+export function liveProvider(machine: Provider["machine"], profiles: Profile[]): Provider {
   return {
     id: "live",
     label: "This PC",
@@ -55,6 +61,8 @@ export async function createLiveProvider(): Promise<Provider> {
     readFeed: () => get<FeedItem[]>("/api/feed"),
     refreshFeed: () => post<FeedItem[]>("/api/feed/refresh", {}),
     readPlayers: () => get<PlayersData>("/api/players"),
+    // GET when no body is given, POST when there is one. A POST route must be called with an explicit body
+    // (use `{}` for "none"): passing `undefined` would silently turn it into a GET and a 404.
     api: <T,>(path: string, body?: unknown) => (body === undefined ? get<T>(path) : post<T>(path, body)),
     applyStep: (step: GameModeStep) => post("/api/step/apply", step).then(() => undefined),
     restoreStep: (step: GameModeStep) => post("/api/step/restore", step).then(() => undefined),
@@ -64,18 +72,13 @@ export async function createLiveProvider(): Promise<Provider> {
 function emptySample(t: number): Sample {
   return {
     t,
-    fps: null,
-    frameTimeMs: null,
     gpuTemp: null,
     cpuLoad: null,
     gpuLoad: null,
-    cpuClockGhz: null,
-    gpuPowerW: null,
     pingRegionMs: null,
     pingRouterMs: null,
     batteryPct: null,
     onAc: null,
     game: null,
-    notes: { fps: "Waiting for the first reading from this PC." },
   };
 }

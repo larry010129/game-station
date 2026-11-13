@@ -18,5 +18,13 @@ export function useEvents(initial: NewEvent[] = []) {
     setEvents((prev) => [event, ...prev].slice(0, MAX_EVENTS));
   }, []);
 
-  return { events, add };
+  const dismiss = useCallback((id: number) => {
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
+  const clear = useCallback(() => {
+    setEvents([]);
+  }, []);
+
+  return { events, add, dismiss, clear };
 }

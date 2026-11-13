@@ -7,20 +7,16 @@ export interface Machine {
 /** One reading of the PC, taken once per polling interval. */
 export interface Sample {
   t: number;
-  fps: number | null;
-  frameTimeMs: number | null;
   gpuTemp: number | null;
   cpuLoad: number | null;
   gpuLoad: number | null;
-  cpuClockGhz: number | null;
-  gpuPowerW: number | null;
   pingRegionMs: number | null;
   pingRouterMs: number | null;
   batteryPct: number | null;
   onAc: boolean | null;
   game: string | null;
-  /** Why a sensor is missing, keyed by field name (fps, gpuTemp, …). */
-  notes?: Partial<Record<string, string>>;
+  /** Set by the app when several reads in a row failed: every number above is empty on purpose. */
+  stale?: boolean;
 }
 
 export type FeedKind = "patch" | "official" | "leak" | "video" | "community";
@@ -51,7 +47,6 @@ export interface PlayersData {
   /** Share of the player base per region. Not measured: estimated. */
   regions: { id: string; name: string; share: number }[];
   regionsEstimated: boolean;
-  demo?: boolean;
 }
 
 export interface GameModeStep {
@@ -75,11 +70,13 @@ export interface StationEvent {
   text: string;
   /** When set, the event is also drawn on the 60 second chart with this label. */
   marker?: string;
+  /** Post or page this event came from, when one was found. */
+  url?: string;
 }
 
 /**
  * Everything the dashboard reads or changes goes through a provider, so the
- * sample data and the real Windows sensors are interchangeable.
+ * real Windows sensors reach it one way.
  */
 export interface Provider {
   id: string;
@@ -91,7 +88,7 @@ export interface Provider {
   /** Asks the service to look for new stories right now. */
   refreshFeed(): Promise<FeedItem[]>;
   readPlayers(): Promise<PlayersData>;
-  /** Any other service endpoint (network, memory, media, sessions...). The sample provider answers with demo data. */
+  /** Any other service endpoint (network, memory, media, sessions...). */
   api<T>(path: string, body?: unknown): Promise<T>;
   profiles: Profile[];
   applyStep(step: GameModeStep): Promise<void>;
@@ -109,6 +106,39 @@ export interface MediaStatus {
   durationMs?: number;
   /** Changes when the picture changes; fetch /api/media/art only then. */
   artId?: number;
+}
+
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  uri: string;
+  tracks: number;
+  art: string | null;
+}
+
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  type: string;
+  active: boolean;
+}
+
+/** `setup` needs a Client ID, `login` needs the sign-in, `idle` has no device playing, `ready` is playing or paused. */
+export interface SpotifyStatus {
+  state: "setup" | "login" | "idle" | "ready" | "error";
+  redirectUri: string;
+  message?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  art?: string | null;
+  playing?: boolean;
+  positionMs?: number;
+  durationMs?: number;
+  shuffle?: boolean;
+  repeat?: "off" | "context" | "track";
+  device?: { id: string; name: string; type: string; volume: number | null; canVolume: boolean } | null;
+  devices?: SpotifyDevice[];
 }
 
 export interface NetData {
@@ -192,6 +222,15 @@ export interface MetaCombat {
 }
 
 /** Full hero profile from /stats/overwatch/heroes/{slug}. */
+export interface MetaMatchup {
+  id: number;
+  name: string;
+  img: string | null;
+  role: string | null;
+  score: number | null;
+  type: string | null;
+}
+
 export interface MetaHeroDetail {
   id: number;
   slug: string;
@@ -199,6 +238,8 @@ export interface MetaHeroDetail {
   role: string | null;
   roleColor: string | null;
   img: string | null;
+  /** Queue mode this detail was built for (`5v5` from HTML, `6v6` from the CDN slice). */
+  mode?: "5v5" | "6v6" | string;
   tier?: string | null;
   winRate: number | null;
   rawWinRate?: number | null;
@@ -211,6 +252,17 @@ export interface MetaHeroDetail {
   lean: "POKE" | "RUSH" | "DIVE" | string;
   leanBlurb: string;
   mention: { label: string; why: string | null; detail: string | null } | null;
+  counters?: {
+    losesTo: MetaMatchup[];
+    beats: MetaMatchup[];
+    /** Full role-filtered lists from Counterwatch's embedded matchups (not a slice of overall top-N). */
+    byRole?: {
+      Tank: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+      Damage: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+      Support: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+    };
+  };
+  topMaps?: { name: string; slug: string; mode: string; winRate: number | null; matches: number }[];
   bestMaps: { name: string; slug: string; winRate: number | null; matches: number }[];
   worstMaps: { name: string; slug: string; winRate: number | null; matches: number }[];
   modes: { mode: string; winRate: number | null; matches: number }[];
@@ -225,13 +277,26 @@ export interface MetaData {
   url: string;
   error: string | null;
   updating: boolean;
-  demo?: boolean;
+  /** Queue mode this payload was built for (`5v5` | `6v6`). */
+  mode?: "5v5" | "6v6" | string;
   patch?: { name: string; since: string } | null;
-  season?: { name: string; number: number; since: string } | null;
+  season?: { name: string; number: number; since: string; until?: string | null } | null;
   tiers: { tier: string; heroes: MetaHero[] }[];
   maps: MetaMap[];
   picks: { role: string; top: MetaHero | null; others: MetaHero[] }[];
   heroes?: Record<string, MetaHeroDetail>;
+}
+
+/** One Counterwatch rank: tiers and map heroes for that division, or empty when the slice has no rows. */
+export interface MetaRank {
+  rank: string;
+  label: string;
+  mode?: "5v5" | "6v6" | string;
+  empty: boolean;
+  fetchedAt: number | null;
+  error: string | null;
+  tiers: { tier: string; heroes: MetaHero[] }[];
+  maps: (MetaMap & { heroes: MetaHero[] })[];
 }
 
 /** One AI research answer about Overwatch updates and leaks. */
@@ -257,5 +322,64 @@ export interface AiData {
   engines: Record<string, string>;
   topics: Record<string, string>;
   results: AiResult[];
-  demo?: boolean;
+}
+
+export interface CpuTempData {
+  temp: number | null;
+  source: string | null;
+  hint: string | null;
+  at: number;
+}
+
+export interface CostData {
+  at: number;
+  service: { cpuPct: number | null; mb: number };
+  /** The desktop shell and its web view. Null when the app is run in a browser. */
+  shell: { cpuPct: number | null; mb: number; processes: number } | null;
+  budget: { cpuPct: number; mb: number };
+}
+
+export interface LibraryGame {
+  id: string;
+  source: "steam";
+  appId: string;
+  name: string;
+  lastPlayed: number;
+  sizeBytes: number;
+}
+
+export interface LibraryData {
+  steam: boolean;
+  battlenet: boolean;
+  games: LibraryGame[];
+  total: number;
+}
+
+export type DiscordStatus =
+  | { state: "setup" }
+  | { state: "closed" }
+  | { state: "login" }
+  | {
+      state: "ready";
+      mute: boolean;
+      deaf: boolean;
+      channel: { name: string; members: { name: string; mute: boolean; deaf: boolean }[] } | null;
+    };
+
+export interface SettingsData {
+  /** config.json did not parse: the service runs on defaults and refuses to save settings (HTTP 409). */
+  corrupt: boolean;
+  closeApps: string[];
+  games: string[];
+  disabledSteps: string[];
+  steps: string[];
+}
+
+/** GET /api/health. `journalFailed` counts game-mode undo steps that failed at least once and are still pending. */
+export interface Health {
+  ok: boolean;
+  service: string;
+  version: string;
+  journal: number;
+  journalFailed: number;
 }

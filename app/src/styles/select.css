@@ -1,0 +1,92 @@
+/* Shared station dropdown. The open list is portaled to the body. */
+.ssel { min-width: 0; width: 100%; }
+.ssel-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+  background: var(--wash);
+  color: var(--text);
+  border: 1px solid var(--edge-2);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.3;
+}
+.ssel-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.ssel-btn[aria-expanded="true"] { border-color: color-mix(in srgb, var(--text) 38%, transparent); }
+.ssel-btn:disabled { opacity: 0.55; }
+.ssel-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ssel-chev { width: 12px; height: 12px; flex: none; color: var(--dim); }
+.ssel-btn[aria-expanded="true"] .ssel-chev { color: var(--orange); transform: rotate(180deg); }
+
+.ssel.pill .ssel-btn {
+  background: var(--wash-2);
+  border-color: var(--edge);
+  border-radius: 999px;
+  padding: 7px 12px;
+  min-height: 38px;
+}
+.ssel.pill .ssel-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); border-color: var(--edge-2); }
+
+.ssel.compact .ssel-btn { border-radius: 8px; padding: 6px 10px; }
+
+.ssel.chip { width: max-content; }
+.ssel.chip .ssel-btn {
+  width: auto;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  font-size: 12px;
+  gap: 6px;
+}
+.ssel.chip .ssel-chev { width: 10px; height: 10px; }
+
+.ssel-menu {
+  position: fixed;
+  z-index: 90;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--glass-solid);
+  color: var(--text);
+  border: 1px solid var(--edge-2);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+.ssel-menu-wait { visibility: hidden; pointer-events: none; }
+.ssel-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ssel-opt[data-active="true"] { background: color-mix(in srgb, var(--orange) 18%, transparent); }
+.ssel-opt[aria-selected="true"] { color: var(--orange); }
+
+@media (max-width: 760px) {
+  .ssel.pill .ssel-btn { min-height: 44px; }
+}
+
+.ssel-search { position: sticky; top: 0; z-index: 1; padding: 4px; background: inherit; list-style: none; }
+.ssel-search input { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--edge-2); background: var(--wash); color: var(--text); font: inherit; font-size: 13px; outline: none; }
+.ssel-search input:focus { border-color: var(--orange); }
+.ssel-none { padding: 8px 10px; color: var(--mute); font-size: 13px; list-style: none; }

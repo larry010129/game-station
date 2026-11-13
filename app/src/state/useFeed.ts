@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem, Provider } from "../lib/types";
+import { signal } from "../boot/bootSignals";
 
 // The service itself looks for new stories every 30 minutes; asking it for the
 // stored list is cheap, so the dashboard checks more often to show them quickly.
 const REFRESH_MS = 5 * 60 * 1000;
+/** After the first cache hit, re-read soon so a background refresh can paint. */
+const CATCH_UP_MS = [8_000, 25_000, 60_000] as const;
 
 const byNewest = (list: FeedItem[]) => [...list].sort((a, b) => b.publishedAt - a.publishedAt);
 
@@ -36,12 +39,20 @@ export function useFeed(provider: Provider, paused: boolean, onNew?: (items: Fee
     const load = () =>
       provider
         .readFeed()
-        .then((list) => alive && apply(list))
-        .catch(() => alive && setError("Couldn't load the feed. It will try again in 5 minutes."));
+        .then((list) => {
+          signal("/api/feed", "ok");
+          if (alive) apply(list);
+        })
+        .catch(() => {
+          signal("/api/feed", "error");
+          if (alive) setError("Couldn't load the feed. It will try again in 5 minutes.");
+        });
     load();
+    const catchUps = CATCH_UP_MS.map((ms) => window.setTimeout(load, ms));
     const id = window.setInterval(load, REFRESH_MS);
     return () => {
       alive = false;
+      for (const t of catchUps) window.clearTimeout(t);
       window.clearInterval(id);
     };
   }, [provider, paused, apply]);

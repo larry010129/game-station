@@ -12,12 +12,13 @@ interface CardProps {
   right?: ReactNode;
   children: ReactNode;
   label?: string;
+  className?: string;
 }
 
 /** The common shell: same glass tile, title and corner as the built-in cards. */
-export function Card({ title, sub, right, children, label }: CardProps) {
+export function Card({ title, sub, right, children, label, className }: CardProps) {
   return (
-    <section className="t kcard" aria-label={label ?? title}>
+    <section className={`t kcard${className ? ` ${className}` : ""}`} aria-label={label ?? title}>
       <div className="th">
         <div>
           <h2>{title}</h2>

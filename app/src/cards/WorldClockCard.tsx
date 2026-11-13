@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useStoredJson } from "../lib/storage";
 import { CLOCK_LOOKS } from "../layout/layouts";
 import { Card, useEvery } from "./ui";
+import { KEYS } from "../lib/storageKeys";
 
 interface City {
   label: string;
@@ -8,31 +10,23 @@ interface City {
 }
 
 const localTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
-const KEY = "cs.clocks";
+const KEY = KEYS.clocks;
+
+/** Built once, so the cities (and the clock parts computed from them) keep one identity between renders. */
+const DEFAULT_CITIES: City[] = [
+  { label: "You", tz: localTz() },
+  { label: "Los Angeles", tz: "America/Los_Angeles" },
+  { label: "London", tz: "Europe/London" },
+  { label: "Seoul", tz: "Asia/Seoul" },
+];
+
+const isCities = (v: unknown): v is City[] =>
+  Array.isArray(v) && v.length <= 12 && v.every((c) => c != null && typeof c === "object" && typeof (c as City).label === "string" && typeof (c as City).tz === "string");
 
 function useCities() {
-  const [cities, setCities] = useState<City[]>(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      const got = raw ? (JSON.parse(raw) as City[]) : null;
-      if (Array.isArray(got) && got.length) return got;
-    } catch {
-      // fall through
-    }
-    return [
-      { label: "You", tz: localTz() },
-      { label: "Los Angeles", tz: "America/Los_Angeles" },
-      { label: "London", tz: "Europe/London" },
-      { label: "Seoul", tz: "Asia/Seoul" },
-    ];
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(cities));
-    } catch {
-      // Storage blocked: it still works until the app closes.
-    }
-  }, [cities]);
+  const [saved, setCities] = useStoredJson<City[]>(KEY, [], undefined, isCities);
+  // An empty saved list falls back to the starter cities.
+  const cities = saved.length ? saved : DEFAULT_CITIES;
   return [cities, setCities] as const;
 }
 
@@ -214,13 +208,13 @@ function Curve({ cities, P }: LookProps) {
         <line className="d" x1="0" x2={W} y1={HZ + AMP} y2={HZ + AMP} />
         <polyline className="l" points={pts} />
       </svg>
-      <span className="lev f" style={{ top: pct(HZ - AMP) }}>
+      <span className="wc-lev f" style={{ top: pct(HZ - AMP) }}>
         12<small>noon</small>
       </span>
-      <span className="lev" style={{ top: pct(HZ) }}>
+      <span className="wc-lev" style={{ top: pct(HZ) }}>
         06 · 18<small>horizon</small>
       </span>
-      <span className="lev f" style={{ top: pct(HZ + AMP) }}>
+      <span className="wc-lev f" style={{ top: pct(HZ + AMP) }}>
         00<small>midnight</small>
       </span>
       {[
@@ -229,11 +223,11 @@ function Curve({ cities, P }: LookProps) {
         ["50%", "12"],
         ["75%", "18"],
       ].map(([l, t]) => (
-        <span key={t} className="xa" style={{ left: l }}>
+        <span key={t} className="wc-xa" style={{ left: l }}>
           {t}
         </span>
       ))}
-      <div className="ring" style={{ left: `${(me.hf / 24) * 100}%`, top: pct(cy(me.hf)) }}>
+      <div className="wc-me" style={{ left: `${(me.hf / 24) * 100}%`, top: pct(cy(me.hf)) }}>
         <span>{me.hm}</span>
       </div>
       {cities.map((c, i) => {
@@ -243,7 +237,7 @@ function Curve({ cities, P }: LookProps) {
         const up = label.get(i)?.up ?? false;
         return (
           <div key={`${c.tz}${i}`}>
-            <div className="pt" style={{ left: `${lp}%`, top: pct(y) }} />
+            <div className="wc-pt" style={{ left: `${lp}%`, top: pct(y) }} />
             <div className="cl" style={{ left: `${Math.min(84, Math.max(8, lp))}%`, top: `calc(${pct(y)} + ${up ? -52 : 14}px)` }}>
               {c.label}
               <b>{P[i].hm}</b>
@@ -287,9 +281,9 @@ function Levels({ cities, P }: LookProps) {
     <div className="wc-lad" ref={box}>
       {rows.map(({ i, y }) => (
         <div key={`${cities[i].tz}${i}`} className={`ln${i === 0 ? " me" : ""}`} style={{ top: y }}>
-          {i === 0 && <div className="pt" />}
+          {i === 0 && <div className="wc-pt" />}
           <em>{i === 0 ? `You · ${cities[i].label}` : cities[i].label}</em>
-          <span className="lev">
+          <span className="wc-lev">
             {P[i].hm}
             <small>{i === 0 ? P[i].day : `${rel(P[i].off, me.off)}${P[i].day !== me.day ? ` · ${P[i].day}` : ""}`}</small>
           </span>
@@ -352,6 +346,7 @@ interface Props {
  */
 export function WorldClockCard({ look, onLook }: Props) {
   const [cities, setCities] = useCities();
+  const zoneListId = useId();
   const [menu, setMenu] = useState(false);
   const [label, setLabel] = useState("");
   const [tz, setTz] = useState("");
@@ -413,8 +408,8 @@ export function WorldClockCard({ look, onLook }: Props) {
             }}
           >
             <input placeholder="Name (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
-            <input list="wc-tz" placeholder="Time zone, e.g. Asia/Tokyo" value={tz} onChange={(e) => setTz(e.target.value)} />
-            <datalist id="wc-tz">
+            <input list={zoneListId} placeholder="Time zone, e.g. Asia/Tokyo" value={tz} onChange={(e) => setTz(e.target.value)} />
+            <datalist id={zoneListId}>
               {zones.map((z) => (
                 <option key={z} value={z} />
               ))}

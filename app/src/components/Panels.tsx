@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { age, clockTime } from "../lib/format";
 import type { FeedItem, StationEvent } from "../lib/types";
 import type { Phase, StepStatus } from "../state/useGameMode";
@@ -7,8 +7,9 @@ import { openLink } from "../lib/openLink";
 import { Icon } from "./Icon";
 import { PLATFORM_NAME, PlatformIcon, platformOf } from "./PlatformIcon";
 import { Segmented } from "./Segmented";
+import { StationSelect } from "./StationSelect";
 
-export function AlertsPanel({ events }: { events: StationEvent[] }) {
+export const AlertsPanel = memo(function AlertsPanel({ events }: { events: StationEvent[] }) {
   const [filter, setFilter] = useState<"all" | "alert">("all");
   const shown = filter === "all" ? events : events.filter((e) => e.kind === "alert");
   return (
@@ -27,17 +28,44 @@ export function AlertsPanel({ events }: { events: StationEvent[] }) {
       </div>
       <div className="alist" aria-live="polite">
         {shown.length === 0 && <p className="empty">No alerts in this session.</p>}
-        {shown.map((e) => (
-          <div key={e.id} className={`al${e.kind === "alert" ? "" : " info"}`}>
-            <i />
-            <span>{e.text}</span>
-            <time dateTime={new Date(e.t).toISOString()}>{clockTime(e.t)}</time>
-          </div>
-        ))}
+        {shown.map((e) => {
+          const className = `al${e.kind === "alert" ? "" : " info"}`;
+          const href = e.url && /^https?:\/\//i.test(e.url) ? e.url : undefined;
+          const body = (
+            <>
+              <i />
+              <span>{e.text}</span>
+              <time dateTime={new Date(e.t).toISOString()}>{clockTime(e.t)}</time>
+            </>
+          );
+          if (!href) {
+            return (
+              <div key={e.id} className={className}>
+                {body}
+              </div>
+            );
+          }
+          return (
+            <a
+              key={e.id}
+              className={className}
+              href={href}
+              rel="noreferrer"
+              aria-label={`Open ${e.text}`}
+              title={href}
+              onClick={(ev) => {
+                ev.preventDefault();
+                void openLink(href);
+              }}
+            >
+              {body}
+            </a>
+          );
+        })}
       </div>
     </section>
   );
-}
+});
 
 const STEP_WORD: Record<StepStatus, string> = {
   waiting: "Waiting",
@@ -57,7 +85,7 @@ interface GameModeProps {
   disabled: boolean;
 }
 
-export function GameModePanel({ profiles, profile, onProfile, phase, status, onStart, onStop, disabled }: GameModeProps) {
+export const GameModePanel = memo(function GameModePanel({ profiles, profile, onProfile, phase, status, onStart, onStop, disabled }: GameModeProps) {
   const busy = phase === "applying" || phase === "restoring";
   const label =
     phase === "applying" ? "Applying…" : phase === "restoring" ? "Restoring…" : phase === "on" ? "Game mode on · restore" : "Start game mode";
@@ -76,18 +104,21 @@ export function GameModePanel({ profiles, profile, onProfile, phase, status, onS
         title={disabled ? "Monitoring is stopped. Resume it to use game mode." : undefined}
         onClick={phase === "on" ? onStop : onStart}
       >
+        <span className="go-band" aria-hidden="true" />
+        <span className="go-rim" aria-hidden="true" />
         <Icon name="power" />
-        <span>{label}</span>
+        <span className="go-label">{label}</span>
       </button>
       <label className="pick">
         Profile
-        <select value={profile.id} onChange={(e) => onProfile(e.target.value)} disabled={phase !== "off"}>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <StationSelect
+          variant="pill"
+          label="Profile"
+          value={profile.id}
+          onChange={onProfile}
+          disabled={phase !== "off"}
+          options={profiles.map((p) => ({ value: p.id, label: p.name }))}
+        />
       </label>
       <div className="scroll">
         {profile.steps.map((s) => {
@@ -102,7 +133,7 @@ export function GameModePanel({ profiles, profile, onProfile, phase, status, onS
       </div>
     </section>
   );
-}
+});
 
 const KIND: Record<FeedItem["kind"], string> = {
   patch: "Patch",
@@ -112,7 +143,7 @@ const KIND: Record<FeedItem["kind"], string> = {
   community: "Community",
 };
 
-export function FeedPanel({
+export const FeedPanel = memo(function FeedPanel({
   items,
   error,
   checking,
@@ -188,4 +219,4 @@ export function FeedPanel({
       </div>
     </section>
   );
-}
+});

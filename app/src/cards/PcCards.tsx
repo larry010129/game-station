@@ -1,23 +1,57 @@
+import { memo, useState } from "react";
 import type { SystemData } from "../lib/types";
-import { useApi } from "../state/useApi";
+import { useToast } from "../state/Toast";
+import { useApi, useStationCtx } from "../state/useApi";
+import { StatMeter } from "../components/Tiles";
 import { Bar, Card, Empty, gb, useEvery } from "./ui";
 
-export function MemoryCard() {
+export const MemoryCard = memo(function MemoryCard() {
+  const { provider } = useStationCtx();
+  const toast = useToast();
   const ms = useEvery(5000, 30000);
   const { data } = useApi<SystemData>("/api/system", ms);
-  if (!data) return <Card title="Memory"><Empty>Reading memory...</Empty></Card>;
+  const [busy, setBusy] = useState(false);
+
+  const clean = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = (await provider.api("/api/memory/clean", {})) as { freedMb?: number } | undefined;
+      const freed = r?.freedMb ?? 0;
+      toast(freed > 0 ? `Memory cleaned: ${freed >= 1024 ? `${gb(freed)} GB` : `${freed} MB`} freed.` : "Memory cleaned.");
+    } catch (e) {
+      toast(e instanceof Error && e.message ? e.message : "Couldn't clean memory.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cleanButton = (
+    <button className="eb-btn kmem-clean" type="button" onClick={clean} disabled={busy}>
+      {busy ? "Cleaning..." : "Clean memory"}
+    </button>
+  );
+
+  if (!data) {
+    return (
+      <Card title="Memory" right={cleanButton}>
+        <Empty>Reading memory...</Empty>
+      </Card>
+    );
+  }
   const { totalMb, usedMb, top } = data.mem;
   const pct = (usedMb / totalMb) * 100;
-  const tone = pct > 90 ? "red" : pct > 80 ? "or" : "ok";
+  // Green is comfortable, yellow is getting busy, orange is high, red means close it down.
+  const tone = pct >= 85 ? "red" : pct >= 70 ? "or" : pct >= 50 ? "mid" : "good";
   const biggest = Math.max(...top.map((t) => t.mb), 1);
   return (
-    <Card title="Memory" sub="RAM in use" right={<span className={`chip${tone === "ok" ? "" : tone === "or" ? " or" : " red"}`}>{Math.round(pct)}%</span>}>
-      <div className="big">
+    <Card title="Memory" sub="RAM in use" label={`Memory ${gb(usedMb)} of ${gb(totalMb)} GB`} right={<span className={`chip ${tone}`}>{Math.round(pct)}%</span>}>
+      <div className={`big ${tone}`}>
         {gb(usedMb)}
         <small>of {gb(totalMb)} GB</small>
       </div>
-      <Bar pct={pct} tone={tone} label="Memory used" />
-      <div className="klist">
+      <StatMeter pct={pct} tone={tone} label={`Memory ${gb(usedMb)} of ${gb(totalMb)} GB`} />
+      <div className="klist kmem-list">
         {top.slice(0, 5).map((t) => (
           <div key={t.n} className="krow">
             <span className="kname">{t.n}</span>
@@ -26,9 +60,10 @@ export function MemoryCard() {
           </div>
         ))}
       </div>
+      {cleanButton}
     </Card>
   );
-}
+});
 
 const mins = (m: number) => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
 
@@ -50,7 +85,7 @@ export function PowerCard({ game }: { game: string | null }) {
       sub={state}
       right={warn ? <span className="chip or">Unplugged while gaming</span> : <span className="chip">{plugged ? "On charger" : "On battery"}</span>}
     >
-      <div className="big">
+      <div className={`big${tone === "red" ? " red" : tone === "or" ? " or" : ""}`}>
         {b.pct}
         <small>%</small>
       </div>

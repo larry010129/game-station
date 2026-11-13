@@ -1,37 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Layout, Layouts } from "react-grid-layout";
+import { readJson, removeKey, writeJson } from "../lib/storage";
+import { instanceKeys } from "./cardKeys";
 import { CARDS, DEFAULT_LAYOUTS, defaultInstances, defaultLook, newBox, sanitize, type CardId, type CardInstance } from "./layouts";
 
 const KEY = "cs.dash.v1";
 const DEFAULT_KEY = "cs.dash.default.v1";
+const HIDDEN_KEY = "cs.home.hidden";
+
+function readHidden(): CardId[] {
+  const raw = read(HIDDEN_KEY);
+  return Array.isArray(raw) ? raw.filter((t): t is CardId => typeof t === "string" && t in CARDS) : [];
+}
 
 interface Dash {
   instances: CardInstance[];
   layouts: Layouts;
 }
 
-const read = (key: string): unknown => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-const write = (key: string, value: unknown) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Storage blocked: it still works until the app closes.
-  }
-};
-const drop = (key: string) => {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-};
+const read = (key: string): unknown => readJson<unknown>(key, null);
+const write = writeJson;
+const drop = removeKey;
 
 function cleanInstances(raw: unknown): CardInstance[] | null {
   if (!Array.isArray(raw)) return null;
@@ -93,11 +82,22 @@ function sameDash(a: Dash, b: Dash) {
  */
 export function useDashboard() {
   const [userDefault, setUserDefault] = useState<Dash | null>(() => parse(read(DEFAULT_KEY)));
-  const defaults = userDefault ?? factory();
+  const builtIn = useMemo(factory, []);
+  const defaults = userDefault ?? builtIn;
   const defaultsRef = useRef(defaults);
   defaultsRef.current = defaults;
 
   const [dash, setDash] = useState<Dash>(() => parse(read(KEY)) ?? migrate() ?? parse(read(DEFAULT_KEY)) ?? factory());
+  // The latest dashboard, for callbacks that must look at it without doing work inside a state updater.
+  const dashRef = useRef(dash);
+  dashRef.current = dash;
+
+  /** Card types removed from Home. Home shows every card, so a removed one has to be remembered. */
+  const [hidden, setHidden] = useState<CardId[]>(readHidden);
+  useEffect(() => {
+    if (hidden.length) write(HIDDEN_KEY, hidden);
+    else drop(HIDDEN_KEY);
+  }, [hidden]);
 
   const customised = useMemo(() => !sameDash(dash, defaults), [dash, defaults]);
   useEffect(() => {
@@ -125,6 +125,7 @@ export function useDashboard() {
 
   /** Puts a new copy of a card on the dashboard. `at` is where it was dropped, in the current grid. */
   const add = useCallback((type: CardId, at?: { x: number; y: number }, bp: "lg" | "md" = "lg") => {
+    setHidden((h) => (h.includes(type) ? h.filter((t) => t !== type) : h));
     setDash((d) => {
       const inst: CardInstance = { id: nextId(type, d.instances), type, look: defaultLook(type) };
       const instances = [...d.instances, inst];
@@ -136,15 +137,26 @@ export function useDashboard() {
     });
   }, []);
 
-  const remove = useCallback((id: string) => setDash((d) => {
-    const instances = d.instances.filter((i) => i.id !== id);
-    return { instances, layouts: sanitize(d.layouts, instances) };
-  }), []);
+  const remove = useCallback((id: string) => {
+    const type = id.split("~")[0] as CardId;
+    // The last copy of a card is also hidden from Home, or Home would put it straight back.
+    const left = dashRef.current.instances.filter((i) => i.id !== id);
+    if (type in CARDS && !left.some((i) => i.type === type)) setHidden((h) => (h.includes(type) ? h : [...h, type]));
+    // What this copy saved on its own (checklist, note, chosen hero) goes with it.
+    if (type in CARDS) instanceKeys(id, type).forEach(drop);
+    setDash((d) => {
+      const instances = d.instances.filter((i) => i.id !== id);
+      return { instances, layouts: sanitize(d.layouts, instances) };
+    });
+  }, []);
 
   const setLook = useCallback((id: string, look: string) => setDash((d) => ({ ...d, instances: d.instances.map((i) => (i.id === id ? { ...i, look } : i)) })), []);
 
   /** Back to the saved default, or the built-in one when none is saved. */
-  const reset = useCallback(() => setDash(defaultsRef.current), []);
+  const reset = useCallback(() => {
+    setDash(defaultsRef.current);
+    setHidden([]);
+  }, []);
 
   /** Makes the cards and positions on screen now the default that Reset returns to. */
   const saveAsDefault = useCallback(() => {
@@ -158,7 +170,8 @@ export function useDashboard() {
     drop(DEFAULT_KEY);
     setUserDefault(null);
     setDash(factory());
+    setHidden([]);
   }, []);
 
-  return { instances: dash.instances, layouts: dash.layouts, update, updateVisible, add, remove, setLook, reset, saveAsDefault, clearDefault, customised, hasSavedDefault: userDefault != null };
+  return { hidden, instances: dash.instances, layouts: dash.layouts, update, updateVisible, add, remove, setLook, reset, saveAsDefault, clearDefault, customised, hasSavedDefault: userDefault != null };
 }

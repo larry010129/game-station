@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { AiData, AiResult, Provider } from "../lib/types";
+import { readString, writeString } from "../lib/storage";
 
 const KEY = "cs.leak.seen";
 const POLL_MS = 5 * 60_000;
@@ -25,18 +26,10 @@ export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items
           if (!alive) return;
           const latest = d.results.find((r) => r.topic === "leaks");
           if (!latest) return;
-          let seen: string | null = null;
-          try {
-            seen = localStorage.getItem(KEY);
-          } catch {
-            // no storage: report once per session
-          }
+          // No storage: reports once per session.
+          const seen = readString(KEY);
           if (seen === latest.id) return;
-          try {
-            localStorage.setItem(KEY, latest.id);
-          } catch {
-            // ignore
-          }
+          writeString(KEY, latest.id);
           if (seen == null) return; // first run on this app: nothing to compare with, stay quiet
           const fresh = latest.items.filter((i) => i.fresh);
           if (fresh.length) onNewRef.current(fresh);

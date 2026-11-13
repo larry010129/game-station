@@ -1,27 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { clockTime } from "../lib/format";
 import type { GameModeRun, SessionsData } from "../lib/types";
 import { useApi } from "../state/useApi";
 import { Bar, Card, Empty, span, useEvery } from "./ui";
+import { readString, writeString } from "../lib/storage";
+import { KEYS } from "../lib/storageKeys";
 
 const HOUR = 3600_000;
-const BREAK_KEY = "cs.break.hours";
+const BREAK_KEY = KEYS.breakHours;
 
 function useSessions() {
   const ms = useEvery(10_000, 60_000);
   return useApi<SessionsData>("/api/sessions", ms);
 }
 
-export function SessionCard() {
+export const SessionCard = memo(function SessionCard() {
   const { data } = useSessions();
   const [now, setNow] = useState(Date.now());
-  const [limit, setLimit] = useState<number>(() => {
-    try {
-      return Number(localStorage.getItem(BREAK_KEY)) || 2;
-    } catch {
-      return 2;
-    }
-  });
+  const [limit, setLimit] = useState<number>(() => Number(readString(BREAK_KEY)) || 2);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -29,11 +25,7 @@ export function SessionCard() {
   const change = (d: number) => {
     const next = Math.min(6, Math.max(0.5, limit + d));
     setLimit(next);
-    try {
-      localStorage.setItem(BREAK_KEY, String(next));
-    } catch {
-      // not saved
-    }
+    writeString(BREAK_KEY, String(next));
   };
   if (!data) return <Card title="Session timer"><Empty>Loading...</Empty></Card>;
   const cur = data.current;
@@ -62,7 +54,7 @@ export function SessionCard() {
       </div>
     </Card>
   );
-}
+});
 
 function hms(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -91,7 +83,7 @@ function dayHours(data: SessionsData) {
   return days;
 }
 
-export function PlayHistoryCard() {
+export const PlayHistoryCard = memo(function PlayHistoryCard() {
   const { data } = useSessions();
   const days = useMemo(() => (data ? dayHours(data) : []), [data]);
   if (!data) return <Card title="Play history"><Empty>Loading...</Empty></Card>;
@@ -114,9 +106,9 @@ export function PlayHistoryCard() {
       )}
     </Card>
   );
-}
+});
 
-export function ReportCard() {
+export const ReportCard = memo(function ReportCard() {
   const { data } = useSessions();
   if (!data) return <Card title="Session report"><Empty>Loading...</Empty></Card>;
   const r = data.history[data.history.length - 1];
@@ -148,9 +140,9 @@ export function ReportCard() {
       </div>
     </Card>
   );
-}
+});
 
-export function GameModeHistoryCard() {
+export const GameModeHistoryCard = memo(function GameModeHistoryCard() {
   const ms = useEvery(15_000, 0);
   const { data } = useApi<{ runs: GameModeRun[] }>("/api/gamemode/history", ms);
   if (!data) return <Card title="Game mode history"><Empty>Loading...</Empty></Card>;
@@ -172,4 +164,4 @@ export function GameModeHistoryCard() {
       )}
     </Card>
   );
-}
+});

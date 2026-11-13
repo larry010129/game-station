@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "../providers";
+import { readString, writeString } from "../lib/storage";
 
 /**
  * The "no hit to your game" rule. When the window is hidden the app polls
@@ -39,19 +40,11 @@ export function useClock() {
 /** A per-viewer setting kept in local storage; falls back to memory if storage is blocked. */
 export function useStoredFlag(key: string, initial: boolean) {
   const [value, setValue] = useState(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw == null ? initial : raw === "1";
-    } catch {
-      return initial;
-    }
+    const raw = readString(key);
+    return raw == null ? initial : raw === "1";
   });
   useEffect(() => {
-    try {
-      localStorage.setItem(key, value ? "1" : "0");
-    } catch {
-      // ignore
-    }
+    writeString(key, value ? "1" : "0");
   }, [key, value]);
   return [value, setValue] as const;
 }

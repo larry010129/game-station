@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { age } from "../lib/format";
 import { openLink } from "../lib/openLink";
-import type { FeedItem, PlayersData, SteamData } from "../lib/types";
+import type { FeedItem, MetaData, PlayersData, SteamData } from "../lib/types";
 import { useApi } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
+import { readString, removeKey, writeString } from "../lib/storage";
+import { KEYS } from "../lib/storageKeys";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 const hourWord = (h: number) => {
@@ -25,7 +27,7 @@ function hourStats(data: PlayersData | null) {
   return { hours, avg };
 }
 
-export function TrendCard({ players }: { players: PlayersData | null }) {
+export const TrendCard = memo(function TrendCard({ players }: { players: PlayersData | null }) {
   const { hours, avg } = useMemo(() => hourStats(players), [players]);
   if (!players) return <Card title="Player trend"><Empty>Loading...</Empty></Card>;
   if (hours.length < 3) {
@@ -55,7 +57,7 @@ export function TrendCard({ players }: { players: PlayersData | null }) {
         </div>
         <div>
           <small>Now</small>
-          <b>{fmt(now)}</b>
+          <b className="or">{fmt(now)}</b>
         </div>
         <div>
           <small>Busiest hour</small>
@@ -64,9 +66,9 @@ export function TrendCard({ players }: { players: PlayersData | null }) {
       </div>
     </Card>
   );
-}
+});
 
-export function QueueCard({ players }: { players: PlayersData | null }) {
+export const QueueCard = memo(function QueueCard({ players }: { players: PlayersData | null }) {
   const { hours, avg } = useMemo(() => hourStats(players), [players]);
   const known = avg.filter((v): v is number => v != null);
   if (!players) return <Card title="Best time to play"><Empty>Loading...</Empty></Card>;
@@ -97,11 +99,34 @@ export function QueueCard({ players }: { players: PlayersData | null }) {
       </p>
     </Card>
   );
+});
+
+/** Blizzard's patch notes page (and its #patch- date anchor). Other URLs are not the official notes. */
+function officialPatchUrl(url: string | undefined): string | null {
+  if (!url || !/^https:\/\/overwatch\.blizzard\.com\/[^?#]*\/news\/patch-notes\/?(?:[?#]|$)/i.test(url)) return null;
+  return url;
 }
 
-export function PatchCard({ items }: { items: FeedItem[] }) {
+function NotesLink({ url, className, children }: { url: string; className?: string; children: string }) {
+  return (
+    <a
+      className={className}
+      href={url}
+      rel="noreferrer"
+      onClick={(e) => {
+        e.preventDefault();
+        void openLink(url);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+export const PatchCard = memo(function PatchCard({ items }: { items: FeedItem[] }) {
   const patch = items.filter((i) => i.kind === "patch").sort((a, b) => b.publishedAt - a.publishedAt)[0];
   if (!patch) return <Card title="Patch summary"><Empty>No patch notes loaded yet.</Empty></Card>;
+  const notes = officialPatchUrl(patch.url);
   const heroes = patch.heroChanges ?? [];
   const tag = (h: { up: number; down: number }) => (h.up > h.down ? "buff" : h.down > h.up ? "nerf" : "changed");
   const counts = { buff: 0, nerf: 0, changed: 0 };
@@ -109,12 +134,13 @@ export function PatchCard({ items }: { items: FeedItem[] }) {
   return (
     <Card
       title="Patch summary"
-      sub={`${patch.title} · ${age(patch.publishedAt)} ago`}
-      right={
-        <button className="klink" onClick={() => patch.url && openLink(patch.url)}>
-          Open
-        </button>
+      sub={
+        <>
+          {notes ? <NotesLink url={notes}>{patch.title}</NotesLink> : patch.title}
+          {` · ${age(patch.publishedAt)} ago`}
+        </>
       }
+      right={notes ? <NotesLink className="klink" url={notes}>Official notes</NotesLink> : undefined}
     >
       {heroes.length === 0 ? (
         <Empty>{patch.summary || "No hero changes listed."}</Empty>
@@ -127,7 +153,7 @@ export function PatchCard({ items }: { items: FeedItem[] }) {
             </div>
             <div>
               <small>Nerfed</small>
-              <b>{counts.nerf}</b>
+              <b className={counts.nerf > 0 ? "or" : undefined}>{counts.nerf}</b>
             </div>
             <div>
               <small>Other</small>
@@ -147,31 +173,9 @@ export function PatchCard({ items }: { items: FeedItem[] }) {
       )}
     </Card>
   );
-}
+});
 
-export function LeaksCard({ items }: { items: FeedItem[] }) {
-  const leaks = items.filter((i) => i.kind === "leak").sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 8);
-  return (
-    <Card title="Leak watch" sub="From the Overwatch leaks community">
-      {leaks.length === 0 ? (
-        <Empty>No leak posts right now.</Empty>
-      ) : (
-        <div className="klist news">
-          {leaks.map((l) => (
-            <button key={l.id} className="knews" onClick={() => l.url && openLink(l.url)}>
-              <b>{l.title}</b>
-              <small>
-                {l.source} · {age(l.publishedAt)} ago
-              </small>
-            </button>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-export function SteamNewsCard() {
+export const SteamNewsCard = memo(function SteamNewsCard() {
   const ms = useEvery(10 * 60_000, 0);
   const { data, error } = useApi<SteamData>("/api/steam", ms);
   return (
@@ -194,60 +198,142 @@ export function SteamNewsCard() {
       )}
     </Card>
   );
+});
+
+const SEASON_KEY = KEYS.seasonEnd;
+const ET = "America/New_York";
+/** Overwatch seasons run about 9 weeks. Counterwatch often has a start and no end. */
+const ROUGH_DAYS = 63;
+const ET_EVENING = 20;
+
+function ymdShift(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
 }
 
-const SEASON_KEY = "cs.season.end";
+function zoneOffset(utcMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(utcMs));
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour") % 24, n("minute"), n("second")) - utcMs;
+}
 
-export function SeasonCard() {
-  const [end, setEnd] = useState<string>(() => {
-    try {
-      return localStorage.getItem(SEASON_KEY) ?? "";
-    } catch {
-      return "";
-    }
+/** 8:00pm on a calendar date in America/New_York, so EST and EDT both land on that evening. */
+function easternEvening(ymd: string): number {
+  const [y, m, d] = ymd.split("-").map(Number);
+  let utc = Date.UTC(y, m - 1, d, ET_EVENING, 0, 0);
+  const off = zoneOffset(utc, ET);
+  utc -= off;
+  const off2 = zoneOffset(utc, ET);
+  if (off2 !== off) utc -= off2 - off;
+  return utc;
+}
+
+const isYmd = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/** Start plus about 9 weeks, at 8pm Eastern. If that evening has passed, step forward by the same length. */
+function roughEndMs(since: string, now: number): number {
+  const start = since.slice(0, 10);
+  if (!isYmd(start)) return NaN;
+  let ymd = ymdShift(start, ROUGH_DAYS);
+  let end = easternEvening(ymd);
+  for (let i = 0; i < 40 && end <= now; i++) {
+    ymd = ymdShift(ymd, ROUGH_DAYS);
+    end = easternEvening(ymd);
+  }
+  return end;
+}
+
+function parseEnd(value: string): number {
+  if (isYmd(value)) return easternEvening(value);
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? NaN : t;
+}
+
+function easternLabel(ms: number): string {
+  return new Date(ms).toLocaleString("en-US", {
+    timeZone: ET,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
   });
+}
+
+export const SeasonCard = memo(function SeasonCard() {
+  const [custom, setCustom] = useState<string>(() => readString(SEASON_KEY) ?? "");
   const [editing, setEditing] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+  const poll = useEvery(10 * 60_000, 0);
+  const { data: meta, error } = useApi<MetaData>("/api/meta", poll);
   const save = (v: string) => {
-    setEnd(v);
-    try {
-      localStorage.setItem(SEASON_KEY, v);
-    } catch {
-      // not saved
-    }
+    setCustom(v);
+    if (v) writeString(SEASON_KEY, v);
+    else removeKey(SEASON_KEY);
   };
-  const endMs = end ? new Date(`${end}T00:00:00`).getTime() : NaN;
+  const season = meta?.season;
+  const customMs = custom ? new Date(`${custom}T00:00:00`).getTime() : NaN;
+  const published = !custom && season?.until ? parseEnd(season.until) : NaN;
+  const roughMs = !custom && Number.isNaN(published) && season?.since ? roughEndMs(season.since, now) : NaN;
+  const endMs = custom ? customMs : !Number.isNaN(published) ? published : roughMs;
+  const rough = !custom && Number.isNaN(published) && !Number.isNaN(roughMs);
+  const known = !Number.isNaN(endMs);
   const left = endMs - now;
+  const sub = !known
+    ? error
+      ? "Couldn't read the season"
+      : "Loading..."
+    : rough
+      ? `Rough estimate · ${easternLabel(endMs)}`
+      : custom
+        ? `Ends ${new Date(endMs).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`
+        : `Ends ${easternLabel(endMs)}`;
   return (
     <Card
       title="Season countdown"
-      sub={end ? `Ends ${new Date(endMs).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}` : "Set the end date"}
+      sub={sub}
       right={
         <button className="klink" onClick={() => setEditing((e) => !e)}>
-          {editing || !end ? "Done" : "Change"}
+          {editing ? "Done" : "Change"}
         </button>
       }
     >
-      {(editing || !end) && (
+      {editing && (
         <label className="kfield">
-          <small>Season end date (not published anywhere I can read, so you set it)</small>
-          <input type="date" value={end} onChange={(e) => save(e.target.value)} />
+          <small>Override the end date. Clear it to use the automatic estimate.</small>
+          <input type="date" value={custom} onChange={(e) => save(e.target.value)} />
         </label>
       )}
-      {end && !Number.isNaN(endMs) &&
-        (left > 0 ? (
-          <div className="big">
+      {!known ? (
+        <Empty>{error ? "No season start yet, so there is no estimate." : "Loading..."}</Empty>
+      ) : left > 0 ? (
+        <>
+          <div className="big or">
             {Math.floor(left / 86400000)}
             <small>days</small> {Math.floor((left % 86400000) / 3600000)}
             <small>h</small>
           </div>
-        ) : (
-          <Empty>This season has ended. Set the next end date.</Empty>
-        ))}
+          {rough && <p className="kwhy">About 9 weeks after {season?.name ? `${season.name} ` : "the season "}started. Not an official end time.</p>}
+        </>
+      ) : (
+        <p className="empty ended">This season has ended. Set the next end date.</p>
+      )}
     </Card>
   );
-}
+});

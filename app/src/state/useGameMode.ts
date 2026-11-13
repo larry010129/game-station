@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GameModeStep, Provider } from "../lib/types";
+import type { GameModeStep, Profile, Provider } from "../lib/types";
 import type { NewEvent } from "./useEvents";
 
 export type Phase = "off" | "applying" | "on" | "restoring";
@@ -12,14 +12,22 @@ export type StepStatus = "waiting" | "running" | "done" | "failed";
  * On reload, the UI re-reads /api/gamemode/active so "on" survives a refresh.
  */
 export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) {
+  // The list of profiles lives here, so a settings change shows up in the game mode panel without touching the provider.
+  const [profiles, setProfiles] = useState<Profile[]>(provider.profiles);
+  useEffect(() => setProfiles(provider.profiles), [provider]);
   const [profileId, setProfileId] = useState(provider.profiles[0]?.id ?? "");
-  const profile = provider.profiles.find((p) => p.id === profileId) ?? provider.profiles[0];
+  const profile = profiles.find((p) => p.id === profileId) ?? profiles[0];
   const [phase, setPhase] = useState<Phase>("off");
   const [status, setStatus] = useState<Record<string, StepStatus>>({});
   const activeSteps = useRef<GameModeStep[]>([]);
-  const synced = useRef(false);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+
+  /** Reads the profiles again (after a settings change). Rejects when the service does not answer. */
+  const refreshProfiles = useCallback(async () => {
+    const next = await provider.api<{ profiles: Profile[] }>("/api/profiles");
+    if (Array.isArray(next.profiles)) setProfiles(next.profiles);
+  }, [provider]);
 
   /** Undo steps newest first. Keeps going if one fails; returns how many failed. */
   const restoreAll = useCallback(
@@ -38,8 +46,7 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
   );
 
   useEffect(() => {
-    if (synced.current || provider.id !== "live") return;
-    synced.current = true;
+    if (provider.id !== "live") return;
     let alive = true;
     provider
       .api<{ active: boolean; steps: GameModeStep[] }>("/api/gamemode/active")
@@ -119,5 +126,5 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
     );
   }, [phase, profile, provider, restoreAll, onEvent]);
 
-  return { profiles: provider.profiles, profile, setProfileId, phase, status, start, stop };
+  return { profiles, refreshProfiles, profile, setProfileId, phase, status, start, stop };
 }

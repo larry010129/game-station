@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import type { PlayersData, Provider } from "../lib/types";
+import { signal } from "../boot/bootSignals";
 
 const REFRESH_MS = 10 * 60 * 1000;
+/** After the first cache hit, re-read soon so a background Steam poll can paint. */
+const CATCH_UP_MS = [5_000, 15_000] as const;
 
 /** Loads the online-player count now and every 10 minutes, but never during a match. */
 export function usePlayers(provider: Provider, paused: boolean) {
@@ -15,15 +18,21 @@ export function usePlayers(provider: Provider, paused: boolean) {
       provider
         .readPlayers()
         .then((d) => {
+          signal("/api/players", "ok");
           if (!alive) return;
           setData(d);
           setFailed(false);
         })
-        .catch(() => alive && setFailed(true));
+        .catch(() => {
+          signal("/api/players", "error");
+          if (alive) setFailed(true);
+        });
     load();
+    const catchUps = CATCH_UP_MS.map((ms) => window.setTimeout(load, ms));
     const id = window.setInterval(load, REFRESH_MS);
     return () => {
       alive = false;
+      for (const t of catchUps) window.clearTimeout(t);
       window.clearInterval(id);
     };
   }, [provider, paused]);

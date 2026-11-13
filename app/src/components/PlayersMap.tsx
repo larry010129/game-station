@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { geoNaturalEarth1, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
@@ -23,6 +23,38 @@ const CENTER: Record<string, [number, number]> = {
 const fmt = (n: number) => n.toLocaleString("en-US");
 const hourLabel = (t: number) => new Date(t).toLocaleTimeString([], { hour: "numeric" }).replace(" ", "").toLowerCase();
 
+/** How busy Steam looks right now, relative to recent hours when possible. */
+type Crowd = "quiet" | "busy" | "packed";
+
+const CROWD: Record<Crowd, { label: string; chip: string }> = {
+  quiet: { label: "Quiet", chip: "or" },
+  busy: { label: "Busy", chip: "mid" },
+  packed: { label: "Packed", chip: "good" },
+};
+
+/** Absolute OW2 Steam bands when history is too flat or too short. */
+const ABS_QUIET = 32_000;
+const ABS_PACKED = 52_000;
+
+function crowdLevel(now: number, hours: { count: number }[]): Crowd {
+  const recent = hours.slice(-24).map((h) => h.count);
+  if (recent.length >= 6) {
+    const low = Math.min(...recent);
+    const peak = Math.max(...recent);
+    const span = peak - low;
+    // Need a real daily swing; otherwise absolute bands stay meaningful.
+    if (span >= Math.max(2_000, peak * 0.08)) {
+      const t = (now - low) / span;
+      if (t < 0.35) return "quiet";
+      if (t >= 0.7) return "packed";
+      return "busy";
+    }
+  }
+  if (now < ABS_QUIET) return "quiet";
+  if (now >= ABS_PACKED) return "packed";
+  return "busy";
+}
+
 function useMap() {
   return useMemo(() => {
     const topo = land110 as unknown as Topology<{ land: GeometryCollection }>;
@@ -39,23 +71,32 @@ function useMap() {
   }, []);
 }
 
-export function PlayersMap({ data, failed }: { data: PlayersData | null; failed: boolean }) {
+export const PlayersMap = memo(function PlayersMap({ data, failed }: { data: PlayersData | null; failed: boolean }) {
   const map = useMap();
   const hours = data?.hours ?? [];
   const now = data?.latest?.count ?? null;
   const peak = hours.reduce((m, h) => Math.max(m, h.count), 0);
   const max = Math.max(peak, now ?? 0, 1);
+  const crowd = useMemo(() => (now == null ? null : crowdLevel(now, hours)), [now, hours]);
+  const crowdMeta = crowd ? CROWD[crowd] : null;
 
   return (
     <section className="players" aria-label="Players online by hour and region">
-      <header className="ph">
+      <header className="players-head">
         <div>
           <h2>Players online</h2>
-          <small>{data?.demo ? "Sample data" : data ? "Steam, per hour" : "Loading"}</small>
+          <small>{data ? "Steam, per hour" : "Loading"}</small>
         </div>
-        <div className="pnow">
-          {now == null ? "—" : fmt(now)}
-          <small> now</small>
+        <div className={`pnow${crowd ? ` ${crowd}` : ""}`}>
+          <span className="pval">
+            {now == null ? "—" : fmt(now)}
+            <small> now</small>
+          </span>
+          {crowdMeta && (
+            <span className={`chip ${crowdMeta.chip}`} title="Vs recent Steam player history">
+              {crowdMeta.label}
+            </span>
+          )}
         </div>
         <Icon name="out" small />
       </header>
@@ -108,8 +149,8 @@ export function PlayersMap({ data, failed }: { data: PlayersData | null; failed:
       </div>
       <p className="pfoot">
         {peak ? `Peak ${fmt(peak)} · ` : ""}
-        {data?.demo ? "sample numbers" : "Steam players only, not Battle.net"}
+        Steam players only, not Battle.net
       </p>
     </section>
   );
-}
+});

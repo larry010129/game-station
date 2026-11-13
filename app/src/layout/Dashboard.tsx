@@ -2,13 +2,18 @@ import { useState, type ReactNode } from "react";
 import { Responsive, WidthProvider, type Layouts } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
+import { CardBoundary } from "../components/ErrorBoundary";
+import { StationSelect } from "../components/StationSelect";
 import { CARD_MIME, dragging } from "./dragCard";
+import { resetKeys } from "./cardKeys";
 import { BREAKPOINTS, CARDS, COLS, MARGIN, ROW_HEIGHT, type CardDef, type CardId, type CardInstance } from "./layouts";
 
 const Grid = WidthProvider(Responsive);
 
 interface Props {
   editing: boolean;
+  /** Free: cards stay where you drop them. Otherwise they snap up into order and push each other. */
+  free?: boolean;
   layouts: Layouts;
   onLayouts: (next: Layouts) => void;
   onBreakpoint: (bp: string) => void;
@@ -27,7 +32,7 @@ interface Props {
  * from its bottom-right corner, or removed with its close button, and new cards
  * can be dragged in from the Cards list. The phone layout is a single fixed column.
  */
-export function Dashboard({ editing, layouts, onLayouts, onBreakpoint, instances, render, onRemove, onLook, onDropCard }: Props) {
+export function Dashboard({ editing, free = false, layouts, onLayouts, onBreakpoint, instances, render, onRemove, onLook, onDropCard }: Props) {
   const [bp, setBp] = useState("lg");
   const canEdit = editing && bp !== "sm";
   return (
@@ -39,7 +44,8 @@ export function Dashboard({ editing, layouts, onLayouts, onBreakpoint, instances
       rowHeight={ROW_HEIGHT}
       margin={MARGIN}
       containerPadding={[0, 0]}
-      compactType="vertical"
+      compactType={free ? null : "vertical"}
+      preventCollision={free}
       isDraggable={canEdit}
       isResizable={canEdit}
       isDroppable={canEdit}
@@ -68,17 +74,20 @@ export function Dashboard({ editing, layouts, onLayouts, onBreakpoint, instances
       {instances.map((inst) => {
         const def: CardDef = CARDS[inst.type];
         return (
-          <div key={inst.id} className="cell" data-card={inst.type} aria-label={canEdit ? `${def.name}, drag to move` : undefined}>
-            {render(inst)}
+          <div key={inst.id} className="cell" data-card={inst.type}>
+            <CardBoundary name={def.name} keys={resetKeys(inst.id, inst.type)}>
+              {render(inst)}
+            </CardBoundary>
             {canEdit && <span className="cell-name">{def.name}</span>}
             {canEdit && def.looks && (
-              <select className="cell-look" aria-label={`Look of ${def.name}`} value={inst.look} onChange={(e) => onLook(inst.id, e.target.value)}>
-                {def.looks.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
+              <StationSelect
+                className="cell-look"
+                variant="chip"
+                label={`Look of ${def.name}`}
+                value={inst.look ?? def.looks[0].id}
+                onChange={(next) => onLook(inst.id, next)}
+                options={def.looks.map((l) => ({ value: l.id, label: l.name }))}
+              />
             )}
             {canEdit && (
               <button className="cell-x" aria-label={`Remove ${def.name}`} title="Remove this card" onClick={() => onRemove(inst.id)}>

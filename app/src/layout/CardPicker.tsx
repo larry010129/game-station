@@ -1,20 +1,36 @@
+import { useState } from "react";
 import { CARDS, CARD_IDS, tabOf, type CardId, type CardInstance, type TabId } from "./layouts";
 import { CARD_MIME, dragging } from "./dragCard";
 
 interface Props {
   tab: TabId;
   instances: CardInstance[];
-  /** Cards that exist in this build. Others are listed as coming soon. */
-  ready: CardId[];
   onAdd: (type: CardId) => void;
   onClose: () => void;
 }
 
 const GROUPS = ["This PC", "Connection", "Overwatch", "Meta", "Game", "Media", "Tools"];
 
+function matchesQuery(id: CardId, q: string): boolean {
+  if (!q) return true;
+  const c = CARDS[id];
+  const hay = `${c.name} ${c.group} ${c.blurb}`.toLowerCase();
+  return hay.includes(q);
+}
+
 /** Every card you can add. Drag one onto the dashboard (or press +). You can add the same card as many times as you like. */
-export function CardPicker({ tab, instances, ready, onAdd, onClose }: Props) {
+export function CardPicker({ tab, instances, onAdd, onClose }: Props) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
   const count = (t: CardId) => instances.filter((i) => i.type === t).length;
+
+  const sections = GROUPS.map((g) => {
+    const ids = CARD_IDS.filter(
+      (id) => CARDS[id].group === g && (tab === "home" || tabOf(id) === tab) && matchesQuery(id, q),
+    );
+    return { g, ids };
+  }).filter((s) => s.ids.length > 0);
+
   return (
     <div className="picker" role="dialog" aria-label="Add cards">
       <div className="pk-head">
@@ -24,22 +40,40 @@ export function CardPicker({ tab, instances, ready, onAdd, onClose }: Props) {
           Close
         </button>
       </div>
+      <div className="pk-search">
+        <input
+          type="search"
+          value={query}
+          placeholder="Search cards"
+          aria-label="Search cards"
+          autoFocus
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              if (query) {
+                e.preventDefault();
+                e.stopPropagation();
+                setQuery("");
+              }
+            }
+          }}
+        />
+      </div>
       <div className="pk-body">
-        {GROUPS.map((g) => {
-          const ids = CARD_IDS.filter((id) => CARDS[id].group === g && tabOf(id) === tab);
-          if (!ids.length) return null;
-          return (
+        {sections.length === 0 ? (
+          <p className="pk-empty">No cards match</p>
+        ) : (
+          sections.map(({ g, ids }) => (
             <section key={g}>
               <h3>{g}</h3>
               <div className="pk-grid">
                 {ids.map((id) => {
-                  const ok = ready.includes(id);
                   const n = count(id);
                   return (
                     <div
                       key={id}
-                      className={`pk-tile${ok ? "" : " off"}`}
-                      draggable={ok}
+                      className="pk-tile"
+                      draggable
                       onDragStart={(e) => {
                         dragging.type = id;
                         e.dataTransfer.setData(CARD_MIME, id);
@@ -47,7 +81,7 @@ export function CardPicker({ tab, instances, ready, onAdd, onClose }: Props) {
                         e.dataTransfer.effectAllowed = "copy";
                       }}
                       onDragEnd={() => (dragging.type = null)}
-                      title={ok ? "Drag onto the dashboard" : "Coming soon"}
+                      title="Drag onto the dashboard"
                     >
                       <span className="pk-grip" aria-hidden="true">
                         ⋮⋮
@@ -55,11 +89,11 @@ export function CardPicker({ tab, instances, ready, onAdd, onClose }: Props) {
                       <span className="pk-txt">
                         <b>
                           {CARDS[id].name}
-                          {n > 0 && <em>{n === 1 ? "on" : `×${n}`}</em>}
+                          {n > 0 && <em className="used" title="On your dashboard">{n === 1 ? "on" : `×${n}`}</em>}
                         </b>
-                        <small>{ok ? CARDS[id].blurb : "Coming soon"}</small>
+                        <small>{CARDS[id].blurb}</small>
                       </span>
-                      <button className="pk-add" disabled={!ok} aria-label={`Add ${CARDS[id].name}`} title="Add another copy" onClick={() => onAdd(id)}>
+                      <button className="pk-add" aria-label={`Add ${CARDS[id].name}`} title="Add another copy" onClick={() => onAdd(id)}>
                         +
                       </button>
                     </div>
@@ -67,8 +101,8 @@ export function CardPicker({ tab, instances, ready, onAdd, onClose }: Props) {
                 })}
               </div>
             </section>
-          );
-        })}
+          ))
+        )}
       </div>
     </div>
   );

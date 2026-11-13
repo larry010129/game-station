@@ -1,15 +1,14 @@
+import { memo } from "react";
 import { clockTime } from "../lib/format";
-import type { Machine } from "../lib/types";
+import { useClock } from "../state/useEnvironment";
 import { TABS, type TabId } from "../layout/layouts";
 import { Icon } from "./Icon";
 
 interface Props {
   tab: TabId;
   onTab: (tab: TabId) => void;
-  machine: Machine;
+  displayName: string;
   modeLabel: string;
-  now: number;
-  sourceLabel: string;
   calm: boolean;
   onCalm: () => void;
   stopped: boolean;
@@ -19,7 +18,15 @@ interface Props {
   onTheme: () => void;
 }
 
-export function TopBar({ tab, onTab, machine, modeLabel, now, sourceLabel, calm, onCalm, stopped, onKill, editing, onEdit, onTheme }: Props) {
+/** The per-second clock lives here so only this label re-renders each second. */
+function Clock() {
+  const now = useClock();
+  return <b>{clockTime(now)}</b>;
+}
+
+export const TopBar = memo(function TopBar({ tab, onTab, displayName, modeLabel, calm, onCalm, stopped, onKill, editing, onEdit, onTheme }: Props) {
+  const name = displayName.trim();
+  const shown = name || "Your name";
   return (
     <header className="top">
       <div className="brand">
@@ -34,11 +41,13 @@ export function TopBar({ tab, onTab, machine, modeLabel, now, sourceLabel, calm,
       </nav>
       <div className="sp" />
       <span className="meta">
-        {machine.name.replace(/^ASUS /, "")} · {machine.gpu} · <b>{modeLabel}</b>
+        <span className={name ? undefined : "name-ph"}>{shown}</span> · <b>{modeLabel}</b>
       </span>
-      <span className="meta">
-        <b>{clockTime(now)}</b> · {sourceLabel.toLowerCase()}
-      </span>
+      <div className="status">
+        <span className="meta">
+          <Clock />
+        </span>
+      </div>
       <button className="pill-btn edit-toggle" aria-pressed={editing} onClick={onEdit}>
         <Icon name="layout" small />
         {editing ? "Done" : "Edit layout"}
@@ -46,9 +55,9 @@ export function TopBar({ tab, onTab, machine, modeLabel, now, sourceLabel, calm,
       <button
         className="ib"
         data-theme-toggle
-        aria-pressed={tab === "vault"}
-        aria-label="Appearance, on the Vault page"
-        title="Appearance"
+        aria-pressed={tab === "themes"}
+        aria-label="Themes"
+        title="Themes"
         onClick={onTheme}
       >
         <Icon name="palette" />
@@ -74,4 +83,4 @@ export function TopBar({ tab, onTab, machine, modeLabel, now, sourceLabel, calm,
       </button>
     </header>
   );
-}
+});

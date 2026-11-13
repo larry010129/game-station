@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { MediaStatus } from "../lib/types";
 import { useApi, useStationCtx } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
@@ -40,7 +40,7 @@ const Pause = () => (
 );
 
 /** Now playing, with play, pause, skip and seek. Uses Windows' media session, so it works for Spotify and anything else that is playing. */
-export function MediaCard() {
+export const MediaCard = memo(function MediaCard() {
   const { provider } = useStationCtx();
   const ms = useEvery(2000, 15000);
   const { data, reload } = useApi<MediaStatus>("/api/media", ms);
@@ -146,4 +146,4 @@ export function MediaCard() {
       </div>
     </Card>
   );
-}
+});

@@ -1,37 +1,37 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { BootScreen } from "./boot/BootScreen";
+import { signal } from "./boot/bootSignals";
+import { useBoot } from "./boot/useBoot";
 import { Dashboard } from "./layout/Dashboard";
 import { EditBar } from "./layout/EditBar";
-import { CARD_IDS, TABS, tabOf, type CardId, type CardInstance, type TabId } from "./layout/layouts";
+import { instancesForTab, layoutsFor, pageNote, type CardId, type CardInstance, type PageTabId, type TabId } from "./layout/layouts";
 import { CardPicker } from "./layout/CardPicker";
+import { CardCtxContext, CardView, type CardCtx } from "./layout/registry";
 import { StationContext } from "./state/useApi";
-import { MediaCard } from "./cards/MediaCard";
-import { MemoryCard, PowerCard } from "./cards/PcCards";
-import { JitterCard, RegionPingCard, VerdictCard, WifiCard } from "./cards/NetCards";
-import { LeaksCard, PatchCard, QueueCard, SeasonCard, SteamNewsCard, TrendCard } from "./cards/OverwatchCards";
-import { GameModeHistoryCard, PlayHistoryCard, ReportCard, SessionCard } from "./cards/GameCards";
-import { AiResearchCard } from "./cards/AiCards";
-import { BestPicksCard, HeroProfileCard, MapPicksCard, TierListCard } from "./cards/MetaCards";
-import { DeckMapCard, NotesCard } from "./cards/ToolCards";
+import { useSpotlight } from "./lib/useSpotlight";
+import { readString, removeKey, writeString } from "./lib/storage";
+import { CalendarPage, calFocus } from "./cards/CalendarPage";
+import { CreditsPage } from "./pages/CreditsPage";
+import { ThemesPage } from "./pages/ThemesPage";
+import { VaultPage } from "./pages/VaultPage";
+import { useSmartAlerts } from "./state/useSmartAlerts";
 import { useDashboard } from "./layout/useDashboard";
-import { WorldClockCard } from "./cards/WorldClockCard";
 import { Backdrop } from "./components/Backdrop";
-import { PlayersMap } from "./components/PlayersMap";
 import { usePlayers } from "./state/usePlayers";
-import { AlertsPanel, FeedPanel, GameModePanel } from "./components/Panels";
-import { DeckPanel } from "./components/DeckPanel";
-import { DeviceTile, LoadTile, UplinkTile } from "./components/Tiles";
 import { TopBar } from "./components/TopBar";
-import { createProvider } from "./providers";
 import { useToast } from "./state/Toast";
-import { isQuiet, useClock, usePerformanceGate, useStoredFlag } from "./state/useEnvironment";
+import { isQuiet, usePerformanceGate, useStoredFlag } from "./state/useEnvironment";
 import { useEvents, type NewEvent } from "./state/useEvents";
 import { useFeed } from "./state/useFeed";
 import { PLATFORM_NAME, platformOf } from "./components/PlatformIcon";
 import { useGameMode, type Phase } from "./state/useGameMode";
-import { useStation } from "./state/useStation";
+import { useSample, useStation } from "./state/useStation";
 import { useLeakAlerts } from "./state/useLeakAlerts";
 import { useTheme } from "./state/useTheme";
-import { ThemePanel } from "./components/ThemePanel";
+import { useToasts } from "./state/useToasts";
+import { StationAlert } from "./components/StationAlert";
+import { useMonitor } from "./state/useMonitor";
+import { useWindowView } from "./state/useWindowView";
 import type { FeedItem, Provider } from "./lib/types";
 
 const MODE_LABEL: Record<Phase, string> = {
@@ -41,51 +41,70 @@ const MODE_LABEL: Record<Phase, string> = {
   restoring: "Restoring",
 };
 
+/** Reports the first live sample (or failures) to the boot screen. */
+const withSampleSignal = (p: Provider): Provider => ({
+  ...p,
+  readSample: () =>
+    p.readSample().then(
+      (s) => {
+        signal("/api/sample", "ok");
+        return s;
+      },
+      (e: unknown) => {
+        signal("/api/sample", "error");
+        throw e;
+      },
+    ),
+});
+
 export function App() {
   const [provider, setProvider] = useState<Provider | null>(null);
+  const [cards, setCards] = useState<CardId[] | null>(null);
+  const [covered, setCovered] = useState(true);
   const look = useTheme();
+  const windowView = useWindowView();
+  const onProvider = useCallback((p: Provider) => setProvider(withSampleSignal(p)), []);
+  const boot = useBoot({ cards, onProvider });
 
-  useEffect(() => {
-    let alive = true;
-    createProvider().then((p) => {
-      if (alive) setProvider(p);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // The dashboard mounts as soon as the provider exists and fills in under the cover.
+  const under = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (under.current) under.current.inert = covered;
+  }, [covered, provider]);
 
-  if (!provider) {
-    return (
-      <>
-        <Backdrop image={look.image} />
-        <div className="page">
-          <p className="stopped" role="status">
-            Starting the local service… The dashboard only shows real readings from this PC, so it waits for it.
-          </p>
+  return (
+    <>
+      {provider && (
+        <div ref={under} className={covered ? "boot-under" : "boot-reveal"} aria-hidden={covered || undefined}>
+          <StationApp provider={provider} look={look} windowView={windowView} onCards={setCards} />
         </div>
-      </>
-    );
-  }
-
-  return <StationApp provider={provider} look={look} />;
+      )}
+      {covered && <BootScreen state={boot} image={look.image} onExited={() => setCovered(false)} />}
+    </>
+  );
 }
 
-const TAB_KEY = "cs.tab";
+const NAME_KEY = "cs.displayName";
+const FREE_KEY = "cs.freeMove";
 
-function readTab(): TabId {
-  try {
-    const saved = localStorage.getItem(TAB_KEY);
-    if (TABS.some((t) => t.id === saved)) return saved as TabId;
-  } catch {
-    // Storage blocked: start on Station.
-  }
-  return "station";
-}
+/** The dashboard grid, memoised so it redraws only when its own inputs change (cards read ctx from context, not from props). */
+const MemoDashboard = memo(Dashboard);
 
-function StationApp({ provider, look }: { provider: Provider; look: ReturnType<typeof useTheme> }) {
-  const [tab, setTab] = useState<TabId>(readTab);
-  const now = useClock();
+function StationApp({
+  provider,
+  look,
+  windowView,
+  onCards,
+}: {
+  provider: Provider;
+  look: ReturnType<typeof useTheme>;
+  windowView: ReturnType<typeof useWindowView>;
+  /** The card types on the current tab, for the boot checklist. */
+  onCards?: (types: CardId[]) => void;
+}) {
+  // Home is the page the app opens on.
+  const [tab, setTab] = useState<TabId>("home");
+  const [displayName, setDisplayName] = useState(() => readString(NAME_KEY) ?? "");
   const gate = usePerformanceGate();
   const toast = useToast();
   const [calm, setCalm] = useStoredFlag("cs.reduceMotion", false);
@@ -102,14 +121,17 @@ function StationApp({ provider, look }: { provider: Provider; look: ReturnType<t
     ];
   }, [provider.id, provider.label]);
   const { events, add } = useEvents(seedEvents);
+  const toasts = useToasts(provider);
   const gm = useGameMode(provider, add);
 
   // Slower polling while a game is running, slowest while the window is hidden.
   const intervalMs = gate.hidden ? 5000 : gm.phase === "on" ? 3000 : 1000;
-  const { history, latest } = useStation(provider, { stopped, intervalMs, onEvent: add });
+  const store = useStation(provider, { stopped, intervalMs, onEvent: add });
+  // Only the running game is read here; the rest of each reading is picked up by the cards that show it.
+  const game = useSample(store, (s) => s.game);
   const onNewStories = useCallback(
     (fresh: FeedItem[]) => {
-      for (const s of fresh.slice(0, 3)) add({ kind: "info", text: `New on ${PLATFORM_NAME[platformOf(s)]}: ${s.title}` });
+      for (const s of fresh.slice(0, 3)) add({ kind: "info", text: `New on ${PLATFORM_NAME[platformOf(s)]}: ${s.title}`, ...(s.url ? { url: s.url } : {}) });
       toast(fresh.length === 1 ? "1 new Overwatch story" : `${fresh.length} new Overwatch stories`);
     },
     [add, toast],
@@ -117,52 +139,71 @@ function StationApp({ provider, look }: { provider: Provider; look: ReturnType<t
   const feed = useFeed(provider, gm.phase === "on" || gate.hidden, onNewStories);
   const players = usePlayers(provider, gm.phase === "on" || gate.hidden);
   useLeakAlerts(provider, gm.phase === "on" || gate.hidden, (fresh) => {
-    for (const l of fresh.slice(0, 3)) add({ kind: "info", text: `New ${l.status === "confirmed" ? "confirmed news" : l.status}: ${l.title}` });
+    for (const l of fresh.slice(0, 3)) add({ kind: "info", text: `New ${l.status === "confirmed" ? "confirmed news" : l.status}: ${l.title}`, ...(l.url ? { url: l.url } : {}) });
     toast(fresh.length === 1 ? "1 new leak found" : `${fresh.length} new leaks found`);
   });
 
+  useSmartAlerts(provider, store, stopped, (text) => {
+    add({ kind: "alert", text });
+    toast(text, { alert: true });
+  });
+
+  // The state change and its side effects are separate steps: an updater function must stay pure.
   const toggleKill = useCallback(() => {
-    setStopped((s) => {
-      const next = !s;
-      add(
-        next
-          ? { kind: "alert", text: "Kill switch pressed, nothing is being sampled" }
-          : { kind: "info", text: "Monitoring resumed" },
-      );
-      toast(next ? "Monitoring stopped. Press the power button again to resume." : "Monitoring resumed.");
-      return next;
-    });
-  }, [add, toast]);
+    const next = !stopped;
+    setStopped(next);
+    add(next ? { kind: "alert", text: "Kill switch pressed, nothing is being sampled" } : { kind: "info", text: "Monitoring resumed" });
+    toast(next ? "Monitoring stopped. Press the power button again to resume." : "Monitoring resumed.");
+  }, [stopped, add, toast]);
 
   const dash = useDashboard();
+  const [freeMove, setFreeMove] = useState(() => readString(FREE_KEY) === "1");
+  const chooseMove = useCallback((mode: "snap" | "free") => {
+    setFreeMove(mode === "free");
+    writeString(FREE_KEY, mode === "free" ? "1" : "0");
+  }, []);
+  const monitor = useMonitor();
+  useSpotlight();
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState(false);
   const [phoneWidth, setPhoneWidth] = useState(false);
 
   useEffect(() => {
     if (!editing) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setEditing(false);
+    // An Escape that already closed a dropdown is not also a request to leave editing.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && setEditing(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [editing]);
 
-  const selectTab = (next: TabId) => {
+  const selectTab = useCallback((next: TabId) => {
     setTab(next);
-    try {
-      localStorage.setItem(TAB_KEY, next);
-    } catch {
-      // It still switches until the app closes.
-    }
-    if (next === "vault") {
+    if (pageNote(next)) {
       setEditing(false);
       setPicking(false);
     }
     window.scrollTo(0, 0);
-  };
+  }, []);
+
+  const openCalendar = useCallback(
+    (date?: string) => {
+      calFocus.date = date ?? null;
+      selectTab("calendar");
+    },
+    [selectTab],
+  );
+
+  const saveDisplayName = useCallback((next: string) => {
+    const clipped = next.slice(0, 40);
+    setDisplayName(clipped);
+    if (clipped) writeString(NAME_KEY, clipped);
+    else removeKey(NAME_KEY);
+  }, []);
 
   const toggleEdit = () => {
-    if (tab === "vault") {
-      toast("Vault is settings, not a card layout.");
+    const note = pageNote(tab);
+    if (note) {
+      toast(note);
       return;
     }
     if (phoneWidth) {
@@ -172,134 +213,123 @@ function StationApp({ provider, look }: { provider: Provider; look: ReturnType<t
     setEditing((e) => !e);
   };
 
-  const shown = useMemo(() => dash.instances.filter((inst) => tabOf(inst.type) === tab), [dash.instances, tab]);
+  const shown = useMemo(() => instancesForTab(tab, dash.instances, dash.hidden), [dash.instances, dash.hidden, tab]);
+  useEffect(() => {
+    // Pages like Vault and Calendar have no cards to wait on.
+    onCards?.(pageNote(tab) ? [] : shown.map((inst) => inst.type));
+  }, [shown, tab, onCards]);
   const shownLayouts = useMemo(
-    () => ({
-      lg: (dash.layouts.lg ?? []).filter((item) => shown.some((inst) => inst.id === item.i)),
-      md: (dash.layouts.md ?? []).filter((item) => shown.some((inst) => inst.id === item.i)),
-      sm: (dash.layouts.sm ?? []).filter((item) => shown.some((inst) => inst.id === item.i)),
-    }),
-    [dash.layouts, shown],
+    () =>
+      tab === "home"
+        ? layoutsFor(shown, dash.layouts)
+        : {
+            lg: (dash.layouts.lg ?? []).filter((item) => shown.some((inst) => inst.id === item.i)),
+            md: (dash.layouts.md ?? []).filter((item) => shown.some((inst) => inst.id === item.i)),
+            sm: (dash.layouts.sm ?? []).filter((item) => shown.some((inst) => inst.id === item.i)),
+          },
+    [dash.layouts, shown, tab],
   );
 
-  const cards: Partial<Record<CardId, ReactNode>> = {
-    gpu: <DeviceTile kind="gpu" title="GPU" model={provider.machine.gpu} temp={latest.gpuTemp} selected />,
-    load: <LoadTile cpu={latest.cpuLoad} gpu={latest.gpuLoad} />,
-    uplink: <UplinkTile sample={latest} />,
-    chart: <PlayersMap data={players.data} failed={players.failed} />,
-    alerts: <AlertsPanel events={events} />,
-    gamemode: (
-      <GameModePanel
-        profiles={gm.profiles}
-        profile={gm.profile}
-        onProfile={gm.setProfileId}
-        phase={gm.phase}
-        status={gm.status}
-        onStart={gm.start}
-        onStop={gm.stop}
-        disabled={stopped}
+  const ctx = useMemo<CardCtx>(
+    () => ({
+      provider,
+      store,
+      players: { data: players.data, failed: players.failed },
+      feed: { items: feed.items, error: feed.error, checking: feed.checking, checkNow: feed.checkNow },
+      events,
+      gm: { profiles: gm.profiles, profile: gm.profile, setProfileId: gm.setProfileId, phase: gm.phase, status: gm.status, start: gm.start, stop: gm.stop },
+      stopped,
+      toasts,
+      onOpenCalendar: openCalendar,
+      onLook: dash.setLook,
+    }),
+    [provider, store, players.data, players.failed, feed.items, feed.error, feed.checking, feed.checkNow, events, gm.profiles, gm.profile, gm.setProfileId, gm.phase, gm.status, gm.start, gm.stop, stopped, toasts, openCalendar, dash.setLook],
+  );
+  // The grid gets a render function that never changes; each card reads `ctx` from context (see CardView).
+  const renderCard = useCallback((inst: CardInstance): ReactNode => <CardView inst={inst} />, []);
+
+  const updateVisible = dash.updateVisible;
+  const onLayouts = useCallback(
+    (next: Parameters<typeof updateVisible>[0]) => updateVisible(next, shown.map((inst) => inst.id)),
+    [updateVisible, shown],
+  );
+  const onBreakpoint = useCallback((bp: string) => {
+    setPhoneWidth(bp === "sm");
+    if (bp === "sm") setEditing(false);
+  }, []);
+
+  const quiet = isQuiet(gate, game, provider.id === "live");
+  const rootClass = ["page", quiet && "quiet", calm && "calm"].filter(Boolean).join(" ");
+  const stationValue = useMemo(() => ({ provider, quiet: quiet || gm.phase === "on" || gate.hidden }), [provider, quiet, gm.phase, gate.hidden]);
+
+  // Each page tab is drawn by its own component. Only the open one is built.
+  const pages: Record<PageTabId, () => ReactNode> = {
+    vault: () => (
+      <VaultPage
+        provider={provider}
+        onProfilesChanged={gm.refreshProfiles}
+        look={look}
+        windowView={windowView}
+        monitor={monitor}
+        displayName={displayName}
+        onDisplayName={saveDisplayName}
+        freeMove={freeMove}
+        onMoveMode={chooseMove}
+        toasts={toasts}
+        onOpenThemes={() => selectTab("themes")}
       />
     ),
-    feed: <FeedPanel items={feed.items} error={feed.error} checking={feed.checking} onCheck={feed.checkNow} />,
-    media: <MediaCard />,
-    memory: <MemoryCard />,
-    power: <PowerCard game={latest.game} />,
-    regionping: <RegionPingCard />,
-    jitter: <JitterCard />,
-    wifi: <WifiCard />,
-    verdict: <VerdictCard />,
-    trend: <TrendCard players={players.data} />,
-    patch: <PatchCard items={feed.items} />,
-    leaks: <LeaksCard items={feed.items} />,
-    season: <SeasonCard />,
-    steam: <SteamNewsCard />,
-    queue: <QueueCard players={players.data} />,
-    airesearch: <AiResearchCard />,
-    tierlist: <TierListCard />,
-    mappicks: <MapPicksCard />,
-    bestpicks: <BestPicksCard />,
-    heroprofile: <HeroProfileCard />,
-    session: <SessionCard />,
-    playhistory: <PlayHistoryCard />,
-    report: <ReportCard />,
-    gmhistory: <GameModeHistoryCard />,
-    clocks: <WorldClockCard onLook={() => undefined} />,
-    notes: <NotesCard instanceId="notes" />,
-    deckmap: <DeckMapCard />,
-    deck: <DeckPanel history={history} gameModeOn={gm.phase === "on"} hasNews={feed.items.some((i) => i.isNew)} stopped={stopped} profileName={gm.profile.name} />,
+    themes: () => <ThemesPage look={look} />,
+    calendar: () => <CalendarPage />,
+    credits: () => <CreditsPage />,
   };
-
-  const renderCard = (inst: CardInstance): ReactNode => {
-    if (inst.type === "clocks") return <WorldClockCard look={inst.look} onLook={(l) => dash.setLook(inst.id, l)} />;
-    if (inst.type === "notes") return <NotesCard instanceId={inst.id} />;
-    return cards[inst.type];
-  };
-
-  const quiet = isQuiet(gate, latest.game, provider.id === "live");
-  const rootClass = ["page", quiet && "quiet", calm && "calm"].filter(Boolean).join(" ");
 
   return (
-    <StationContext.Provider value={{ provider, quiet: quiet || gm.phase === "on" || gate.hidden }}>
+    <StationContext.Provider value={stationValue}>
       <Backdrop image={look.image} />
       <div className={rootClass}>
         <TopBar
           tab={tab}
           onTab={selectTab}
-          machine={provider.machine}
+          displayName={displayName}
           modeLabel={stopped ? "Stopped" : MODE_LABEL[gm.phase]}
-          now={now}
-          sourceLabel={provider.label}
           calm={calm}
           onCalm={() => setCalm(!calm)}
           stopped={stopped}
           onKill={toggleKill}
           editing={editing}
           onEdit={toggleEdit}
-          onTheme={() => selectTab("vault")}
+          onTheme={() => selectTab("themes")}
         />
         {stopped && (
-          <p className="stopped" role="status">
+          <StationAlert tone="alert" role="status">
             Monitoring is stopped. Nothing is being sampled until you press the power button again.
-          </p>
+          </StationAlert>
         )}
 
-        {tab === "vault" ? (
-          <section className="vault" aria-label="Vault">
-            <h2>Vault</h2>
-            <p>Card colour and the background picture, saved on this PC. Each other tab keeps its own cards.</p>
-            <ThemePanel
-              embedded
-              theme={look.theme}
-              image={look.image}
-              imageSaved={look.imageSaved}
-              onTint={look.setTint}
-              onDim={look.setDim}
-              onImage={look.setImage}
-              onReset={look.reset}
-              onClose={() => selectTab("station")}
-            />
-          </section>
+        {pageNote(tab) ? (
+          pages[tab as PageTabId]()
         ) : (
           <div id={tab}>
             {shown.length === 0 && (
-              <p className="stopped" role="status">
+              <StationAlert tone="notice" role="status">
                 No cards on this page. Press Edit layout, then add the ones that belong here.
-              </p>
+              </StationAlert>
             )}
-            <Dashboard
-              editing={editing}
-              layouts={shownLayouts}
-              onLayouts={(next) => dash.updateVisible(next, shown.map((inst) => inst.id))}
-              onBreakpoint={(bp) => {
-                setPhoneWidth(bp === "sm");
-                if (bp === "sm") setEditing(false);
-              }}
-              instances={shown}
-              render={renderCard}
-              onRemove={dash.remove}
-              onLook={dash.setLook}
-              onDropCard={dash.add}
-            />
+            <CardCtxContext.Provider value={ctx}>
+              <MemoDashboard
+                editing={editing}
+                free={freeMove}
+                layouts={shownLayouts}
+                onLayouts={onLayouts}
+                onBreakpoint={onBreakpoint}
+                instances={shown}
+                render={renderCard}
+                onRemove={dash.remove}
+                onLook={dash.setLook}
+                onDropCard={dash.add}
+              />
+            </CardCtxContext.Provider>
           </div>
         )}
       </div>
@@ -321,9 +351,7 @@ function StationApp({ provider, look }: { provider: Provider; look: ReturnType<t
           cardsOpen={picking}
         />
       )}
-      {editing && picking && (
-        <CardPicker tab={tab} instances={dash.instances} ready={CARD_IDS.filter((id) => id === "clocks" || cards[id] != null)} onAdd={(t) => dash.add(t)} onClose={() => setPicking(false)} />
-      )}
+      {editing && picking && <CardPicker tab={tab} instances={dash.instances} onAdd={(t) => dash.add(t)} onClose={() => setPicking(false)} />}
     </StationContext.Provider>
   );
 }

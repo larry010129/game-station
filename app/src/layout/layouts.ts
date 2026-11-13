@@ -23,28 +23,28 @@ export const CLOCK_LOOKS = [
 ] as const;
 
 export const CARDS = {
-  gpu: { name: "GPU", group: "This PC", blurb: "Temperature with a limit gauge", size: [6, 8], min: [3, 7], on: true },
-  load: { name: "Load", group: "This PC", blurb: "CPU and GPU load", size: [3, 6], min: [3, 5], on: true },
-  uplink: { name: "Uplink", group: "Connection", blurb: "Ping to the region and your router", size: [3, 6], min: [3, 5], on: true },
+  gpu: { name: "GPU", group: "This PC", blurb: "Temperature with a limit gauge", size: [6, 4], min: [3, 4], on: true },
+  load: { name: "Load", group: "This PC", blurb: "CPU and GPU load", size: [3, 5], min: [3, 5], on: true },
+  uplink: { name: "Uplink", group: "Connection", blurb: "Ping to the region and your router", size: [3, 4], min: [3, 4], on: true },
   chart: { name: "Players online", group: "Overwatch", blurb: "Hourly players and the world map", size: [12, 22], min: [8, 10], on: true },
   alerts: { name: "Alerts and events", group: "This PC", blurb: "What happened this session", size: [6, 9], min: [4, 6], on: true },
   gamemode: { name: "Game mode", group: "Game", blurb: "One-tap game mode with undo", size: [6, 11], min: [5, 9], on: true },
   feed: { name: "Overwatch feed", group: "Overwatch", blurb: "News, patch notes and leaks", size: [6, 9], min: [5, 6], on: true },
-  deck: { name: "Stream Deck", group: "Game", blurb: "Stream Deck + preview", size: [6, 13], min: [4, 10], on: true },
   media: { name: "Now playing", group: "Media", blurb: "Spotify and other media: title, art, play, skip", size: [6, 9], min: [4, 7], on: true },
+  calendar: { name: "Calendar", group: "Tools", blurb: "Month at a glance and what is next. Click to open the calendar", size: [6, 12], min: [4, 9] },
+  spotify: { name: "Spotify control", group: "Media", blurb: "Play, skip, volume, shuffle and device for any Spotify account", size: [6, 12], min: [4, 9] },
   memory: { name: "Memory", group: "This PC", blurb: "RAM used and the top apps using it", size: [6, 8], min: [4, 7] },
   power: { name: "Power and battery", group: "This PC", blurb: "Battery, charge watts, unplugged warning", size: [6, 8], min: [4, 7] },
   regionping: { name: "Ping by region", group: "Connection", blurb: "Americas, Europe and Asia side by side", size: [6, 8], min: [4, 7] },
   jitter: { name: "Jitter and packet loss", group: "Connection", blurb: "Last 60 seconds of ping spread and drops", size: [6, 8], min: [4, 7] },
   wifi: { name: "Wi-Fi signal", group: "Connection", blurb: "Strength, band and network name", size: [6, 7], min: [4, 6] },
-  verdict: { name: "Connection verdict", group: "Connection", blurb: "One line: good for ranked, or not", size: [6, 6], min: [4, 5] },
+  verdict: { name: "Connection verdict", group: "Connection", blurb: "Ranked-ready status from the metrics you pick", size: [6, 9], min: [4, 7] },
   trend: { name: "Player trend", group: "Overwatch", blurb: "Peak, low and the busiest hour", size: [6, 8], min: [4, 7] },
   patch: { name: "Patch summary", group: "Overwatch", blurb: "Latest patch, buffs against nerfs", size: [6, 9], min: [4, 7] },
-  leaks: { name: "Leak watch", group: "Overwatch", blurb: "Only the leak posts, newest first", size: [6, 9], min: [4, 7] },
   season: { name: "Season countdown", group: "Overwatch", blurb: "Days left in the season", size: [6, 6], min: [4, 5] },
   steam: { name: "Steam news", group: "Overwatch", blurb: "Latest Overwatch posts on Steam", size: [6, 9], min: [4, 7] },
   queue: { name: "Best time to play", group: "Overwatch", blurb: "Busy and quiet hours in your time zone", size: [6, 8], min: [4, 7] },
-  airesearch: { name: "Leak feed", group: "Overwatch", blurb: "Claude or Gemini searches the web for leaks every hour", size: [6, 20], min: [4, 10], on: true },
+  airesearch: { name: "Leak feed", group: "Overwatch", blurb: "Claude or Gemini (API key) searches the web for leaks every hour", size: [6, 20], min: [4, 10], on: true },
   tierlist: { name: "Hero tier list", group: "Meta", blurb: "S to F tiers from Counterwatch, by role", size: [6, 20], min: [4, 9], on: true },
   mappicks: { name: "Map hero picks", group: "Meta", blurb: "Pick a map: most played and best win-rate heroes", size: [6, 20], min: [4, 9], on: true },
   bestpicks: { name: "Best pick per role", group: "Meta", blurb: "The strongest hero for tank, damage and support", size: [6, 11], min: [4, 8] },
@@ -54,22 +54,39 @@ export const CARDS = {
   report: { name: "Session report", group: "Game", blurb: "Ping, load and temperature of your last session", size: [6, 8], min: [4, 7] },
   gmhistory: { name: "Game mode history", group: "Game", blurb: "Past runs and what they changed", size: [6, 8], min: [4, 7] },
   clocks: { name: "World clock", group: "Tools", blurb: "Time where your teammates are, in five looks you can switch", size: [6, 11], min: [4, 8], on: true, looks: CLOCK_LOOKS },
+  cputemp: { name: "CPU temperature", group: "This PC", blurb: "CPU temperature with a short history (needs LibreHardwareMonitor)", size: [6, 8], min: [4, 7] },
+  cost: { name: "App cost", group: "This PC", blurb: "How much CPU and memory this app uses, against its budget", size: [6, 8], min: [4, 7] },
+  library: { name: "Game library", group: "Game", blurb: "Installed Steam games and Battle.net, one-tap play", size: [6, 12], min: [4, 8] },
+  discord: { name: "Discord", group: "Media", blurb: "Who is in your voice channel, and your Discord notifications", size: [6, 16], min: [4, 11] },
   notes: { name: "Pre-game checklist", group: "Tools", blurb: "Checklist and notes saved on this PC", size: [6, 9], min: [4, 7] },
-  deckmap: { name: "Deck button map", group: "Tools", blurb: "What each Stream Deck key does", size: [6, 9], min: [4, 7] },
 } as const satisfies Record<string, CardDef>;
 
 export type CardId = keyof typeof CARDS;
 export const CARD_IDS = Object.keys(CARDS) as CardId[];
 
-/** Top-bar pages. Each card lives on one page, so the dashboard is not one long scroll. */
+/**
+ * Top-bar pages. Home is every card in one place. Each other card page keeps its smaller slice.
+ * A "page" tab is drawn by its own component and has no card layout; `note` says so when Edit layout is pressed there.
+ */
 export const TABS = [
-  { id: "station", label: "Station" },
-  { id: "overwatch", label: "Overwatch" },
-  { id: "gamemode", label: "Game mode" },
-  { id: "devices", label: "Devices" },
-  { id: "vault", label: "Vault" },
+  { id: "home", label: "Home", kind: "cards" },
+  { id: "station", label: "Station", kind: "cards" },
+  { id: "overwatch", label: "Overwatch", kind: "cards" },
+  { id: "gamemode", label: "Game mode", kind: "cards" },
+  { id: "calendar", label: "Calendar", kind: "page", note: "The calendar is a page, not a card layout." },
+  { id: "credits", label: "Credits", kind: "page", note: "Credits is a page, not a card layout." },
+  { id: "themes", label: "Themes", kind: "page", note: "Themes is a page, not a card layout." },
+  { id: "vault", label: "Vault", kind: "page", note: "Vault is settings, not a card layout." },
 ] as const;
 export type TabId = (typeof TABS)[number]["id"];
+/** The tabs that are a page of their own rather than a grid of cards. */
+export type PageTabId = Extract<(typeof TABS)[number], { kind: "page" }>["id"];
+
+/** The "not a card layout" message for a page tab, or null for a card tab. */
+export function pageNote(id: TabId): string | null {
+  const tab = TABS.find((t) => t.id === id);
+  return tab && tab.kind === "page" ? tab.note : null;
+}
 
 const TAB_OF_GROUP: Record<string, TabId> = {
   "This PC": "station",
@@ -81,9 +98,8 @@ const TAB_OF_GROUP: Record<string, TabId> = {
   Game: "gamemode",
 };
 
-/** Which page a card belongs on. Stream Deck lives under Devices, not Game mode. */
+/** Which page a card belongs on. */
 export function tabOf(id: CardId): TabId {
-  if (id === "deck" || id === "deckmap") return "devices";
   return TAB_OF_GROUP[CARDS[id].group] ?? "station";
 }
 export const CARD_NAMES = Object.fromEntries(CARD_IDS.map((id) => [id, CARDS[id].name])) as Record<CardId, string>;
@@ -110,27 +126,25 @@ function build(boxes: Box[], scale: number): Layout[] {
 
 // Desktop, 24 columns: left tiles, the chart in the middle, panels on the right.
 const LG_CORE: Box[] = [
-  ["gpu", 0, 0, 6, 8],
-  ["load", 0, 8, 3, 6],
-  ["uplink", 3, 8, 3, 6],
-  ["media", 0, 14, 6, 9],
+  ["gpu", 0, 0, 6, 4],
+  ["load", 0, 4, 3, 5],
+  ["uplink", 3, 4, 3, 4],
+  ["media", 0, 9, 6, 9],
   ["chart", 6, 0, 12, 22],
   ["alerts", 18, 0, 6, 9],
   ["gamemode", 18, 9, 6, 11],
   ["feed", 18, 20, 6, 9],
-  ["deck", 18, 29, 6, 13],
 ];
 // Tablet, 12 columns: the chart across the top, two columns below.
 const MD_CORE: Box[] = [
   ["chart", 0, 0, 12, 13],
-  ["gpu", 0, 13, 6, 8],
-  ["load", 0, 21, 3, 6],
-  ["uplink", 3, 21, 3, 6],
-  ["media", 0, 27, 6, 9],
+  ["gpu", 0, 13, 6, 4],
+  ["load", 0, 17, 3, 5],
+  ["uplink", 3, 17, 3, 4],
+  ["media", 0, 22, 6, 9],
   ["alerts", 6, 13, 6, 9],
   ["gamemode", 6, 22, 6, 11],
   ["feed", 6, 33, 6, 9],
-  ["deck", 6, 42, 6, 13],
 ];
 
 const CORE = new Set<CardId>(LG_CORE.map((b) => b[0]));
@@ -156,11 +170,10 @@ const SM_ORDER: [CardId, number][] = [
   ["media", 9],
   ["gamemode", 11],
   ["alerts", 9],
-  ["gpu", 8],
-  ["load", 6],
-  ["uplink", 6],
+  ["gpu", 4],
+  ["load", 5],
+  ["uplink", 4],
   ["feed", 9],
-  ["deck", 13],
   ...EXTRA.map((id): [CardId, number] => [id, CARDS[id].size[1]]),
 ];
 
@@ -185,6 +198,19 @@ export const defaultLook = (type: CardId): string | undefined => (CARDS[type] as
 
 export function defaultInstances(): CardInstance[] {
   return DEFAULT_ON.map((type) => ({ id: type, type, look: defaultLook(type) }));
+}
+
+/**
+ * Home shows the whole catalog, plus any extra copies already saved.
+ * A saved layout that omitted a card still leaves it on Home.
+ * Other pages show only the saved cards that belong to that slice.
+ */
+export function instancesForTab(tab: TabId, instances: CardInstance[], hidden: readonly CardId[] = []): CardInstance[] {
+  if (tab !== "home") return instances.filter((inst) => tabOf(inst.type) === tab);
+  const seen = new Set<CardId>();
+  for (const inst of instances) seen.add(inst.type);
+  const missing = CARD_IDS.filter((type) => !seen.has(type) && !hidden.includes(type)).map((type) => ({ id: type, type, look: defaultLook(type) }));
+  return [...instances, ...missing];
 }
 
 /** Where a fresh card goes when it has no position yet: at the bottom, and the grid packs it upward. */
@@ -225,9 +251,38 @@ export function sanitize(saved: Layouts | null | undefined, instances: CardInsta
       const base = got.find((g) => g.i === inst.id) ?? (inst.id === inst.type ? DEFAULT_LAYOUTS[bp]?.find((g) => g.i === inst.id) : undefined);
       if (!base) return newBox(inst, bp);
       const w = Math.min(cols, Math.max(base.w, m.minW));
-      const h = Math.max(base.h, m.minH);
+      // The old ten-pill defaults were gpu 8 rows and load/uplink 6. A saved copy of those
+      // drops to the shorter ring size; a height the user chose themselves stays.
+      const wasPill = inst.type === "gpu" ? 8 : inst.type === "load" || inst.type === "uplink" ? 6 : 0;
+      const wasRoomy = inst.type === "gpu" || inst.type === "uplink" ? 5 : 0;
+      const raw = base.h === wasPill || base.h === wasRoomy ? CARDS[inst.type].size[1] : base.h;
+      const h = Math.max(raw, m.minH);
       return { i: inst.id, x: Math.max(0, Math.min(base.x, cols - w)), y: Math.max(0, base.y), w, h, ...m };
     });
   }
   return out;
+}
+
+/** Saved boxes for the cards on screen. Catalog cards with no saved box keep their default spot. */
+export function layoutsFor(instances: CardInstance[], saved: Layouts): Layouts {
+  const ids = new Set(instances.map((inst) => inst.id));
+  const fill = (bp: "lg" | "md"): Layout[] => {
+    const kept = (saved[bp] ?? []).filter((item) => ids.has(item.i));
+    const have = new Set(kept.map((item) => item.i));
+    const added = instances
+      .filter((inst) => !have.has(inst.id))
+      .map((inst) => {
+        const preset = inst.id === inst.type ? DEFAULT_LAYOUTS[bp]?.find((item) => item.i === inst.id) : undefined;
+        return preset ? { ...preset, i: inst.id } : newBox(inst, bp);
+      });
+    return [...kept, ...added];
+  };
+  let y = 0;
+  const sm: Layout[] = instances.map((inst) => {
+    const h = (saved.sm ?? []).find((item) => item.i === inst.id)?.h ?? CARDS[inst.type].size[1];
+    const item: Layout = { i: inst.id, x: 0, y, w: 1, h, static: true };
+    y += h;
+    return item;
+  });
+  return { lg: fill("lg"), md: fill("md"), sm };
 }
