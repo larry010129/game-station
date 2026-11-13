@@ -1,0 +1,419 @@
+<!doctype html><html lang="en"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"></head><body>
+<meta name="color-scheme" content="dark" />
+<title>Command Station Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&display=swap">
+<style>
+:root{
+  --bg:#0a0a0b;--glass:rgba(28,28,30,.66);--glass-hi:rgba(255,255,255,.06);
+  --edge:rgba(255,255,255,.1);--edge-2:rgba(255,255,255,.22);
+  --text:#efefef;--dim:#9a9a9e;--mute:#6b6b70;
+  --orange:#f0893a;--red:#e5484d;
+  --ui:"Outfit","Segoe UI",system-ui,sans-serif;
+  --r:16px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:300 14px/1.4 var(--ui);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+::selection{background:var(--orange);color:#111}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:1.5px solid var(--text);outline-offset:3px;border-radius:6px}
+h1,h2,h3,p{margin:0;font-weight:300}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.s{width:14px;height:14px}
+.dim{color:var(--dim)}
+
+.scene{position:fixed;inset:0;z-index:0;background:#0a0a0b;overflow:hidden}
+.scene svg{position:absolute;inset:0;width:100%;height:100%}
+.scene:after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,transparent 25%,rgba(8,8,9,.82) 95%)}
+.page{position:relative;z-index:1;max-width:1680px;margin:0 auto;padding:0 20px 20px}
+
+/* ---------- top ---------- */
+.top{display:flex;align-items:center;gap:26px;height:62px}
+.brand{font-size:19px;font-weight:300;letter-spacing:.02em;white-space:nowrap}
+.brand b{font-weight:500}
+.nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav a{padding:7px 14px;border-radius:999px;font-size:13.5px;color:var(--dim);white-space:nowrap;min-height:34px;display:flex;align-items:center;transition:color .15s,background-color .15s}
+.nav a:hover{color:var(--text)}
+.nav a[aria-current]{color:var(--text);background:var(--glass-hi);box-shadow:inset 0 0 0 1px var(--edge)}
+.nav a[aria-disabled]{opacity:.45}
+.sp{flex:1}
+.meta{font-size:13px;color:var(--dim);white-space:nowrap}
+.meta b{font-weight:400;color:var(--text)}
+.ib{width:36px;height:36px;border-radius:50%;border:1px solid var(--edge);background:var(--glass);display:grid;place-items:center;color:var(--dim);flex:none;transition:color .15s,border-color .15s,background-color .15s}
+.ib:hover{color:var(--text);border-color:var(--edge-2)}
+.ib[aria-checked=true]{background:var(--text);color:#111}
+.ib.kill:hover{color:var(--red);border-color:var(--red)}
+.ib.kill[aria-pressed=true]{background:var(--red);border-color:var(--red);color:#fff}
+
+/* ---------- tiles ---------- */
+.grid{display:grid;grid-template-columns:330px minmax(0,1fr) 340px;gap:14px;align-items:start}
+.stack{display:grid;gap:12px}
+.t{position:relative;background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(120%);backdrop-filter:blur(24px) saturate(120%);border:1px solid var(--edge);border-radius:var(--r);padding:14px 16px;min-width:0;overflow:hidden}
+.t.sel{background:linear-gradient(150deg,rgba(210,210,214,.42),rgba(90,90,94,.3) 45%,rgba(28,28,30,.66));border-color:var(--edge-2)}
+.th{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.th h2{font-size:13.5px;color:var(--text);font-weight:300}
+.th small{display:block;font-size:11.5px;color:var(--mute);margin-top:1px}
+.th svg{color:var(--dim)}
+.big{font-size:40px;font-weight:200;letter-spacing:-.02em;line-height:1}
+.big small{font-size:15px;color:var(--mute);font-weight:300;margin-left:3px}
+.big .frac{color:var(--mute)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--edge-2);border-radius:999px;padding:2px 10px;font-size:11.5px;color:var(--text);white-space:nowrap}
+.chip.or{border-color:rgba(240,137,58,.7);color:var(--orange)}
+.chip.red{border-color:rgba(229,72,77,.7);color:#ff8b8f}
+.spark{display:block;width:100%;height:58px;margin-top:8px}
+.spark .l{fill:none;stroke:var(--text);stroke-width:1;vector-effect:non-scaling-stroke}
+.spark .d{stroke:rgba(255,255,255,.4);stroke-dasharray:4 5;vector-effect:non-scaling-stroke}
+.xl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mute);margin-top:2px}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dev .art{display:block;width:100%;height:54px;margin:4px 0 8px;color:rgba(255,255,255,.75)}
+.dev .art *{fill:none;stroke:currentColor;stroke-width:1;vector-effect:non-scaling-stroke}
+.dev .val{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:8px}
+.dev .val b{font-size:22px;font-weight:200}
+.dev .val b small{font-size:12px;color:var(--mute)}
+/* tick-mark scale with a slider marker */
+.ticks{position:relative;height:16px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.34) 0 1px,transparent 1px 5px)}
+.ticks i{position:absolute;top:-3px;bottom:-3px;width:9px;margin-left:-4px;border:1px solid var(--text);border-radius:2px;background:rgba(10,10,11,.9);transition:left .5s cubic-bezier(.16,1,.3,1)}
+.ticks u{position:absolute;top:-2px;bottom:-2px;right:8%;width:1px;background:var(--red)}
+.ticks.or i{border-color:var(--orange)}.ticks.red i{border-color:var(--red)}
+
+/* ---------- centre ---------- */
+.hero{position:relative;height:470px;overflow:hidden;border-radius:16px}
+.hero svg.c{position:absolute;inset:0;width:100%;height:100%}
+.hero .l{fill:none;stroke:var(--text);stroke-width:1.1;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.hero .l2{fill:none;stroke:var(--orange);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.9}
+.hero .d{stroke:rgba(255,255,255,.34);stroke-dasharray:10 9;vector-effect:non-scaling-stroke}
+.hero .d.t{stroke:rgba(255,255,255,.8)}
+.lev{position:absolute;right:6px;font-size:19px;font-weight:200;color:var(--text);transform:translateY(-50%);background:rgba(10,10,11,.5);padding:0 6px;border-radius:6px}
+.lev small{font-size:11.5px;color:var(--dim);margin-left:4px}
+.lev.f{color:var(--dim)}
+.xa{position:absolute;bottom:2px;font-size:13px;color:var(--mute);transform:translateX(-50%)}
+.band{position:absolute;top:8%;bottom:8%;background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.02));border-radius:4px}
+.pt{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--text);transform:translate(-50%,-50%);box-shadow:0 0 0 5px rgba(255,255,255,.12)}
+.pt.or{background:var(--orange);box-shadow:0 0 0 5px rgba(240,137,58,.2)}
+.tagc{position:absolute;left:3%;top:6%;width:220px;padding:14px 16px;border-radius:18px;background:rgba(150,150,154,.22);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--edge-2)}
+.tagc h2{font-size:15px}
+.tagc p{font-size:12px;color:var(--dim)}
+.tagc .big{margin-top:14px}
+.tagc svg{position:absolute;right:14px;top:14px;color:var(--dim)}
+.ring{position:absolute;width:150px;height:150px;border:1px dashed rgba(255,255,255,.7);border-radius:50%;transform:translate(-50%,-50%);display:grid;place-items:center;transition:left .5s cubic-bezier(.16,1,.3,1),top .5s cubic-bezier(.16,1,.3,1)}
+.ring span{width:54px;height:54px;border-radius:50%;background:rgba(190,190,194,.3);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:grid;place-items:center;font-size:15px;font-weight:300}
+.evt{position:absolute;top:8%;bottom:8%;border-left:1px solid rgba(255,255,255,.6)}
+.evt span{position:absolute;top:0;left:6px;font-size:11.5px;white-space:nowrap;color:var(--text)}
+.under{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:12px;margin-top:12px}
+.off{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.off span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.off svg{color:var(--orange)}
+.levels{position:relative;height:104px;margin-top:6px}
+.levels svg{position:absolute;inset:0;width:100%;height:100%}
+.levels .l{fill:none;stroke:rgba(255,255,255,.28);stroke-width:1;vector-effect:non-scaling-stroke}
+.lv{position:absolute;width:30%;transition:top .5s cubic-bezier(.16,1,.3,1)}
+.lv i{display:block;height:2px;background:var(--text)}
+.lv b{position:absolute;bottom:6px;left:0;font-size:17px;font-weight:200}
+.lv small{position:absolute;top:6px;left:0;font-size:11.5px;color:var(--dim)}
+.lv.or i{background:var(--orange)}.lv.or small{color:var(--orange)}
+
+/* ---------- right ---------- */
+.al{background:rgba(88,18,22,.5);border:1px solid rgba(229,72,77,.35);border-radius:12px;padding:9px 12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 9px;font-size:12.5px}
+.al+.al{margin-top:7px}
+.al i{width:9px;height:9px;border-radius:50%;background:var(--red);margin-top:4px;box-shadow:0 0 0 3px rgba(229,72,77,.22)}
+.al time{grid-column:2;font-size:11px;color:#c99;}
+.al.info{background:var(--glass-hi);border-color:var(--edge)}
+.al.info i{background:var(--text);box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+.al.info time{color:var(--mute)}
+.alist{max-height:214px;overflow:auto}
+.go{width:100%;min-height:46px;border-radius:999px;border:1px solid var(--text);background:var(--text);color:#111;font-weight:400;font-size:14px;display:flex;align-items:center;justify-content:center;gap:9px;transition:background-color .15s,color .15s}
+.go:hover{background:#fff}
+.go[aria-pressed=true]{background:transparent;color:var(--text)}
+.go[aria-pressed=true]:hover{background:var(--glass-hi)}
+.go[disabled]{cursor:progress;opacity:.75}
+.pick{display:flex;align-items:center;gap:10px;margin:10px 0 6px;font-size:12px;color:var(--dim)}
+.pick select{flex:1;min-width:0;background:rgba(0,0,0,.3);border:1px solid var(--edge);border-radius:999px;padding:7px 12px;min-height:38px;font-size:13px;font-weight:300;color:var(--text);cursor:pointer}
+.step{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px dashed var(--edge);font-size:12.5px;color:var(--dim)}
+.step span:last-child{white-space:nowrap;color:var(--mute)}
+.step.run{color:var(--text)}.step.run span:last-child{color:var(--orange)}
+.step.done{color:var(--text)}.step.done span:last-child{color:var(--text)}
+.seg{display:inline-flex;gap:2px}
+.seg button{border:0;background:transparent;border-radius:999px;padding:3px 9px;min-height:26px;font-size:11.5px;color:var(--dim)}
+.seg button[aria-selected=true]{background:var(--glass-hi);color:var(--text);box-shadow:inset 0 0 0 1px var(--edge)}
+.story{display:block;padding:9px 0;border-top:1px dashed var(--edge)}
+.story:first-of-type{border-top:0;padding-top:0}
+.story h3{font-size:13.5px;font-weight:400;line-height:1.3}
+.story:hover h3{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.story p{font-size:11.5px;color:var(--dim);margin-top:2px}
+.story p b{font-weight:400;color:var(--orange)}
+.story[hidden]{display:none}
+.keys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.key{aspect-ratio:1;border-radius:12px;border:1px solid var(--edge);background:rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:space-between;padding:8px 9px;min-width:0}
+.key small{font-size:10.5px;color:var(--mute);line-height:1.1}
+.key b{font-size:19px;font-weight:200;line-height:1}
+.key.on{border-color:var(--text)}
+.key.new b{color:var(--orange)}.key.new{border-color:rgba(240,137,58,.6)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,8px);background:rgba(24,24,26,.94);border:1px solid var(--edge-2);border-radius:999px;padding:9px 18px;font-size:13px;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:1280px){
+  .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .mid{grid-column:1/-1;order:-1}
+  .meta{display:none}
+}
+@media (max-width:760px){
+  .page{padding:0 12px 16px}
+  .top{gap:12px;flex-wrap:wrap;height:auto;padding:10px 0}
+  .nav{order:3;width:100%}
+  .nav a{min-height:44px}
+  .sp{display:block}
+  .ib{width:44px;height:44px}
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .hero{height:380px}
+  .tagc{width:170px;padding:12px}
+  .ring{width:110px;height:110px}
+  .under{grid-template-columns:minmax(0,1fr)}
+  .lev{font-size:15px}
+  .seg button{min-height:36px}
+}
+.calm *{transition:none!important;animation:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="scene" aria-hidden="true">
+  <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+    <defs><filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="55"/></filter></defs>
+    <rect width="1600" height="1000" fill="#0a0a0b"/>
+    <g filter="url(#soft)">
+      <ellipse cx="760" cy="330" rx="420" ry="200" fill="#2c3327"/>
+      <ellipse cx="1010" cy="520" rx="330" ry="210" fill="#3a3d31"/>
+      <ellipse cx="560" cy="560" rx="280" ry="170" fill="#22262a"/>
+      <ellipse cx="1180" cy="250" rx="240" ry="140" fill="#3b3a36"/>
+      <ellipse cx="240" cy="820" rx="300" ry="160" fill="#3a2414"/>
+    </g>
+    <g fill="none" stroke="#fff" stroke-opacity=".06">
+      <path d="M380 240C520 170 700 210 830 170S1100 110 1240 190 1400 330 1320 430 1120 560 980 600 720 690 600 640 380 520 340 420 300 300 380 240Z"/>
+      <path d="M450 280C570 220 710 250 830 220S1060 170 1180 240 1300 340 1240 420 1080 520 960 550 730 620 630 580 450 490 420 410 390 320 450 280Z"/>
+      <path d="M530 320C630 270 720 290 830 270S1020 230 1110 290 1200 350 1160 410 1040 480 940 500 740 550 660 520 530 460 510 400 480 350 530 320Z"/>
+      <path d="M620 360C690 320 740 330 830 320S980 300 1040 340 1090 370 1060 400 990 440 920 450 750 480 700 460 620 430 610 400 590 380 620 360Z"/>
+    </g>
+    <path d="M300 700C460 640 560 520 700 470S900 420 1010 360 1200 260 1380 220" fill="none" stroke="#fff" stroke-opacity=".28" stroke-dasharray="3 9" stroke-width="2"/>
+  </svg>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-motion" viewBox="0 0 24 24"><path d="M5 12h8M5 7h12M5 17h5"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M8 16 16 8M10 8h6v6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l-2.5 2"/></symbol>
+</defs></svg>
+
+<div class="page">
+  <header class="top">
+    <div class="brand"><b>Command</b> Station</div>
+    <nav class="nav" aria-label="Sections">
+      <a href="#top" aria-current="page">Station</a><a href="#feed">Overwatch</a><a href="#gm">Game mode</a><a href="#devices">Devices</a><a href="#" aria-disabled="true" data-soon="The settings vault arrives in Phase 2.">Vault</a>
+    </nav>
+    <div class="sp"></div>
+    <span class="meta">TUF A16 · RTX 5060 · <b id="mode">Standby</b></span>
+    <span class="meta"><b id="clock">00:00:00</b> · sample data</span>
+    <button class="ib" id="calm" role="switch" aria-checked="false" aria-label="Reduce motion" title="Reduce motion"><svg class="i"><use href="#i-motion"/></svg></button>
+    <button class="ib kill" id="kill" aria-pressed="false" aria-label="Kill switch: stop all monitoring" title="Kill switch"><svg class="i"><use href="#i-power"/></svg></button>
+  </header>
+
+  <div class="grid" id="top">
+    <div class="stack">
+      <section class="t" aria-label="Frame rate">
+        <div class="th"><div><h2>Frame rate</h2><small>Overwatch.exe</small></div><span class="chip" id="fps-st">On target</span></div>
+        <div class="big"><span id="fps">170</span><small>fps</small></div>
+        <svg class="spark" viewBox="0 0 300 58" preserveAspectRatio="none" role="img" aria-label="Frame rate, last 60 seconds"><line class="d" x1="0" x2="300" y1="33" y2="33"/><polyline class="l" id="sp"/></svg>
+        <div class="xl"><span>60 s ago</span><span>144 target</span><span>now</span></div>
+      </section>
+
+      <div class="duo">
+        <section class="t dev sel" id="t-cpu" aria-label="CPU temperature">
+          <div class="th"><div><h2>CPU</h2><small>Ryzen 9 HX</small></div><svg class="i s"><use href="#i-out"/></svg></div>
+          <svg class="art" viewBox="0 0 120 54"><rect x="38" y="6" width="44" height="42" rx="4"/><rect x="48" y="16" width="24" height="22" rx="2"/><path d="M46 6V1M54 6V1M62 6V1M70 6V1M46 53v-5M54 53v-5M62 53v-5M70 53v-5M38 16h-6M38 27h-6M38 38h-6M82 16h6M82 27h6M82 38h6M4 27h22M94 27h22"/></svg>
+          <div class="val"><b><span class="v">83</span><small> °C</small></b><span class="chip">Nominal</span></div>
+          <div class="ticks"><i style="left:60%"></i><u></u></div>
+          <div class="xl"><span>40°</span><span class="left">12° to limit</span><span>100°</span></div>
+        </section>
+        <section class="t dev" id="t-gpu" aria-label="GPU temperature">
+          <div class="th"><div><h2>GPU</h2><small>RTX 5060</small></div><svg class="i s"><use href="#i-out"/></svg></div>
+          <svg class="art" viewBox="0 0 120 54"><rect x="8" y="10" width="104" height="34" rx="4"/><circle cx="38" cy="27" r="11"/><circle cx="82" cy="27" r="11"/><circle cx="38" cy="27" r="3"/><circle cx="82" cy="27" r="3"/><path d="M18 44v6M30 44v6M42 44v6M54 44v6M2 16h6M2 38h6"/></svg>
+          <div class="val"><b><span class="v">72</span><small> °C</small></b><span class="chip">Nominal</span></div>
+          <div class="ticks"><i style="left:53%"></i><u></u></div>
+          <div class="xl"><span>40°</span><span class="left">23° to limit</span><span>100°</span></div>
+        </section>
+        <section class="t dev" aria-label="Load">
+          <div class="th"><div><h2>Load</h2><small>CPU / GPU</small></div></div>
+          <div class="val"><b><span id="v-cpu">56</span><small> %</small></b><b><span id="v-gpu">92</span><small> %</small></b></div>
+          <div class="ticks"><i id="tk-cpu" style="left:56%"></i></div>
+          <div class="ticks" style="margin-top:8px"><i id="tk-gpu" style="left:92%"></i></div>
+        </section>
+        <section class="t dev" aria-label="Uplink and power">
+          <div class="th"><div><h2>Uplink</h2><small>Connect time</small></div></div>
+          <div class="val"><b><span id="ping">45</span><small> ms</small></b><span class="chip">AC · 81%</span></div>
+          <div class="ticks"><i id="tk-ping" style="left:45%"></i></div>
+          <div class="xl"><span>0</span><span>router <span id="rt">4</span> ms</span><span>100</span></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="mid">
+      <div class="hero" role="img" aria-label="Frame rate in white and CPU temperature in orange over the last 60 seconds, with the latest dip highlighted.">
+        <svg class="c" viewBox="0 0 600 470" preserveAspectRatio="none">
+          <line class="d" x1="0" x2="600" y1="70" y2="70"/><line class="d" x1="0" x2="600" y1="160" y2="160"/><line class="d t" x1="0" x2="600" y1="238" y2="238"/><line class="d" x1="0" x2="600" y1="310" y2="310"/>
+          <polyline class="l2" id="l-cpu"/><polyline class="l" id="line"/>
+        </svg>
+        <span class="lev f" style="top:14.9%">200</span><span class="lev f" style="top:34%">170</span><span class="lev" style="top:50.6%">144<small>target</small></span><span class="lev f" style="top:66%">120</span>
+        <span class="xa" style="left:12%">−50 s</span><span class="xa" style="left:42%">−30 s</span><span class="xa" style="left:72%">−10 s</span>
+        <div id="hl"></div><div id="evts"></div>
+        <div class="ring" id="ring" style="left:91%;top:34%"><span id="ring-v">170</span></div>
+        <div class="tagc"><svg class="i s"><use href="#i-out"/></svg><h2>Frame rate</h2><p id="tag-sub">1 dip in the last 60 s</p><div class="big"><span id="tag-v">170</span><small>fps</small></div></div>
+      </div>
+
+      <div class="under">
+        <section class="t" aria-label="Frame time">
+          <div class="th"><div><h2>Frame time</h2><small>Average, last 60 s</small></div><svg class="i s"><use href="#i-out"/></svg></div>
+          <div class="big">± <span id="ft">5.9</span><small>ms</small></div>
+          <div class="off"><span><svg class="i s"><use href="#i-clock"/></svg>1% low <b style="font-weight:400;color:var(--text)" id="low">126</b></span><span><svg class="i s"><use href="#i-clock"/></svg>GPU <b style="font-weight:400;color:var(--text)"><span id="gpw">105</span> W</b></span></div>
+        </section>
+        <section class="t" aria-label="Twenty second averages">
+          <div class="th"><div><h2>20 second averages</h2><small>Change from the block before</small></div><div class="big" style="font-size:26px"><span id="tot">10,2</span><span class="frac" id="tot2">00</span><small>frames</small></div></div>
+          <div class="levels"><svg viewBox="0 0 300 104" preserveAspectRatio="none"><polyline class="l" id="lvbg"/></svg>
+            <div class="lv" id="lv0" style="left:0;top:50%"><b>168</b><i></i><small>oldest</small></div>
+            <div class="lv" id="lv1" style="left:35%;top:50%"><b>161</b><i></i><small>-4%</small></div>
+            <div class="lv" id="lv2" style="left:70%;top:50%"><b>170</b><i></i><small>+6%</small></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="stack">
+      <section class="t" id="log" aria-label="Alerts and events">
+        <div class="th"><h2>Alerts and events</h2><div class="seg" role="tablist" aria-label="Filter events"><button role="tab" aria-selected="true" data-l="all">All</button><button role="tab" aria-selected="false" data-l="alert">Alerts</button></div></div>
+        <div class="alist" id="alist" aria-live="polite"></div>
+      </section>
+
+      <section class="t" id="gm" aria-label="Game mode">
+        <div class="th"><div><h2>Game mode</h2><small>Every change can be undone</small></div></div>
+        <button class="go" id="go" aria-pressed="false"><svg class="i"><use href="#i-power"/></svg><span>Start game mode</span></button>
+        <label class="pick">Profile<select><option>Overwatch ranked</option><option>Streaming</option></select></label>
+        <div id="steps">
+          <div class="step"><span>Power plan to High performance</span><span>Waiting</span></div>
+          <div class="step"><span>Close Spotify, OneDrive, Armoury Crate</span><span>Waiting</span></div>
+          <div class="step"><span>Run Overwatch on the RTX 5060</span><span>Waiting</span></div>
+          <div class="step"><span>Slow live stats to every 3 s</span><span>Waiting</span></div>
+          <div class="step"><span>Launch Overwatch</span><span>Waiting</span></div>
+        </div>
+      </section>
+
+      <section class="t" id="feed" aria-label="Overwatch feed">
+        <div class="th"><h2>Overwatch</h2><div class="seg" role="tablist" aria-label="Filter stories"><button role="tab" aria-selected="true" data-f="all">All</button><button role="tab" aria-selected="false" data-f="official">Official</button><button role="tab" aria-selected="false" data-f="leak">Leaks</button></div></div>
+        <a class="story k-official" href="#feed"><h3>Overwatch Retail Patch Notes, November 5, 2026</h3><p>Patch · Blizzard · 7 d · sample support healing 60 → 65</p></a>
+        <a class="story k-leak" href="#feed"><h3>Sample leak: datamined icon hints at a new support hero</h3><p><b>Unconfirmed leak</b> · r/OverwatchLeaks · 5 h</p></a>
+        <a class="story k-official" href="#feed"><h3>Director's Take: 5v5 and 6v6, Better Together</h3><p>Official · Blizzard · 1 d</p></a>
+        <a class="story k-leak" href="#feed"><h3>Sample leak: next season's battle pass theme</h3><p><b>Unconfirmed leak</b> · r/Overwatch · 19 h</p></a>
+      </section>
+
+      <section class="t" id="devices" aria-label="Stream Deck">
+        <div class="th"><div><h2>Stream Deck +</h2><small>Phase 3</small></div></div>
+        <div class="keys"><div class="key" id="k-gm"><small>Game mode</small><b>Off</b></div><div class="key"><small>FPS</small><b id="k-fps">170</b></div><div class="key"><small>GPU °C</small><b id="k-gpu">72</b></div><div class="key new"><small>Overwatch</small><b>New</b></div></div>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var N=60,TARGET=144,LIMIT=95,calm=false,dead=false,gmOn=false,busy=false,inDip=false,logF="all",frames=10200;
+  var fpsH=[],cpuH=[],evts=[];
+  function pad(n){return (n<10?"0":"")+n}
+  function stamp(d){d=d||new Date();return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())}
+  for(var i=0;i<N;i++){fpsH.push(Math.round(166+Math.sin(i/5)*7+Math.random()*9));cpuH.push(82+Math.sin(i/9)*2+Math.random())}
+  fpsH[40]=150;fpsH[41]=126;fpsH[42]=133;fpsH[43]=152;cpuH[41]=87;cpuH[42]=87.5;cpuH[43]=86.4;
+
+  var log=[];
+  function logDraw(){$("alist").innerHTML=log.map(function(e){var hide=logF==="alert"&&e.k!=="alert";
+    return '<div class="al'+(e.k==="alert"?"":" info")+'"'+(hide?" hidden":"")+"><i></i><span>"+e.m+"</span><time>"+e.t+"</time></div>"}).join("")}
+  function logAdd(k,m,when){log.unshift({t:when||stamp(),k:k,m:m});log=log.slice(0,12);logDraw()}
+  var t0=Date.now();
+  logAdd("info","Sensors linked, sampling every 1 s",stamp(new Date(t0-58000)));
+  logAdd("info","New patch notes on file: November 5, 2026",stamp(new Date(t0-40000)));
+  logAdd("alert","Frame rate dipped to 126 fps, CPU at 87 °C",stamp(new Date(t0-18000)));
+
+  // hero y: 200 fps -> 70, 100 fps -> 370 (3 px per fps)
+  function yF(v){return 370-(Math.max(95,Math.min(215,v))-100)*3}
+  function yC(v){return 440-(Math.max(70,Math.min(100,v))-70)/30*110}
+  function avg(a){return a.reduce(function(x,y){return x+y},0)/a.length}
+  function draw(){
+    $("line").setAttribute("points",fpsH.map(function(v,i){return (i/(N-1)*600).toFixed(1)+","+yF(v).toFixed(1)}).join(" "));
+    $("l-cpu").setAttribute("points",cpuH.map(function(v,i){return (i/(N-1)*600).toFixed(1)+","+yC(v).toFixed(1)}).join(" "));
+    $("sp").setAttribute("points",fpsH.map(function(v,i){return (i/(N-1)*300).toFixed(1)+","+(58-(Math.max(110,Math.min(200,v))-110)/90*56).toFixed(1)}).join(" "));
+    $("lvbg").setAttribute("points",fpsH.map(function(v,i){return (i/(N-1)*300).toFixed(1)+","+(104-(Math.max(110,Math.min(200,v))-110)/90*100).toFixed(1)}).join(" "));
+    var runs=[],cur=null;
+    fpsH.forEach(function(v,i){if(v<TARGET){if(!cur){cur={s:i,e:i,min:v};runs.push(cur)}cur.e=i;cur.min=Math.min(cur.min,v)}else cur=null});
+    $("tag-sub").textContent=runs.length+(runs.length===1?" dip":" dips")+" in the last 60 s";
+    var h="";
+    if(runs.length){var d=runs[runs.length-1],a=Math.max(0,d.s-1),b=Math.min(N-1,d.e+1),x1=a/(N-1)*100,x2=b/(N-1)*100;
+      h+='<div class="band" style="left:'+x1+"%;width:"+Math.max(1.5,x2-x1)+'%"></div><div class="pt" style="left:'+x1+"%;top:"+(yF(fpsH[a])/470*100)+'%"></div><div class="pt or" style="left:'+x2+"%;top:"+(yF(fpsH[b])/470*100)+'%"></div>'}
+    $("hl").innerHTML=h;
+    var e=$("evts");e.innerHTML="";evts.forEach(function(v){var x=document.createElement("div");x.className="evt";x.style.left=((N-1-v.age)/(N-1)*100)+"%";x.innerHTML="<span>"+v.label+"</span>";e.appendChild(x)});
+    var b0=avg(fpsH.slice(0,20)),b1=avg(fpsH.slice(20,40)),b2=avg(fpsH.slice(40,60));
+    [[b0,null],[b1,b0],[b2,b1]].forEach(function(p,i){var el=$("lv"+i),v=p[0],pr=p[1],dl=pr==null?null:Math.round((v-pr)/pr*100);
+      el.style.top=(100-(Math.max(120,Math.min(190,v))-120)/70*100*.62-22)+"%";el.querySelector("b").textContent=Math.round(v);
+      el.querySelector("small").textContent=dl==null?"oldest":(dl>0?"+":"")+dl+"%";el.className="lv"+(dl!=null&&dl<0?" or":"")});
+  }
+  function dev(id,t){var el=$(id),s=t>=92?"red":t>=86?"or":"",c=el.querySelector(".chip"),tk=el.querySelector(".ticks");
+    el.querySelector(".v").textContent=t;tk.className="ticks"+(s?" "+s:"");tk.querySelector("i").style.left=Math.max(0,Math.min(100,(t-40)/60*100))+"%";
+    c.className="chip"+(s?" "+s:"");c.textContent=s==="red"?"Too hot":s==="or"?"Caution":"Nominal";el.querySelector(".left").textContent=(LIMIT-t)+"° to limit"}
+  function show(fps){var ok=fps>=TARGET,st=$("fps-st");$("fps").textContent=$("tag-v").textContent=$("ring-v").textContent=fps;
+    st.className="chip"+(ok?"":" or");st.textContent=ok?"On target":"Below target";$("ring").style.top=(yF(fps)/470*100)+"%"}
+  function tick(){
+    $("clock").textContent=stamp();if(dead)return;
+    var fps=Math.round(168+Math.sin(Date.now()/4000)*9+(Math.random()*12-6)+(Math.random()<.05?-40:0));
+    var cpu=Math.round(82+Math.sin(Date.now()/9000)*2+Math.random()*3+(fps<TARGET?3:0)),gpu=Math.round(71+Math.random()*3),ping=Math.round(40+Math.random()*9);
+    fpsH.push(fps);fpsH.shift();cpuH.push(cpu);cpuH.shift();evts.forEach(function(v){v.age++});evts=evts.filter(function(v){return v.age<N-12});
+    frames+=fps;var s=frames.toLocaleString("en-US");$("tot").textContent=s.slice(0,-2);$("tot2").textContent=s.slice(-2);
+    draw();show(fps);
+    if(fps<TARGET&&!inDip)logAdd("alert","Frame rate dipped to "+fps+" fps, CPU at "+cpu+" °C");inDip=fps<TARGET;
+    $("ft").textContent=(1000/avg(fpsH)).toFixed(1);$("low").textContent=Math.min.apply(null,fpsH);$("gpw").textContent=Math.round(100+Math.random()*8);
+    dev("t-cpu",cpu);dev("t-gpu",gpu);
+    var cl=Math.round(50+Math.random()*12),gl=Math.round(88+Math.random()*8);
+    $("v-cpu").textContent=cl;$("v-gpu").textContent=gl;$("tk-cpu").style.left=cl+"%";$("tk-gpu").style.left=gl+"%";
+    $("ping").textContent=ping;$("tk-ping").style.left=ping+"%";$("rt").textContent=Math.round(3+Math.random()*2);
+    $("k-fps").textContent=fps;$("k-gpu").textContent=gpu;
+  }
+  draw();show(170);dev("t-cpu",83);dev("t-gpu",72);$("clock").textContent=stamp();setInterval(tick,1000);
+
+  function toast(m){var t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(function(){t.classList.remove("show")},3200)}
+  var steps=[].slice.call($("steps").children),go=$("go");
+  function mark(r,cls,word){r.className="step"+(cls?" "+cls:"");r.lastChild.textContent=word}
+  function setGm(on){gmOn=on;go.setAttribute("aria-pressed",on);go.lastChild.textContent=on?"Game mode on · restore":"Start game mode";$("mode").textContent=on?"Game mode":"Standby";
+    var k=$("k-gm");k.className="key"+(on?" on":"");k.lastChild.textContent=on?"On":"Off";
+    evts.push({age:0,label:on?"Game mode on":"Restored"});draw();
+    logAdd("info",on?"Game mode on, 5 of 5 steps complete":"Game mode off, settings restored from the undo log")}
+  go.addEventListener("click",function(){
+    if(busy||dead)return;
+    if(gmOn){steps.forEach(function(s){mark(s,"","Waiting")});setGm(false);return}
+    busy=true;go.disabled=true;go.lastChild.textContent="Applying…";var n=0;
+    (function next(){if(n>0)mark(steps[n-1],"done","Done");
+      if(n===steps.length){go.disabled=false;busy=false;setGm(true);return}
+      mark(steps[n],"run","Running");n++;setTimeout(next,calm?60:360)})();
+  });
+  function tabset(sel,fn){var t=[].slice.call(document.querySelectorAll(sel));t.forEach(function(b){b.addEventListener("click",function(){t.forEach(function(x){x.setAttribute("aria-selected",x===b)});fn(b)})})}
+  var stories=[].slice.call(document.querySelectorAll(".story"));
+  tabset("#feed .seg button",function(b){stories.forEach(function(s){s.hidden=b.dataset.f!=="all"&&!s.classList.contains("k-"+b.dataset.f)})});
+  tabset("#log .seg button",function(b){logF=b.dataset.l;logDraw()});
+  stories.forEach(function(s){s.addEventListener("click",function(e){e.preventDefault();toast("In the app this opens the story in your browser.")})});
+  $("calm").addEventListener("click",function(){calm=!calm;document.body.classList.toggle("calm",calm);this.setAttribute("aria-checked",calm);toast(calm?"Motion reduced.":"Motion on.")});
+  $("kill").addEventListener("click",function(){dead=!dead;this.setAttribute("aria-pressed",dead);logAdd(dead?"alert":"info",dead?"Kill switch pressed, nothing is being sampled":"Monitoring resumed");toast(dead?"Monitoring stopped. Press again to resume.":"Monitoring resumed.")});
+  var links=[].slice.call(document.querySelectorAll(".nav a"));
+  links.forEach(function(a){a.addEventListener("click",function(e){if(a.dataset.soon){e.preventDefault();toast(a.dataset.soon);return}
+    links.forEach(function(x){x.removeAttribute("aria-current")});a.setAttribute("aria-current","page")})});
+})();
+</script>
+
+</body></html>

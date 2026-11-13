@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Command Station",
+  "version": "0.2.0",
+  "identifier": "studio.yuzi.commandstation",
+  "build": {
+    "beforeDevCommand": "npm run live",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build && npm run prepare:sidecar",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Command Station",
+        "width": 1600,
+        "height": 1000,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost blob: data: https://efnrodzdhzvdgmctpjdx.supabase.co",
+        "font-src": "'self' data:",
+        "connect-src": "'self' http://127.0.0.1:8787 ipc: http://ipc.localhost"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "externalBin": ["binaries/node"],
+    "resources": {
+      "../service/": "service/"
+    }
+  }
+}

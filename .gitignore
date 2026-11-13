@@ -1,0 +1,17 @@
+﻿# dependencies and build output
+node_modules/
+dist/
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/binaries/
+# release binaries and archives
+CommandStation/
+CommandStation-v0.2/
+*.zip
+*.exe
+*.msi
+# logs, local tool state, secrets
+*.log
+.env
+.env.*
+.freebuff/

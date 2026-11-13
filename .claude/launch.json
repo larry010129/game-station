@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "command-station",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "app", "run", "live"],
+      "port": 1420
+    }
+  ]
+}

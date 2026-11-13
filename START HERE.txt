@@ -1,0 +1,21 @@
+COMMAND STATION - START HERE
+
+DESKTOP APP (use this one)
+  Run:      CommandStation-v0.2\command-station.exe
+            (keep node.exe and the service folder next to it; it starts its own data service)
+  Install:  app\src-tauri\target\release\bundle\nsis\Command Station_0.2.0_x64-setup.exe
+  Unsigned, so SmartScreen may warn: More info, Run anyway.
+  Building it needs Smart App Control off (it blocks the build scripts).
+
+Browser version (backup): open a terminal in app and run  npm run live
+            Then open http://localhost:1420. Ctrl+C stops the service and the
+            dashboard together, so nothing is left running in the background.
+
+Nothing extra to install: GPU temperature, load, ping, battery and the
+players-online map (Steam public data) all work on their own.
+
+Your settings and the game-mode undo journal live in:
+  %APPDATA%\CommandStation\   (service.log is there too)
+
+More: app\README.md, app\docs\SETUP.md, app\docs\TROUBLESHOOTING.md
+Old Phase 1 build: CommandStation\ (or the zip). Superseded by CommandStation-v0.2.
