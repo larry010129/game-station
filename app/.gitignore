@@ -4,3 +4,5 @@ src-tauri/target
 src-tauri/gen
 *.log
 src-tauri/binaries
+
+src-tauri/service-stage

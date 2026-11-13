@@ -4,6 +4,7 @@ dist/
 app/src-tauri/target/
 app/src-tauri/gen/
 app/src-tauri/binaries/
+app/src-tauri/service-stage/
 # release binaries and archives
 CommandStation/
 CommandStation-v0.2/

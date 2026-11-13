@@ -1,9 +1,11 @@
 COMMAND STATION - START HERE
 
-DESKTOP APP (use this one)
-  Run:      CommandStation-v0.2\command-station.exe
-            (keep node.exe and the service folder next to it; it starts its own data service)
-  Install:  app\src-tauri\target\release\bundle\nsis\Command Station_0.2.0_x64-setup.exe
+DESKTOP APP
+  Build:    in app, run  npm run prepare:sidecar  then  npm run tauri build -- --bundles nsis
+  Install:  app\src-tauri\target\release\bundle\nsis\Command Station_<version>_x64-setup.exe
+            (the installer takes its service folder from the current source, so it is always up to date)
+  NOTE:     CommandStation-v0.2\ is an OLD hand-assembled copy with an outdated service folder
+            (it lacks newer modules). Do not rely on it; rebuild with the steps above.
   Unsigned, so SmartScreen may warn: More info, Run anyway.
   Building it needs Smart App Control off (it blocks the build scripts).
 
@@ -18,4 +20,4 @@ Your settings and the game-mode undo journal live in:
   %APPDATA%\CommandStation\   (service.log is there too)
 
 More: app\README.md, app\docs\SETUP.md, app\docs\TROUBLESHOOTING.md
-Old Phase 1 build: CommandStation\ (or the zip). Superseded by CommandStation-v0.2.
+Old builds (CommandStation\, its zip, CommandStation-v0.2\) are superseded and safe to remove once you have rebuilt.

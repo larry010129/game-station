@@ -1,6 +1,6 @@
 # Command Station
 
-Windows dashboard for Overwatch: live frame rate and thermals, one-tap game mode with undo, an Overwatch news and leak feed, and a Stream Deck panel (preview only). Built with React, TypeScript and Vite, with a local Node service that reads this PC. A Tauri desktop app wraps it.
+Windows dashboard for Overwatch players and their PC: live thermals and load, one-tap game mode with undo, an Overwatch news and leak feed, meta cards, media, calendar and more. Built with React, TypeScript and Vite, with a local Node service that reads this PC. A Tauri desktop app wraps it. The overview and repo layout are in `../README.md`; this file holds the service API, config and data folder.
 
 The look follows `../design/command-station-redesign.html`: charcoal glass tiles, thin Outfit type, hairline white charts, orange only for cautions and drops, red only for alerts and the kill switch.
 
@@ -8,15 +8,14 @@ The look follows `../design/command-station-redesign.html`: charcoal glass tiles
 
 | Piece | State |
 | --- | --- |
-| Dashboard (`src/`) | Working. Falls back to sample data when the service is not running. |
+| Dashboard (`src/`) | Working. Shows real data only; while the service is not reachable it says so and keeps retrying. |
 | Local service (`service/`) | Working. Reads GPU/CPU/network/battery, fetches Overwatch news, runs game-mode steps. Localhost only, with an origin check. |
 | Undo journal | Each game-mode step is written to disk before it runs, and leftovers are restored when the service starts. Stored in `%APPDATA%\CommandStation\journal.json`. |
 | Players online | Hourly count from Steam's public API (Overwatch 2, Steam players only), with an estimated regional split on a world map. History builds while the app runs. |
-| GPU temperature | From `nvidia-smi`, nothing extra needed. CPU temperature is not shown. |
-| Stream Deck panel | Preview only (on-screen mock, no hardware link). |
-| Tauri desktop app | Built and running on this PC: `CommandStation-v0.2\command-station.exe`, plus an NSIS installer. It starts its own service. |
+| GPU temperature | From `nvidia-smi`, nothing extra needed. The CPU temperature card needs LibreHardwareMonitor (see New cards). |
+| Tauri desktop app | Build it with `npm run prepare:sidecar` then `npm run tauri build -- --bundles nsis`; the installer starts its own service. The old `CommandStation-v0.2` folder is outdated. |
 
-Tests: `npm run test:service` covers the parsers (not re-run when this doc was written).
+Tests: `npm run test:service` covers the parsers, server guard, game mode, settings and config, spawn helpers and the API table below.
 
 ## Run it (browser version)
 
@@ -35,9 +34,9 @@ npm install
 npm run live      # service on http://127.0.0.1:8787 + dev server on http://localhost:1420
 ```
 
-- Dashboard only (sample data): `npm run dev`
+- Dashboard only (needs the service running separately): `npm run dev`
 - Service only: `npm run service`
-- Parser tests: `npm run test:service`
+- Service tests: `npm run test:service`
 - Production build: `npm run build`
 
 ## Counterwatch stats (Meta cards)
@@ -46,12 +45,12 @@ The Hero tier list, Map hero picks and Best pick per role cards read hero stats 
 
 ## AI leak search
 
-The AI leak search card asks Claude or Gemini to search the web for the newest Overwatch update, leaks and datamines, or any hero or topic you type. It runs the official command-line tool you are already signed in to, so it uses your existing subscription and needs no API key:
+The AI leak search card asks Claude or Gemini to search the web for the newest Overwatch update, leaks and datamines, or any hero or topic you type. It runs the official CLI as a child process:
 
-- **Claude:** the `claude` command (Claude Code), signed in with your Claude account. Limited to the web search and web fetch tools: no file or shell access.
-- **Gemini:** the `gemini` command (`npm install -g @google/gemini-cli`, then run `gemini` once and sign in with Google). Not installed on this PC yet.
+- **Claude:** the `claude` command (Claude Code), signed in with your Claude account. Limited to the web search and web fetch tools: no file or shell access. Uses your Claude subscription.
+- **Gemini:** the `gemini` command (`npm install -g @google/gemini-cli`). Personal Google login is retired; use a `GEMINI_API_KEY` (auth type `gemini-api-key`). Google AI Pro/Ultra subscriptions move to Antigravity CLI (`agy`); Command Station does not call `agy` yet — use Claude or an API key until that lands.
 
-Each answer labels items Confirmed, Leak or Rumor, with the source link. A search takes about a minute and the last 20 answers are kept in `%APPDATA%\CommandStationi-research.json`. AI can be wrong: open the source before you trust a leak.
+Each answer labels items Confirmed, Leak or Rumor, with the source link. A search takes about a minute and the last 20 answers are kept in `%APPDATA%\CommandStation\ai-research.json`. AI can be wrong: open the source before you trust a leak.
 
 ## Service API
 
@@ -59,26 +58,58 @@ Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/health` | `ok`, version, PresentMon state, number of journal entries |
-| `GET /api/machine` | PC, CPU and GPU names |
-| `GET /api/sample` | One reading: fps, temps, clocks, ping, battery, with notes for anything missing |
+| `GET /api/health` | `ok`, service name, version (from package.json), number of journal entries, how many failed to undo, and `journalError` (set when `journal.json` cannot be read) |
+| `GET /api/diag` | Version, Node, platform, pid, uptime, port, config problems and the state of the GPU and CPU sources |
+| `GET /api/machine` | PC, CPU and GPU names (a default until the first lookup finishes) |
+| `GET /api/sample` | One reading: temps, loads, clocks, ping, battery, with notes for anything missing |
+| `GET /api/feed` | Overwatch news, patch notes and community/leak items (cache only) |
+| `POST /api/feed/refresh` | Pull the feed sources now |
+| `GET /api/players` | Players online per hour (Steam) and the estimated regional shares |
+| `GET /api/meta` | Counterwatch hero stats: tier list, per-map picks, best pick per role. Answers at once with the last good copy; `updating` is true while a scrape runs. Query: `mode` |
+| `GET /api/meta/hero` | One hero's detail. Query: `slug`, `mode`, `force=1` |
+| `GET /api/meta/map` | Hero list for one map. Query: `slug`, `mode`, `force=1` |
+| `GET /api/meta/rank` | Tier list and maps for one rank. Query: `rank`, `mode`, `force=1` |
+| `POST /api/meta/refresh` | Fetch fresh Counterwatch stats now (at most once a minute) |
 | `GET /api/ai` | AI search state and saved answers |
 | `POST /api/ai/ask` | Start a search. Body: `engine` (claude or gemini), `topic` (leaks, update or hero), `question` |
-| `GET /api/meta` | Counterwatch hero stats: tier list, per-map picks, best pick per role |
-| `POST /api/meta/refresh` | Fetch fresh Counterwatch stats now (at most once a minute) |
+| `POST /api/ai/auto` | Hourly leak check on or off, and which engine. Body: `enabled`, `engine` |
 | `GET /api/net` | Ping to Americas, Europe and Asia, jitter and packet loss, Wi-Fi details. Probing only runs while a card is asking |
 | `GET /api/system` | Memory in use, top apps by memory, battery charge rate |
 | `GET /api/steam` | Latest Overwatch 2 posts on Steam |
+| `GET /api/cputemp` | CPU temperature (LibreHardwareMonitor or ACPI) |
+| `GET /api/cost` | This app's own CPU and memory (refreshed at most every 15 s) |
+| `GET /api/library` | Installed Steam games and whether Battle.net is installed |
+| `POST /api/library/launch` | Start a game by id (`steam:<appid>` or `battlenet`) |
+| `GET /api/settings` | Close list, game programs and skipped game-mode steps |
+| `POST /api/settings` | Change them. Answers 409 when config.json is damaged, so a hand-edited file is never overwritten |
+| `GET /api/discord` | Discord voice status |
+| `GET /api/discord/guilds` | Servers you are in, with icons |
+| `POST /api/discord/setup` | Save your Discord application's client id and secret |
+| `POST /api/discord/login` | Sign in to Discord (approve the prompt inside Discord) |
+| `POST /api/discord/set` | Mute or deafen. Body: `mute`, `deaf` (booleans) |
+| `POST /api/discord/forget` | Forget the saved Discord application and sign-in |
+| `GET /api/toasts` | Windows notifications (Discord, LINE, ...) from the helper script |
 | `GET /api/sessions` | Current play session and the saved history (`%APPDATA%\CommandStation\sessions.json`) |
 | `GET /api/gamemode/history` | Game-mode steps applied and undone |
-| `GET /api/media`, `GET /api/media/art`, `POST /api/media/control` | Now playing from Windows' media session; control body `{"action":"playpause"\|"next"\|"previous"\|"seek","ms":n}` |
-| `GET /api/players` | Players online per hour (Steam) and the estimated regional shares |
-| `GET /api/feed` | Overwatch news, patch notes and community/leak items |
+| `GET /api/gamemode/active` | Whether game mode has steps applied, and which |
+| `GET /api/media` | Now playing from Windows' media session |
+| `GET /api/media/art` | The cover picture for the current track |
+| `POST /api/media/control` | Body `{"action":"playpause"\|"next"\|"previous"\|"seek","ms":n}` |
+| `GET /api/spotify` | Spotify state: setup, login, idle or the current track |
+| `GET /api/spotify/playlists` | Your playlists |
+| `POST /api/spotify/setup` | Save your Spotify Client ID. Body: `clientId` |
+| `POST /api/spotify/login` | Start the browser sign-in |
+| `GET /api/spotify/callback` | The sign-in redirect target (HTML, used by the browser only) |
+| `POST /api/spotify/logout` | Forget the Spotify sign-in |
+| `POST /api/spotify/control` | Play, pause, next, previous, seek, volume, shuffle (`on` must be a boolean), repeat, playlist, transfer. Body: `action` plus its arguments |
+| `POST /api/memory/clean` | Free RAM (Windows only; may show a UAC prompt) |
 | `GET /api/profiles` | Game-mode profiles with each step's current ("before") and target ("after") state |
 | `POST /api/step/apply` | Apply one step. Body: the step object (needs `id`) |
 | `POST /api/step/restore` | Undo one step. Body: the step object (needs `id`) |
 
-Step ids: `power`, `close`, `gpu`, `poll`, `launch`, `obs` (OBS is not linked yet). Errors come back as `{ "error": "..." }`. The security checks and the journal are being reworked in parallel, so check `service/server.mjs` and `service/gamemode.mjs` for the current behaviour.
+Every route above is checked against `service/index.mjs` by `service/test/backend.test.mjs`: the test fails when a handler is missing from this table, or the table lists one that no longer exists. Write each route in full, in backticks.
+
+Step ids: `power`, `close`, `gpu`, `poll`, `launch`, `obs` (OBS is not linked yet); a missing or unknown id on `/api/step/apply` or `/api/step/restore` gets 400. Errors come back as `{ "error": "..." }`. For the security checks and the journal, see `service/server.mjs` and `service/gamemode.mjs`.
 
 ## Config
 
@@ -86,17 +117,18 @@ On first run the service writes `%APPDATA%\CommandStation\config.json` with the 
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `host` | `127.0.0.1` | Bind address. Leave as is. |
-| `port` | `8787` | API port. The dashboard currently expects 8787. |
+| `host` | `127.0.0.1` | Bind address. Leave as is. The port is fixed at 8787 (a `port` key in an old config is ignored and the `PORT` environment variable is not used). |
+| `lhmUrl` | `http://127.0.0.1:8085/data.json` | LibreHardwareMonitor web server, for the CPU temperature card |
+| `allowedOrigins` | `[]` | Extra browser origins allowed to call the service (added to the four built-in ones) |
 | `regionHost` | `battle.net` | Host pinged for the latency reading |
-| `presentMonPath` | `null` | Full path to PresentMon.exe if not in a standard place |
-| `presentMonArgs` | `["--process_name","{process}","--output_stdout","--terminate_existing"]` | Arguments; `{process}` is the game exe |
 | `games` | `["Overwatch.exe"]` | Processes treated as the game |
-| `closeApps` | Spotify, OneDrive, ArmouryCrate, ASUSSoftwareManager (.exe) | Closed by the game-mode "close" step |
+| `disabledSteps` | `[]` | Game-mode step ids skipped in every profile |
+| `closeApps` | OneDrive, ArmouryCrate, ASUSSoftwareManager (.exe) | Closed by the game-mode "close" step |
 | `feed.newsUrl`, `feed.patchUrl` | Blizzard news and patch notes pages | Feed sources |
 | `feed.reddit` | r/Overwatch (community), r/OverwatchLeaks (leak) | Subreddits to read |
 | `feed.refreshMs` | 1800000 (30 min) | Feed refresh interval |
-| `feed.redditGapMs` | 8000 | Pause between Reddit requests |
+| `feed.youtube` | PlayOverwatch channel | YouTube channels to read (channel id and name) |
+| `feed.redditGapMs` | 12000 | Pause between Reddit requests |
 | `feed.userAgent` | `CommandStation/0.2 ...` | User agent sent to feed sources |
 
 ## Data folder
@@ -104,10 +136,19 @@ On first run the service writes `%APPDATA%\CommandStation\config.json` with the 
 `%APPDATA%\CommandStation\` (usually `C:\Users\<you>\AppData\Roaming\CommandStation`), created by `service/paths.mjs`:
 
 - `config.json`: your settings
-- `journal.json`: undo journal for game mode
+- `journal.json`: undo journal for game mode. If it cannot be read, a copy is kept as `journal.json.bad` and game mode refuses to start steps (409) until it is fixed or deleted
+- `gamemode-history.json`: game-mode steps applied and undone
+- `sessions.json`: play sessions
 - `feed-cache.json`: last fetched news
+- `counterwatch.json`: cached hero stats
+- `players.json`: players-online history
+- `ai-research.json`, `ai-auto.json`: saved AI answers and the hourly-check setting
+- `discord.json`, `spotify.json`: your own app ids and sign-in tokens (never included in backups)
+- `service.log`: the service log
 
-Deleting the folder resets everything. Do not delete `journal.json` while game mode is on, or the undo is lost.
+Set `COMMAND_STATION_DATA` to use another folder (the tests use a temporary one).
+
+Deleting the folder resets everything, including the Discord and Spotify sign-ins. Do not delete `journal.json` while game mode is on, or the undo is lost.
 
 ## Build the desktop app
 
@@ -119,15 +160,26 @@ npm run tauri build -- --bundles nsis
 
 The installer lands in `src-tauri/target/release/bundle/nsis/`. The shell launches the bundled `node.exe` against `service/` and stops it on exit (log: `%APPDATA%\CommandStation\service.log`).
 
-## Prebuilt Phase 1 build
-
-The project root has `CommandStation\` (command-station.exe plus WebView2Loader.dll) and `CommandStation-Phase1-windows-x64.zip` with the same files. It is unsigned and was built on Linux, so SmartScreen will warn (More info, Run anyway). It is the older Phase 1 shell and does not include the current service changes. Keep both files together. Its own README says `set STATION_PROVIDERS=mock` before launching forces sample data (unverified).
+Before `tauri dev` or `tauri build`, run `npm run prepare:sidecar`: it copies `node.exe` and stages `service/` without its tests. Release output is local only and not committed.
 
 ## Choosing cards
 
-Press **Edit layout**, then **Cards**. A list of every card opens: tick one to add it, untick to remove it, or press the **×** on a card. **Starting set** goes back to the first-run cards. Your choice is saved. Groups: This PC (memory, power), Connection (ping by region, jitter and loss, Wi-Fi, verdict), Overwatch (player trend, patch summary, leak watch, season countdown, Steam news, best time to play), Game (session timer, play history, session report, game mode history), Media (now playing), Tools (world clocks, checklist, deck button map).
+Press **Edit layout**, then **Cards**. A list of every card opens: tick one to add it, untick to remove it, or press the **×** on a card. **Starting set** goes back to the first-run cards. Your choice is saved. Groups: This PC (memory, power), Connection (ping by region, jitter and loss, Wi-Fi, verdict), Overwatch (player trend, patch summary, leak watch, season countdown, Steam news, best time to play), Game (session timer, play history, session report, game mode history), Media (now playing, Spotify), Tools (world clocks, checklist, notes).
 
 Now playing works through Windows' own media session, so it controls Spotify and anything else that is playing, with no login. It can't browse playlists. The season end date is typed in by you because Blizzard does not publish it in a form this app can read. Patch buff or nerf labels are guessed from the wording. Region player shares are estimates; hourly totals are Steam players only.
+
+## Vault settings
+
+- **Smart alerts:** five rules (GPU hot, CPU hot, memory nearly full, ping spike, calendar event soon), each with its own switch and limit. A rule that fires waits five minutes before it can fire again.
+- **Game mode:** untick steps to skip them in every profile, and edit the close list and the game program list. Saved to `config.json` (`closeApps`, `games`, `disabledSteps`). System programs and anti-cheat names can never be added to the close list.
+- **Backup:** exports every `cs.*` setting (layout, cards, theme, alerts, calendar, notes) plus the game-mode lists to one JSON file, and restores it. Spotify and Discord sign-ins are never included.
+
+## New cards
+
+- **CPU temperature:** Windows does not provide this. Run LibreHardwareMonitor as administrator and turn on Options > Remote Web Server (default `http://127.0.0.1:8085`, config key `lhmUrl`). Without it the card says so; some laptops also answer through the ACPI thermal zone.
+- **App cost:** CPU and memory of the service plus the desktop window (command-station.exe and its web view), against a budget of under 1% CPU and 150 MB.
+- **Game library:** installed Steam games, newest played first, with a Play button, plus a Battle.net button when it is installed. Only games found by the scan can be started.
+- **Discord:** mute, deafen and who is in your voice channel, over Discord's local pipe. Needs your own Discord application (client id and secret from discord.com/developers, with `http://127.0.0.1` added as a redirect). The secret is kept in `%APPDATA%\CommandStation\discord.json`. Not yet tried against a real Discord account.
 
 ## Arranging the cards
 
@@ -145,16 +197,18 @@ This PC's Application Control policy blocks Rollup's native `.node` binary, so `
 
 | Path | What it holds |
 | --- | --- |
-| `service/` | Local API: `server.mjs`, `sensors.mjs`, `gamemode.mjs`, `feed.mjs`, `system.mjs`, `config.mjs`, `paths.mjs`, `parsers.mjs` |
+| `service/` | Local API, one module per concern, wired in `index.mjs`: `server.mjs` (guards), `sensors.mjs`, `gamemode.mjs`, `feed.mjs`, `counterwatch.mjs`, `media.mjs`, `spotify.mjs`, `discord.mjs`, `toasts.mjs`, `library.mjs`, `settings.mjs`, `config.mjs`, `spawn.mjs`, and more |
 | `src/lib/types.ts` | `Sample`, `FeedItem`, `Profile`, `Provider` interface |
-| `src/providers/` | `live.ts` (talks to the service), `mock.ts` (sample data), `index.ts` picks one |
+| `src/providers/` | `live.ts` talks to the service (the only provider) |
 | `src/state/useStation.ts` | Samples once a second (3 s in game mode, 5 s when hidden), keeps 60 readings |
 | `src/state/useGameMode.ts` | Applies a profile step by step, journal first, restores on exit or after a crash |
 | `src/state/useEnvironment.ts` | Drops blur and motion when hidden or when a game is running and this window is not in front |
-| `src/components/`, `src/layout/`, `src/styles/app.css` | UI, grid and styles |
-| `src-tauri/` | Desktop shell (minimal) |
+| `src/layout/` | Grid, card catalogue (`layouts.ts`) and card registry (`registry.tsx`) |
+| `src/cards/`, `src/components/`, `src/pages/`, `src/boot/`, `src/styles/` | Cards, shared UI, full pages (Vault, themes, credits), boot screen, CSS |
+| `src-tauri/` | Desktop shell |
 
 ## Next
 
-3. Link the Stream Deck panel to real hardware (currently a preview) and OBS scene switching (the `obs` step is a stub).
-4. Measure the app's cost with Overwatch running against the budget (under 1% CPU, under 150 MB).
+- Link OBS scene switching (the `obs` step is a stub).
+- Measure the app's cost with Overwatch running against the budget (under 1% CPU, under 150 MB).
+- Open decisions and code review findings: `../goldfish_review_report.md`.
