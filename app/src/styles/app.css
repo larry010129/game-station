@@ -516,3 +516,21 @@ svg.i.s { width: 14px; height: 14px; }
 .aswitch { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); cursor: pointer; }
 .aswitch input { accent-color: var(--text); }
 .anew { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); background: var(--glass-hi); border: 1px solid var(--edge-2); border-radius: 999px; padding: 0 6px; }
+
+/* Gallery page styles */
+.gallery-page { padding-top: 32px !important; padding-bottom: 60px !important; }
+.gallery-header { margin-bottom: 48px; text-align: center; }
+.gallery-header h1 { font-size: 38px; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 12px; }
+.gallery-header p { font-size: 16px; color: var(--dim); }
+.gallery-group { margin-bottom: 60px; }
+.gallery-group-title { font-size: 20px; font-weight: 400; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--edge-2); }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+.gallery-item-name { font-size: 14px; font-weight: 400; margin-bottom: 10px; padding: 6px 12px; background: rgba(255, 255, 255, 0.06); border-radius: 8px; border: 1px solid var(--edge); }
+.gallery-item-card { min-height: 200px; }
+.gallery-item-card > * { height: 100%; }
+
+@media (max-width: 760px) {
+  .gallery-grid { grid-template-columns: 1fr; gap: 20px; }
+  .gallery-header h1 { font-size: 28px; }
+  .gallery-group-title { font-size: 18px; }
+}
