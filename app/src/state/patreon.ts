@@ -84,14 +84,18 @@ export function usePatreonEntitlement(): Entitlement {
   return useSyncExternalStore(subscribe, () => cache, () => NONE);
 }
 
-/** For the Support page: the full status, refreshed every few seconds while it is open (a sign-in finishes in the browser). */
-export function usePatreonStatus(): PatreonStatus | null {
-  const [status, setStatus] = useState<PatreonStatus | null>(null);
+/**
+ * For the Support page: the full status, refreshed every few seconds while it is open (a sign-in finishes in the browser).
+ * Null while the first answer is awaited, and "unavailable" when the service does not answer the Patreon route, which is
+ * what an older service that has not been restarted since this was added does.
+ */
+export function usePatreonStatus(): PatreonStatus | "unavailable" | null {
+  const [status, setStatus] = useState<PatreonStatus | "unavailable" | null>(null);
   useEffect(() => {
     let alive = true;
     const load = () =>
       void refreshPatreon().then((s) => {
-        if (alive && s) setStatus(s);
+        if (alive) setStatus(s ?? "unavailable");
       });
     load();
     const id = window.setInterval(load, 3000);

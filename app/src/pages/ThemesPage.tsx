@@ -8,12 +8,12 @@ import { FONTS, fontOf, fontStack, moduleJson, toHex, type FontKey, type Palette
 import {
   CREDIT_NAME,
   CREDITS_EVENT,
-  NIGHTSTEEL_COST,
   formatCredits,
   readCredits,
   spendCredits,
 } from "../state/stationCredits";
-import { CATALOG, NIGHTSTEEL, THEME_GROUPS, UNLOCKABLES } from "../state/themeCatalog";
+import { LOOK_COST } from "../state/gachaEngine";
+import { CATALOG, FREE_COUNT, LOCKED_PRESETS, THEME_GROUPS, UNLOCKABLES } from "../state/themeCatalog";
 import { usePatreonEntitlement } from "../state/patreon";
 import { takePick, useQuests } from "../state/useQuests";
 import type { useTheme } from "../state/useTheme";
@@ -215,15 +215,15 @@ function RandomThemeCard({ onPick, picked }: { onPick: () => void; picked?: stri
 
 /** Looks like a normal theme pick (Aa + colour dots). A small corner lock badge
  *  marks it as gated. Click opens the unlock dialog — it never applies the theme. */
-function LockedThemeCard({ onOpen }: { onOpen: () => void }) {
-  const p = paint(NIGHTSTEEL);
+function LockedThemeCard({ theme, onOpen }: { theme: ThemeDef; onOpen: () => void }) {
+  const p = paint(theme);
   return (
     <div className="theme-pick-wrap">
       <button
         type="button"
         className="theme-pick theme-pick-locked"
-        title="Nightsteel — locked"
-        aria-label="Locked theme Nightsteel. Open unlock options."
+        title={`${theme.name}: locked`}
+        aria-label={`Locked theme ${theme.name}. Open unlock options.`}
         aria-haspopup="dialog"
         onClick={onOpen}
         style={{ background: p.bg, color: p.text, borderRadius: p.radius, boxShadow: p.shadow }}
@@ -237,8 +237,8 @@ function LockedThemeCard({ onOpen }: { onOpen: () => void }) {
           </span>
         </span>
         <span className="theme-pick-meta">
-          <strong>Nightsteel</strong>
-          <small style={{ color: p.muted }}>Command Station</small>
+          <strong>{theme.name}</strong>
+          <small style={{ color: p.muted }}>{theme.author}</small>
         </span>
       </button>
       <span className="theme-pick-lock" aria-hidden="true">
@@ -252,10 +252,12 @@ function LockedThemeCard({ onOpen }: { onOpen: () => void }) {
  *  (two clear choices) + accessible dialog shell (Escape, focus trap, aria-modal). */
 function UnlockThemeDialog({
   open,
+  name,
   onClose,
   onUnlock,
 }: {
   open: boolean;
+  name: string;
   onClose: () => void;
   onUnlock: (via: "weekly" | "credits") => void;
 }) {
@@ -326,14 +328,14 @@ function UnlockThemeDialog({
 
   if (!open) return null;
 
-  const canAfford = balance >= NIGHTSTEEL_COST;
+  const canAfford = balance >= LOOK_COST;
 
   const useWeekly = () => {
     if (takePick()) onUnlock("weekly");
   };
 
   const claimCredits = () => {
-    const next = spendCredits(NIGHTSTEEL_COST);
+    const next = spendCredits(LOOK_COST);
     if (next == null) {
       setBalance(readCredits());
       setShort(true);
@@ -362,7 +364,7 @@ function UnlockThemeDialog({
       >
         <header className="theme-unlock-head">
           <div>
-            <h2 id={titleId}>Nightsteel</h2>
+            <h2 id={titleId}>{name}</h2>
             <p id={descId}>Locked. Use a weekly unlock, or spend {CREDIT_NAME.toLowerCase()}. Every locked look costs the same.</p>
           </div>
           <button type="button" className="theme-unlock-x" aria-label="Close" onClick={onClose}>
@@ -393,12 +395,12 @@ function UnlockThemeDialog({
           <section className="theme-unlock-path" aria-labelledby="unlock-credits-title">
             <div className="theme-unlock-path-top">
               <h3 id="unlock-credits-title">Spend {CREDIT_NAME}</h3>
-              <span className="theme-unlock-price">{formatCredits(NIGHTSTEEL_COST)}</span>
+              <span className="theme-unlock-price">{formatCredits(LOOK_COST)}</span>
             </div>
             <p>Spending {CREDIT_NAME.toLowerCase()} never uses up a waiting weekly unlock.</p>
             {(!canAfford || short) && (
               <p className="theme-unlock-short" role="alert">
-                Not enough {CREDIT_NAME.toLowerCase()}: need {NIGHTSTEEL_COST}, you have {balance}.
+                Not enough {CREDIT_NAME.toLowerCase()}: need {LOOK_COST}, you have {balance}.
               </p>
             )}
             <button
@@ -409,7 +411,7 @@ function UnlockThemeDialog({
               aria-disabled={!canAfford}
               onClick={claimCredits}
             >
-              {canAfford ? `Spend ${formatCredits(NIGHTSTEEL_COST)}` : `Need ${formatCredits(NIGHTSTEEL_COST)}`}
+              {canAfford ? `Spend ${formatCredits(LOOK_COST)}` : `Need ${formatCredits(LOOK_COST)}`}
             </button>
           </section>
         </div>
@@ -438,10 +440,9 @@ export function ThemesPage({ look }: { look: Look }) {
   const [font, setFont] = useState<FontKey | "">("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [unlockFor, setUnlockFor] = useState<ThemeDef | null>(null);
   // Patreon Basic opens every preset look; an earned unlock (weekly pick, Credits) is kept separately and survives cancelling.
-  const { basic, brand } = usePatreonEntitlement();
-  const nightsteelUnlocked = basic || look.unlocks.includes(NIGHTSTEEL.id);
+  const { brand } = usePatreonEntitlement();
 
   const groups = useMemo(() => {
     const extra = look.modules.length ? ["Yours"] : [];
@@ -452,8 +453,7 @@ export function ThemesPage({ look }: { look: Look }) {
 
   const themes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const unlocked = UNLOCKABLES.filter((t) => basic || look.unlocks.includes(t.id));
-    const list = [...CATALOG, ...unlocked, ...look.modules].filter((t) => {
+    const list = [...CATALOG, ...UNLOCKABLES, ...look.modules].filter((t) => {
       if (group === "Favourites") return look.favs.includes(t.id);
       if (group === "Recent") return look.recent.includes(t.id);
       if (group !== "All" && t.group !== group) return false;
@@ -461,17 +461,13 @@ export function ThemesPage({ look }: { look: Look }) {
       return `${t.name} ${t.author} ${t.group}`.toLowerCase().includes(q);
     });
     if (group === "Recent") return list.sort((a, b) => look.recent.indexOf(a.id) - look.recent.indexOf(b.id));
-    // Starred themes lead the full list; the rest keep the catalogue order.
-    // Unlocked looks stay last among unstarred (same slot as the locked tile).
+    // Starred themes lead the full list; the rest keep the catalogue order, so the free looks come first and the locked ones follow.
     if (group === "All" && !q) {
-      const unlockedIds = new Set(unlocked.map((t) => t.id));
       const starred = list.filter((t) => look.favs.includes(t.id));
-      const rest = list.filter((t) => !look.favs.includes(t.id) && !unlockedIds.has(t.id));
-      const gated = list.filter((t) => !look.favs.includes(t.id) && unlockedIds.has(t.id));
-      return [...starred, ...rest, ...gated];
+      return [...starred, ...list.filter((t) => !look.favs.includes(t.id))];
     }
     return list;
-  }, [group, look.favs, look.modules, look.recent, look.unlocks, basic, query]);
+  }, [group, look.favs, look.modules, look.recent, query]);
 
   // Hover preview: the page tries a theme on after a short hover and drops it on leave. Off by default.
   const hoverTimer = useRef(0);
@@ -498,13 +494,6 @@ export function ThemesPage({ look }: { look: Look }) {
     if (q) return "random".startsWith(q) || "random theme".startsWith(q);
     return group === "All";
   }, [group, query]);
-
-  const showLocked = useMemo(() => {
-    if (nightsteelUnlocked) return false;
-    const q = query.trim().toLowerCase();
-    if (q) return "locked".startsWith(q) || "coming soon".startsWith(q) || "unlock".startsWith(q) || "nightsteel".startsWith(q);
-    return group === "All" || group === "Station";
-  }, [group, nightsteelUnlocked, query]);
 
   const startCreate = () => {
     const current = look.active.palette ?? PREVIEW;
@@ -561,8 +550,9 @@ export function ThemesPage({ look }: { look: Look }) {
   };
 
   const randomTheme = () => {
-    const pool = CATALOG.filter((t) => t.id !== look.active.id);
-    const list = pool.length > 0 ? pool : CATALOG;
+    const open = CATALOG.filter((t) => !look.isLocked(t.id));
+    const pool = open.filter((t) => t.id !== look.active.id);
+    const list = pool.length > 0 ? pool : open;
     const t = list[Math.floor(Math.random() * list.length)];
     look.select(t.id);
     setRandomPick({ id: t.id, name: t.name });
@@ -573,7 +563,7 @@ export function ThemesPage({ look }: { look: Look }) {
       <header className="themes-head">
         <h2>Themes</h2>
         <p>
-          {CATALOG.length} looks from the station and 21st.dev, plus any you make or upload. Selecting one recolours the page, the cards, caution, and alerts.
+          {FREE_COUNT + LOCKED_PRESETS.length} looks from the station and 21st.dev: the first {FREE_COUNT} are free and {LOCKED_PRESETS.length} are locked. You can also make or upload your own. Selecting one recolours the page, the cards, caution, and alerts.
         </p>
       </header>
 
@@ -594,12 +584,15 @@ export function ThemesPage({ look }: { look: Look }) {
         </div>
       </div>
 
-      {themes.length === 0 && !showRandom && !showLocked ? (
+      {themes.length === 0 && !showRandom ? (
         <p className="hint">No themes match that.</p>
       ) : (
         <div className="theme-grid">
           {showRandom && <RandomThemeCard onPick={randomTheme} picked={randomPick && randomPick.id === look.active.id ? randomPick.name : undefined} />}
-          {themes.map((t) => (
+          {themes.map((t) =>
+            look.isLocked(t.id) ? (
+              <LockedThemeCard key={t.id} theme={t} onOpen={() => setUnlockFor(t)} />
+            ) : (
             <ThemeCard
               key={t.id}
               theme={t}
@@ -610,24 +603,21 @@ export function ThemesPage({ look }: { look: Look }) {
               onHover={(over) => hoverOn(t.id, over)}
               onRemove={t.source === "yours" ? () => look.remove(t.id) : undefined}
             />
-          ))}
-          {showLocked && <LockedThemeCard onOpen={() => setUnlockOpen(true)} />}
+            ),
+          )}
         </div>
       )}
 
       <UnlockThemeDialog
-        open={unlockOpen}
-        onClose={() => setUnlockOpen(false)}
+        open={unlockFor != null}
+        name={unlockFor?.name ?? ""}
+        onClose={() => setUnlockFor(null)}
         onUnlock={(via) => {
-          look.unlock(NIGHTSTEEL.id);
-          look.select(NIGHTSTEEL.id);
-          setUnlockOpen(false);
+          if (!unlockFor) return;
+          look.unlock(unlockFor.id, { select: true });
           setError(null);
-          setNotice(
-            via === "weekly"
-              ? "Nightsteel unlocked with a weekly unlock."
-              : `Nightsteel unlocked — spent ${formatCredits(NIGHTSTEEL_COST)}.`,
-          );
+          setNotice(via === "weekly" ? `${unlockFor.name} unlocked with a weekly unlock.` : `${unlockFor.name} unlocked, spent ${formatCredits(LOOK_COST)}.`);
+          setUnlockFor(null);
         }}
       />
 

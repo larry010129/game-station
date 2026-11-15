@@ -3,10 +3,10 @@ import { readJson, writeJson } from "../lib/storage";
 import { applyResults, cleanGacha, drawMany, priceOf, type DrawResult, type GachaState } from "../state/gachaEngine";
 import { usePatreonEntitlement } from "../state/patreon";
 import { CREDIT_NAME, formatCredits, spendCredits, useStationCredits } from "../state/stationCredits";
-import { UNLOCKABLES } from "../state/themeCatalog";
+import { LOCKED_PRESETS } from "../state/themeCatalog";
 
 const KEY = "cs.gacha";
-const nameOf = (id: string) => UNLOCKABLES.find((t) => t.id === id)?.name ?? id;
+const nameOf = (id: string) => LOCKED_PRESETS.find((t) => t.id === id)?.name ?? id;
 
 /** Spends earned Credits on random draws: a preset look you do not own, or a placeholder coupon. Never brand colours. */
 export function GachaPanel({ owned, onWin }: { owned: readonly string[]; onWin: (id: string) => void }) {
@@ -24,8 +24,8 @@ export function GachaPanel({ owned, onWin }: { owned: readonly string[]; onWin: 
       return;
     }
     // Patreon Basic already opens every preset, so nothing is left to win and each draw is a coupon.
-    const have = basic ? UNLOCKABLES.map((t) => t.id) : owned;
-    const results = drawMany(count, have, UNLOCKABLES.map((t) => t.id), Math.random);
+    const have = basic ? LOCKED_PRESETS.map((t) => t.id) : owned;
+    const results = drawMany(count, have, LOCKED_PRESETS.map((t) => t.id), Math.random);
     for (const r of results) if (r.kind === "look") onWin(r.id);
     const next = applyResults(state, results);
     writeJson(KEY, next);

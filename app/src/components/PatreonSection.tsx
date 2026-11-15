@@ -62,6 +62,10 @@ export function PatreonSection() {
         <p className="patreon-state" role="status">
           Reading Patreon sign-in…
         </p>
+      ) : status === "unavailable" ? (
+        <p className="patreon-state" role="status">
+          The station service did not answer the Patreon check. If you just updated Command Station, close it fully and open it again so the new service starts.
+        </p>
       ) : !status.configured ? (
         <p className="patreon-state" role="status">
           Patreon sign-in is not set up in this build, so no tier can be checked here yet.

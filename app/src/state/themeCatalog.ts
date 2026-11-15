@@ -1,3 +1,4 @@
+import { lockedIdsOf } from "./lookAccess";
 import type { FontKey, Palette, ThemeDef } from "./palette";
 
 /**
@@ -344,5 +345,10 @@ const LOOKS: ThemeDef[] = [
 ];
 
 export const CATALOG: ThemeDef[] = LOOKS.map(withFont);
+
+/** Every locked preset (see lookAccess.ts): catalogue looks after the first 30, then the gated ones outside the catalogue. */
+export const LOCKED_IDS: ReadonlySet<string> = new Set(lockedIdsOf(CATALOG.map((t) => t.id), UNLOCKABLES.map((t) => t.id)));
+export const LOCKED_PRESETS: ThemeDef[] = [...CATALOG, ...UNLOCKABLES].filter((t, i, all) => LOCKED_IDS.has(t.id) && all.findIndex((x) => x.id === t.id) === i);
+export const FREE_COUNT = CATALOG.length - LOCKED_PRESETS.filter((t) => CATALOG.some((c) => c.id === t.id)).length;
 
 export const THEME_GROUPS =["All", ...Array.from(new Set(CATALOG.map((t) => t.group)))];

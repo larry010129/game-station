@@ -4,7 +4,8 @@ import { readJson, readString, removeKey, writeJson, writeString } from "../lib/
 import { deletePicture, loadPicture, savePicture } from "./imageStore";
 import { applyPalette, parseThemeModule, type Palette, type ThemeDef } from "./palette";
 import { applyTweaks, cleanTweaks, type Tweaks } from "./tweaks";
-import { CATALOG, CHARCOAL, UNLOCKABLES } from "./themeCatalog";
+import { isLookLocked } from "./lookAccess";
+import { CATALOG, CHARCOAL, LOCKED_IDS, UNLOCKABLES } from "./themeCatalog";
 import { trackQuest } from "./useQuests";
 
 const KEY = "cs.theme";
@@ -236,8 +237,11 @@ export function useTheme() {
 
   // Patreon Basic opens every preset look without writing to the earned unlocks, so cancelling never takes an earned look away.
   const { basic } = usePatreonEntitlement();
-  const unlocked = useMemo(() => UNLOCKABLES.filter((t) => basic || unlocks.includes(t.id)), [unlocks, basic]);
-  const all = useMemo(() => [...CATALOG, ...unlocked, ...modules], [unlocked, modules]);
+  // Only looks that are free, earned or opened by Patreon Basic can be worn; a locked one is never applied or previewed.
+  const lockRef = useRef({ unlocks, basic });
+  lockRef.current = { unlocks, basic };
+  const isLocked = useCallback((themeId: string) => isLookLocked(themeId, LOCKED_IDS, unlocks, basic), [unlocks, basic]);
+  const all = useMemo(() => [...CATALOG, ...UNLOCKABLES, ...modules].filter((t) => !isLookLocked(t.id, LOCKED_IDS, unlocks, basic)), [unlocks, basic, modules]);
   const active = all.find((t) => t.id === id) ?? CHARCOAL;
 
   // Painted before the browser draws, so a light theme never flashes dark first.
@@ -265,6 +269,7 @@ export function useTheme() {
   }, [unlocks]);
 
   const select = useCallback((next: string) => {
+    if (isLookLocked(next, LOCKED_IDS, lockRef.current.unlocks, lockRef.current.basic)) return;
     setPreviewId(null);
     setId(next);
     setRecent((list) => [next, ...list.filter((x) => x !== next)].slice(0, MAX_RECENT));
@@ -272,8 +277,15 @@ export function useTheme() {
   }, []);
 
   /** Marks a gated theme as unlocked for this install (persists in `cs.themeUnlocks`). */
-  const unlock = useCallback((themeId: string) => {
+  const unlock = useCallback((themeId: string, opts?: { select?: boolean }) => {
     setUnlocks((list) => (list.includes(themeId) ? list : [...list, themeId]));
+    // Unlock and wear it in one step: `select` would still see the old unlocks and refuse.
+    if (opts?.select) {
+      setPreviewId(null);
+      setId(themeId);
+      setRecent((list) => [themeId, ...list.filter((x) => x !== themeId)].slice(0, MAX_RECENT));
+      trackQuest.once("look");
+    }
   }, []);
 
   /** Changes some tweaks; a field set to `undefined` goes back to the theme's own value. */
@@ -364,5 +376,5 @@ export function useTheme() {
     setImage(null);
   }, [setImage]);
 
-  return { active, dim, modules, image, imageSaved, tweaks, favs, recent, hover, unlocks, select, unlock, applyShared, tweak, clearTweaks, toggleFav, setHover, preview, setDim, setImage, create, remove, importModules, reset };
+  return { active, dim, modules, image, imageSaved, tweaks, favs, recent, hover, unlocks, isLocked, select, unlock, applyShared, tweak, clearTweaks, toggleFav, setHover, preview, setDim, setImage, create, remove, importModules, reset };
 }
