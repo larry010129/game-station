@@ -993,7 +993,6 @@ button.credits-item:focus-visible .credits-url { color: var(--orange); }
 .patreon-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 .patreon-state { color: var(--dim); font-size: 13px; line-height: 1.45; flex: 1 1 100%; }
 @media (max-width: 560px) { .patreon-tiers li { grid-template-columns: 70px 1fr; } .patreon-tier-gives { grid-column: 1 / -1; } }
-.draw-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .buy-credits-bmc {
   display: inline-flex;
   padding: 0;

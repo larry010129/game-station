@@ -1,7 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../components/Icon";
-import { DrawPanel } from "../components/DrawPanel";
 import { GachaPanel } from "../components/GachaPanel";
 import { ThemeTune } from "../components/ThemeTune";
 import { ThemePanel } from "../components/ThemePanel";
@@ -707,8 +706,6 @@ export function ThemesPage({ look }: { look: Look }) {
             </div>
           )}
         </section>
-
-        <DrawPanel owned={look.unlocks} onWin={look.unlock} />
 
         <section className="vault-card" aria-label="Upload a theme module">
           <h3>Upload a module</h3>
