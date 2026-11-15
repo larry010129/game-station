@@ -47,6 +47,15 @@ The Hero tier list, Map hero picks and Best pick per role cards read hero stats 
 
 The Leak feed card shows Overwatch leak headlines from the free feed. **Check every hour** and **Check now** both call `POST /api/feed/refresh`. That pull searches Google News RSS for `Overwatch leak`, `Overwatch season leak` and `Overwatch rumor`, plus Reddit, YouTube and Blizzard. It does not call Claude or Antigravity. The service also refreshes the same feed about every 30 minutes.
 
+## Patreon sign-in (owner setup)
+
+"Log in with Patreon" needs a Patreon app that only the owner can create (patreon.com/portal/registration/register-clients). Set the redirect URI to `http://127.0.0.1:8787/api/patreon/callback`, then give the service its credentials in one of two ways:
+
+- environment variables `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET` and `PATREON_CAMPAIGN_ID` (for example in `app/.env` when developing), or
+- a `patreon-app.json` file in the data folder with `clientId`, `clientSecret` and `campaignId`.
+
+Without them the Support page says sign-in is not set up and nothing is unlocked. The app turns on Basic (every preset look) for Bronze and Brand (the colour editor) for Silver, Gold, Diamond and a hidden tier named "Creator". The check repeats when the service starts and every 12 hours. If Patreon cannot be reached the last answer counts for 14 days. Earned looks (weekly unlocks, Credits, draws) are never affected by a cancellation.
+
 ## Service API
 
 Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser requests only from `http://localhost:1420`, `http://127.0.0.1:1420`, `http://tauri.localhost` or `tauri://localhost` (any other Origin gets 403; POSTs must be `application/json`; the Host header must be localhost). JSON in, JSON out.
