@@ -1,0 +1,49 @@
+# Development
+
+Contributor notes for building and hacking on Command Station. Full prerequisites and first-run steps: [SETUP.md](SETUP.md). Stuck? [TROUBLESHOOTING.md](TROUBLESHOOTING.md). Service API and config keys: [../README.md](../README.md).
+
+## Needs
+
+Node.js/npm, Rust (MSVC), Visual Studio C++ Build Tools, Smart App Control off. Details in [SETUP.md](SETUP.md).
+
+## Build installer
+
+```bash
+cd app
+npm install
+npm run prepare:sidecar
+npm run tauri build -- --bundles nsis
+```
+
+Installer output: `app/src-tauri/target/release/bundle/nsis/` (NSIS `.exe` only).
+
+MSI is not produced by default. Bundle targets are NSIS only (`["nsis"]` in `tauri.conf.json`). To also produce an MSI, add `"msi"` to `bundle.targets` (or pass `--bundles nsis,msi`) and rebuild.
+
+## Day-to-day
+
+```bash
+# Desktop shell (preferred for full app work)
+npm run prepare:sidecar
+npm run tauri dev
+
+# Browser UI work only (not the end-user path)
+npm run live   # service :8787 + dashboard http://localhost:1420
+```
+
+Useful extras: `npm run service`, `npm run dev`, `npm run test:service`, `npm run build`.
+
+The end-user desktop shell starts a bundled Node service and stops it when you quit — users do not open a browser or localhost URL. `npm run live` is for dashboard development only.
+
+## Service security (local)
+
+The service binds to localhost, checks Origin and Host, and accepts only JSON POSTs (1 MB cap). Details in [../README.md](../README.md).
+
+## Repo layout
+
+| Path | What |
+| --- | --- |
+| `app/src` | Dashboard UI |
+| `app/service` | Local Node service |
+| `app/src-tauri` | Tauri desktop shell |
+| `app/docs` | Setup, troubleshooting, this file |
+| `design/` | Design reference |

@@ -43,14 +43,9 @@ npm run live      # service on http://127.0.0.1:8787 + dev server on http://loca
 
 The Hero tier list, Map hero picks and Best pick per role cards read hero stats from https://www.counterwatch.gg/stats/overwatch (community data, shrunk win rates, all ranks). The service reads the site's tier-list, maps and best-one-tricks pages (the data is embedded in the page, there is no public API), once at every start, again when the stats are over a day old, and when you press the reload button on a card. The site says it refreshes around 07:00 UTC. The last good copy is kept in `%APPDATA%\CommandStation\counterwatch.json`, so the cards still work offline. Hero portraits load from the site's image host. Click a hero or "counterwatch.gg" to open the page in your browser.
 
-## AI leak search
+## Leak feed
 
-The AI leak search card asks Claude or Gemini to search the web for the newest Overwatch update, leaks and datamines, or any hero or topic you type. It runs the official CLI as a child process:
-
-- **Claude:** the `claude` command (Claude Code), signed in with your Claude account. Limited to the web search and web fetch tools: no file or shell access. Uses your Claude subscription.
-- **Gemini:** the `gemini` command (`npm install -g @google/gemini-cli`). Personal Google login is retired; use a `GEMINI_API_KEY` (auth type `gemini-api-key`). Google AI Pro/Ultra subscriptions move to Antigravity CLI (`agy`); Command Station does not call `agy` yet — use Claude or an API key until that lands.
-
-Each answer labels items Confirmed, Leak or Rumor, with the source link. A search takes about a minute and the last 20 answers are kept in `%APPDATA%\CommandStation\ai-research.json`. AI can be wrong: open the source before you trust a leak.
+The Leak feed card shows Overwatch leak headlines from the free feed. **Check every hour** and **Check now** both call `POST /api/feed/refresh`. That pull searches Google News RSS for `Overwatch leak`, `Overwatch season leak` and `Overwatch rumor`, plus Reddit, YouTube and Blizzard. It does not call Claude or Antigravity. The service also refreshes the same feed about every 30 minutes.
 
 ## Service API
 
@@ -62,6 +57,7 @@ Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser
 | `GET /api/diag` | Version, Node, platform, pid, uptime, port, config problems and the state of the GPU and CPU sources |
 | `GET /api/machine` | PC, CPU and GPU names (a default until the first lookup finishes) |
 | `GET /api/sample` | One reading: temps, loads, clocks, ping, battery, with notes for anything missing |
+| `POST /api/pace` | Pause or slow the sensor helpers. Body: `paused` (kill switch) and/or `slow` (window hidden). Returns `{ ok, paused, slow }` |
 | `GET /api/feed` | Overwatch news, patch notes and community/leak items (cache only) |
 | `POST /api/feed/refresh` | Pull the feed sources now |
 | `GET /api/players` | Players online per hour (Steam) and the estimated regional shares |
@@ -70,9 +66,10 @@ Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser
 | `GET /api/meta/map` | Hero list for one map. Query: `slug`, `mode`, `force=1` |
 | `GET /api/meta/rank` | Tier list and maps for one rank. Query: `rank`, `mode`, `force=1` |
 | `POST /api/meta/refresh` | Fetch fresh Counterwatch stats now (at most once a minute) |
-| `GET /api/ai` | AI search state and saved answers |
-| `POST /api/ai/ask` | Start a search. Body: `engine` (claude or gemini), `topic` (leaks, update or hero), `question` |
-| `POST /api/ai/auto` | Hourly leak check on or off, and which engine. Body: `enabled`, `engine` |
+| `GET /api/img` | Apex legend/weapon portrait proxy (Tracker CDN). Query: `kind` (`legend` or `weapon`), `slug`. Not an open proxy — fixed host and slug allowlist only |
+| `GET /api/ai` | Optional CLI research state (off by default; Leak feed uses `/api/feed` instead) |
+| `POST /api/ai/ask` | Start a one-off CLI search. Body: `engine` (antigravity or claude), `topic` (leaks, update or hero), `question` |
+| `POST /api/ai/auto` | Optional hourly CLI leak check on or off, and which engine. Body: `enabled`, `engine`. Off by default so Claude/Antigravity are not used unless you turn them on |
 | `GET /api/net` | Ping to Americas, Europe and Asia, jitter and packet loss, Wi-Fi details. Probing only runs while a card is asking |
 | `GET /api/system` | Memory in use, top apps by memory, battery charge rate |
 | `GET /api/steam` | Latest Overwatch 2 posts on Steam |
@@ -103,13 +100,16 @@ Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser
 | `POST /api/spotify/logout` | Forget the Spotify sign-in |
 | `POST /api/spotify/control` | Play, pause, next, previous, seek, volume, shuffle (`on` must be a boolean), repeat, playlist, transfer. Body: `action` plus its arguments |
 | `POST /api/memory/clean` | Free RAM (Windows only; may show a UAC prompt) |
+| `GET /api/wavelink` | Elgato Wave Link 3 mixer: mixes, channels and microphones with their levels and mute state. `{ "state": "offline" }` when Wave Link is not running. Uses the unofficial local WebSocket of Wave Link, which an update can change |
+| `POST /api/wavelink/set` | Change one Wave Link control. Body: `kind` (`mix`, `channel` or `input`), `id`, `level` (0 to 1) and/or `isMuted`; a channel can also take `mixId` for its send to one mix, and an input needs `inputId` (mute only). 503 when Wave Link is not running |
+| `POST /api/cost/trim` | Free this app's own memory: collect garbage, then hand the unused memory of the service, shell and web view back to Windows. No administrator needed. Returns `{ beforeMb, afterMb, freedMb, processes }` |
 | `GET /api/profiles` | Game-mode profiles with each step's current ("before") and target ("after") state |
 | `POST /api/step/apply` | Apply one step. Body: the step object (needs `id`) |
 | `POST /api/step/restore` | Undo one step. Body: the step object (needs `id`) |
 
 Every route above is checked against `service/index.mjs` by `service/test/backend.test.mjs`: the test fails when a handler is missing from this table, or the table lists one that no longer exists. Write each route in full, in backticks.
 
-Step ids: `power`, `close`, `gpu`, `poll`, `launch`, `obs` (OBS is not linked yet); a missing or unknown id on `/api/step/apply` or `/api/step/restore` gets 400. Errors come back as `{ "error": "..." }`. For the security checks and the journal, see `service/server.mjs` and `service/gamemode.mjs`.
+Step ids: `power`, `close`, `trim`, `memory`, `gpu`, `poll`, `launch`, `priority`, `obs` (OBS is not linked yet). `trim` frees this app's own memory, `memory` cleans system memory (it may show a UAC prompt, and a refusal does not stop game mode), and `priority` raises Overwatch to High priority once it is running (it waits up to about a minute for the game to start); a missing or unknown id on `/api/step/apply` or `/api/step/restore` gets 400. Errors come back as `{ "error": "..." }`. For the security checks and the journal, see `service/server.mjs` and `service/gamemode.mjs`.
 
 ## Config
 
@@ -125,9 +125,13 @@ On first run the service writes `%APPDATA%\CommandStation\config.json` with the 
 | `disabledSteps` | `[]` | Game-mode step ids skipped in every profile |
 | `closeApps` | OneDrive, ArmouryCrate, ASUSSoftwareManager (.exe) | Closed by the game-mode "close" step |
 | `feed.newsUrl`, `feed.patchUrl` | Blizzard news and patch notes pages | Feed sources |
-| `feed.reddit` | r/Overwatch (community), r/OverwatchLeaks (leak) | Subreddits to read |
+| `feed.reddit` | r/Overwatch, r/CompetitiveOverwatch (community; leak-worded posts show under Leaks), r/Overwatch_Leaks (`kind: "leak"`) | Subreddits to read. An older seeded list that still only has built-ins picks up new default subs on restart |
 | `feed.refreshMs` | 1800000 (30 min) | Feed refresh interval |
-| `feed.youtube` | PlayOverwatch channel | YouTube channels to read (channel id and name) |
+| `feed.youtube` | PlayOverwatch, YourOverwatch (`@YourOverwatch`), Stylosa (`@stylosa`) | YouTube channels to read: `channelId`, `handle` (@name) or `url`, plus `name`; `kind: "leak"` makes every video a leak |
+| `feed.newsSearch` | `Overwatch leak`, `Overwatch season leak`, `Overwatch rumor`, `Overwatch datamine`, `Overwatch hero leak`, `Overwatch 2 leak` (max 6, each ≤80 chars) | Google News keyword searches (last 30 days; only headlines that name Overwatch and a leak, datamine or rumour are kept). Plain words work best: quoted phrases return nothing |
+| `feed.x`, `feed.xRssUrl` | PlayOverwatch (`official`), wiki_ow / SkaVorah (`leak`), OWCavalry / OmnicPost (`news`); empty | Optional X accounts with a role tag. Posts reach the feed only if `xRssUrl` is set to a bridge address with `{handle}` in it. An older built-in-only list picks up new default handles on restart |
+| `feed.trusted` | Blizzard, PlayOverwatch, wiki_ow, SkaVorah | Sources that get a Trusted badge (name, optional note; a name with a dot is a website) |
+| `feed.tracked` | `[]` | Written by Vault > Sources: `{ platform: x|youtube|reddit|website, value, note, kind? }`. `kind` is Official / Leak / News (X), Leak / Video (YouTube), or Community / Leak (Reddit). Added on top of the lists above |
 | `feed.redditGapMs` | 12000 | Pause between Reddit requests |
 | `feed.userAgent` | `CommandStation/0.2 ...` | User agent sent to feed sources |
 
@@ -164,7 +168,7 @@ Before `tauri dev` or `tauri build`, run `npm run prepare:sidecar`: it copies `n
 
 ## Choosing cards
 
-Press **Edit layout**, then **Cards**. A list of every card opens: tick one to add it, untick to remove it, or press the **×** on a card. **Starting set** goes back to the first-run cards. Your choice is saved. Groups: This PC (memory, power), Connection (ping by region, jitter and loss, Wi-Fi, verdict), Overwatch (player trend, patch summary, leak watch, season countdown, Steam news, best time to play), Game (session timer, play history, session report, game mode history), Media (now playing, Spotify), Tools (world clocks, checklist, notes).
+Press **Edit layout**, then **Cards**. Home starts with the first-run set; add more from the list (or remove with **×**). **Starting set** goes back to the first-run cards. Your choice is saved. Groups: This PC (memory, power), Connection (ping by region, jitter and loss, Wi-Fi, verdict), Overwatch (player trend, patch summary, leak watch, season countdown, Steam news, best time to play), Game (session timer, play history, session report, game mode history), Media (now playing, Spotify), Tools (world clocks, checklist, notes).
 
 Now playing works through Windows' own media session, so it controls Spotify and anything else that is playing, with no login. It can't browse playlists. The season end date is typed in by you because Blizzard does not publish it in a form this app can read. Patch buff or nerf labels are guessed from the wording. Region player shares are estimates; hourly totals are Steam players only.
 
@@ -177,7 +181,7 @@ Now playing works through Windows' own media session, so it controls Spotify and
 ## New cards
 
 - **CPU temperature:** Windows does not provide this. Run LibreHardwareMonitor as administrator and turn on Options > Remote Web Server (default `http://127.0.0.1:8085`, config key `lhmUrl`). Without it the card says so; some laptops also answer through the ACPI thermal zone.
-- **App cost:** CPU and memory of the service plus the desktop window (command-station.exe and its web view), against a budget of under 1% CPU and 150 MB.
+- **App cost:** CPU of the service, its helpers and the desktop window together (budget: under 1%), and memory of the service plus its helpers (budget: 200 MB). The window (command-station.exe and its Chromium web view) is shown for reference: about 300–370 MB private is Chromium’s floor and is not held to the memory budget. Memory is private bytes, not working set, so shared pages are not counted twice. Sensor helpers slow to every 3 s in game mode or when the window is hidden, and stop on the kill switch.
 - **Game library:** installed Steam games, newest played first, with a Play button, plus a Battle.net button when it is installed. Only games found by the scan can be started.
 - **Discord:** mute, deafen and who is in your voice channel, over Discord's local pipe. Needs your own Discord application (client id and secret from discord.com/developers, with `http://127.0.0.1` added as a redirect). The secret is kept in `%APPDATA%\CommandStation\discord.json`. Not yet tried against a real Discord account.
 
@@ -210,5 +214,5 @@ This PC's Application Control policy blocks Rollup's native `.node` binary, so `
 ## Next
 
 - Link OBS scene switching (the `obs` step is a stub).
-- Measure the app's cost with Overwatch running against the budget (under 1% CPU, under 150 MB).
+- Measure the app's cost with Overwatch running against the budget (under 1% CPU, service and helpers under 200 MB).
 - Open decisions and code review findings: `../goldfish_review_report.md`.

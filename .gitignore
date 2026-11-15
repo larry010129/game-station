@@ -15,4 +15,6 @@ CommandStation-v0.2/
 *.log
 .env
 .env.*
+!.env.example
+!**/.env.example
 .freebuff/
