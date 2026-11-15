@@ -7,6 +7,7 @@ Status after four review rounds: all approved findings applied; 130 service test
 - Phase 0.1 done: four commits, no secrets found (`.tmp-*`, `unlock-codes/` scratch scripts and `screenshot-cards.mjs` left untracked on purpose).
 - Phase 0.2 done: dashboard calls to `127.0.0.1:8787` return 200 in a real browser, console clean. 194 service tests, `tsc` and `vite build` pass.
 - Done in Phase 2: B15 (Spotify 429 backoff), V (`version.json` staged into the bundle), B10 partly (memclean runs a private temp copy; JSON-only POSTs already force a CORS preflight; an elevated child still cannot be killed from the service).
+- Phase 1 decisions made 15 November 2026: old builds deleted, `screenshot-cards.mjs` and `playwright` removed, `cputemp` card/endpoint/alert rule/`lhmUrl` removed. Z1 scope cut: no features chosen, so Z3, Z5 (rest) and Z10 stay open. Also done: A1 (shell closes the service stdin; needs an installed-build check), mobile tab strip, wallpaper rollback.
 - Design pass: detector clean, every button labelled; no UI changes needed. Not done: 0.3 theme click-through, 0.4 game mode, 0.5 installer build, Phase 1 decisions, R-wall, Z3/Z5/Z10.
 
 ## Phase 0: make it safe and prove it works (do first, about an hour)
