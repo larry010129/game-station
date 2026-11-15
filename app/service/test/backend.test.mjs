@@ -16,9 +16,9 @@ const readme = fs.readFileSync(path.join(service, "..", "README.md"), "utf8");
 
 // ---- README stays in step with the handlers ---------------------------------------------
 
-const handlerKeys = [...fs.readFileSync(path.join(service, "index.mjs"), "utf8").matchAll(/^\s*"((?:GET|POST) \/api\/[^"]+)":/gm)].map((m) => m[1]);
+const handlerKeys = [...fs.readFileSync(path.join(service, "routes.mjs"), "utf8").matchAll(/^\s*"((?:GET|POST) \/api\/[^"]+)":/gm)].map((m) => m[1]);
 
-test("index.mjs registers handlers the test can see", () => {
+test("routes.mjs registers handlers the test can see", () => {
   assert.ok(handlerKeys.length > 20, `found only ${handlerKeys.length} handler keys`);
 });
 
