@@ -94,6 +94,13 @@ test("an allowlisted Origin is let through even though browsers label it cross-s
 test("browser return callbacks may arrive cross-site with no Origin", async () => {
   const spotify = await req("GET", "/api/spotify/callback?code=x&state=y", { headers: { "Sec-Fetch-Site": "cross-site" } });
   assert.notEqual(spotify.status, 403);
+  // Patreon sends the browser back the same way. Only GET on that one path is exempt: a POST there, and every other path, still is not.
+  const patreon = await req("GET", "/api/patreon/callback?code=x&state=y", { headers: { "Sec-Fetch-Site": "cross-site" } });
+  assert.notEqual(patreon.status, 403);
+  const post = await req("POST", "/api/patreon/callback", { body: "{}", headers: { "Sec-Fetch-Site": "cross-site" } });
+  assert.equal(post.status, 403);
+  const other = await req("GET", "/api/patreon", { headers: { "Sec-Fetch-Site": "cross-site" } });
+  assert.equal(other.status, 403);
 });
 
 test("same-origin, same-site, none and a missing Sec-Fetch-Site header are all allowed", async () => {

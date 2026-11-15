@@ -27,10 +27,10 @@ export function createServer({ host, port, handlers, log, allowedOrigins = [] })
     // Browsers label every request. The dashboard itself is "cross-site" to the service (localhost:1420 or
     // tauri.localhost calling 127.0.0.1:8787), so an allowlisted Origin is authorised on its own. What this
     // catches is a cross-site request with NO Origin (a no-cors GET from a random page); non-browser clients send
-    // no header at all and are still welcome. Browser redirects back to this service (Spotify OAuth) are
+    // no header at all and are still welcome. Browser redirects back to this service (Spotify and Patreon OAuth) are
     // cross-site navigations by nature; each handler verifies its own token/session.
     const pathOnly = req.url?.split("?")[0] ?? "";
-    const isBrowserReturn = req.method === "GET" && pathOnly === "/api/spotify/callback";
+    const isBrowserReturn = req.method === "GET" && (pathOnly === "/api/spotify/callback" || pathOnly === "/api/patreon/callback");
     if (req.headers["sec-fetch-site"] === "cross-site" && origin === undefined && !isBrowserReturn) {
       send(res, 403, { error: "Forbidden cross-site request" });
       return;
