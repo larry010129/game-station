@@ -7,16 +7,21 @@ const REFRESH_MS = 10 * 60 * 1000;
 const CATCH_UP_MS = [5_000, 15_000] as const;
 
 /** Loads the online-player count now and every 10 minutes, but never during a match. */
-export function usePlayers(provider: Provider, paused: boolean) {
+export function usePlayers(provider: Provider, paused: boolean, game = "overwatch") {
   const [data, setData] = useState<PlayersData | null>(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setData(null);
+    setFailed(false);
+  }, [game]);
 
   useEffect(() => {
     if (paused) return;
     let alive = true;
     const load = () =>
       provider
-        .readPlayers()
+        .readPlayers(game)
         .then((d) => {
           signal("/api/players", "ok");
           if (!alive) return;
@@ -35,7 +40,7 @@ export function usePlayers(provider: Provider, paused: boolean) {
       for (const t of catchUps) window.clearTimeout(t);
       window.clearInterval(id);
     };
-  }, [provider, paused]);
+  }, [provider, paused, game]);
 
   return { data, failed };
 }

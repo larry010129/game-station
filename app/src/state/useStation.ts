@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { Provider, Sample } from "../lib/types";
 import type { NewEvent } from "./useEvents";
+import { useOnScreen } from "../layout/onScreen";
 
 /** The newest reading, and a way to hear about the next one without re-rendering everything. */
 export interface StationStore {
@@ -99,7 +100,18 @@ export function useStation(provider: Provider, { stopped, intervalMs, onEvent }:
   return source.store;
 }
 
-/** One value from the newest reading. The caller re-renders only when that value changes. */
+/**
+ * One value from the newest reading. The caller re-renders only when that value changes,
+ * and not at all while its card is off screen (it catches up when it comes back).
+ */
 export function useSample<T>(store: StationStore, select: (s: Sample) => T): T {
-  return useSyncExternalStore(store.subscribe, () => select(store.latest()));
+  const on = useOnScreen();
+  const held = useRef<{ v: T } | null>(null);
+  return useSyncExternalStore(store.subscribe, () => {
+    if (!on && held.current) return held.current.v;
+    const v = select(store.latest());
+    // Keep the old object when the value did not change, so React sees the same snapshot.
+    if (!held.current || !Object.is(held.current.v, v)) held.current = { v };
+    return held.current.v;
+  });
 }

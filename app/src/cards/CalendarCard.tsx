@@ -1,6 +1,8 @@
-import { memo, useEffect, useMemo, useState } from "react";
-import { clock, readEvents, ymd, type CalEvent } from "./CalendarPage";
+import { memo, useMemo, useState } from "react";
+import { itemTag, mergeItems, readEvents, ymd, type CalEvent } from "./CalendarPage";
+import { useGameEvents } from "../lib/gameEvents";
 import { Card } from "./ui";
+import { useInterval } from "../layout/onScreen";
 
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
@@ -12,13 +14,10 @@ export const CalendarCard = memo(function CalendarCard({ onOpen }: { onOpen: (da
   const [now, setNow] = useState(() => new Date());
 
   // Pick up edits made on the Calendar page, and roll over at midnight.
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setEvents(readEvents());
-      setNow(new Date());
-    }, 30_000);
-    return () => window.clearInterval(id);
-  }, []);
+  useInterval(() => {
+    setEvents(readEvents());
+    setNow(new Date());
+  }, 30_000);
 
   const todayKey = ymd(now);
   const days = useMemo(() => {
@@ -30,14 +29,16 @@ export const CalendarCard = memo(function CalendarCard({ onOpen }: { onOpen: (da
     return Array.from({ length: n }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
   }, [now]);
 
-  const has = useMemo(() => new Set(events.map((e) => e.date)), [events]);
+  const gameEvents = useGameEvents();
+  const items = useMemo(() => mergeItems(events, gameEvents), [events, gameEvents]);
+  const has = useMemo(() => new Set(items.map((e) => e.date)), [items]);
   const next = useMemo(
     () =>
-      events
+      items
         .filter((e) => e.date >= todayKey)
         .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
         .slice(0, 3),
-    [events, todayKey],
+    [items, todayKey],
   );
 
   return (
@@ -75,11 +76,11 @@ export const CalendarCard = memo(function CalendarCard({ onOpen }: { onOpen: (da
           ) : (
             <ul>
               {next.map((e) => (
-                <li key={e.id}>
+                <li key={e.key} data-kind={e.kind}>
                   <button type="button" onClick={() => onOpen(e.date)}>
                     <span>{e.date === todayKey ? "Today" : DAY.format(new Date(e.date + "T00:00"))}</span>
                     <b title={e.name}>{e.name}</b>
-                    <small>{clock(e.time)}</small>
+                    <small>{itemTag(e)}</small>
                   </button>
                 </li>
               ))}

@@ -19,12 +19,14 @@ export interface Sample {
   stale?: boolean;
 }
 
-export type FeedKind = "patch" | "official" | "leak" | "video" | "community";
+export type FeedKind = "patch" | "official" | "leak" | "news" | "video" | "community";
 
-export type FeedPlatform = "blizzard" | "reddit" | "youtube" | "x";
+export type FeedPlatform = "blizzard" | "reddit" | "youtube" | "x" | "news";
 
 export interface FeedItem {
   id: string;
+  /** Set when the source is on the user's trusted list: the note to show. */
+  trusted?: string;
   /** Where the post lives. Older cached items may lack it; the id prefix says. */
   platform?: FeedPlatform;
   kind: FeedKind;
@@ -84,10 +86,11 @@ export interface Provider {
   machine: Machine;
   seed(count: number, endT: number): Sample[];
   readSample(): Promise<Sample>;
-  readFeed(): Promise<FeedItem[]>;
+  /** `game` selects Overwatch vs Apex sources on the local service. */
+  readFeed(game?: string): Promise<FeedItem[]>;
   /** Asks the service to look for new stories right now. */
-  refreshFeed(): Promise<FeedItem[]>;
-  readPlayers(): Promise<PlayersData>;
+  refreshFeed(game?: string): Promise<FeedItem[]>;
+  readPlayers(game?: string): Promise<PlayersData>;
   /** Any other service endpoint (network, memory, media, sessions...). */
   api<T>(path: string, body?: unknown): Promise<T>;
   profiles: Profile[];
@@ -139,6 +142,15 @@ export interface SpotifyStatus {
   repeat?: "off" | "context" | "track";
   device?: { id: string; name: string; type: string; volume: number | null; canVolume: boolean } | null;
   devices?: SpotifyDevice[];
+}
+
+/** Elgato Wave Link 3, as the local service reports it. Levels are 0 to 1. */
+export interface WaveLinkData {
+  state: "ready" | "offline" | "unsupported";
+  version: string;
+  mixes: { id: string; name: string; level: number; isMuted: boolean }[];
+  channels: { id: string; name: string; type: string; level: number; isMuted: boolean; mixes: { id: string; level: number; isMuted: boolean }[] }[];
+  inputs: { id: string; name: string; isWaveDevice: boolean; inputs: { id: string; name: string; isMuted: boolean }[] }[];
 }
 
 export interface NetData {
@@ -248,8 +260,12 @@ export interface MetaHeroDetail {
   stats: MetaCombat;
   roleAvg: MetaCombat & { heroCount: number | null };
   roleMax: MetaCombat;
-  archetype: { POKE: number; RUSH: number; DIVE: number };
-  lean: "POKE" | "RUSH" | "DIVE" | string;
+  /**
+   * Playstyle triangle scores 0–1.
+   * Overwatch: POKE / RUSH / DIVE. Apex: POKE / SUSTAIN / DIVE (kit axes — not squad seats).
+   */
+  archetype: { POKE: number; DIVE: number; RUSH?: number; SUSTAIN?: number };
+  lean: "POKE" | "RUSH" | "DIVE" | "SUSTAIN" | string;
   leanBlurb: string;
   mention: { label: string; why: string | null; detail: string | null } | null;
   counters?: {
@@ -260,6 +276,11 @@ export interface MetaHeroDetail {
       Tank: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
       Damage: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
       Support: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+      /** Apex legend classes (same shape as OW roles). */
+      Assault?: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+      Skirmisher?: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+      Recon?: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
+      Controller?: { losesTo: MetaMatchup[]; beats: MetaMatchup[] };
     };
   };
   topMaps?: { name: string; slug: string; mode: string; winRate: number | null; matches: number }[];
@@ -269,6 +290,19 @@ export interface MetaHeroDetail {
   fetchedAt?: number;
   url?: string;
   error?: string | null;
+  /** Apex (ALS): legend popularity rate 0–1. */
+  pickRate?: number | null;
+  /** Apex (ALS): relative 7-day pick-rate change 0–1 (e.g. 0.0938 = 9.38%). */
+  pickDelta?: number | null;
+  pickDeltaDir?: "up" | "down" | null;
+  avgRank?: string | null;
+  avgLevel?: number | null;
+  /** 1 = most picked on ALS table. */
+  popularityRank?: number | null;
+  /** Mean pick rate among legends sharing this class. */
+  classPickAvg?: number | null;
+  classPeers?: MetaHero[];
+  sources?: { label: string; href: string }[];
 }
 
 export interface MetaData {
@@ -281,10 +315,16 @@ export interface MetaData {
   mode?: "5v5" | "6v6" | string;
   patch?: { name: string; since: string } | null;
   season?: { name: string; number: number; since: string; until?: string | null } | null;
+  /** Every patch and season window with its dates (yyyy-mm-dd), newest first. */
+  timeline?: { kind: "patch" | "season"; name: string; number: number | null; startsOn: string; endsOn: string | null }[];
   tiers: { tier: string; heroes: MetaHero[] }[];
+  /** Apex only: weapon S–C tiers (same shape as `tiers`). */
+  gunTiers?: { tier: string; heroes: MetaHero[] }[];
   maps: MetaMap[];
   picks: { role: string; top: MetaHero | null; others: MetaHero[] }[];
   heroes?: Record<string, MetaHeroDetail>;
+  /** Apex weapons meta page, when different from `url`. */
+  weaponsUrl?: string;
 }
 
 /** One Counterwatch rank: tiers and map heroes for that division, or empty when the slice has no rows. */
@@ -312,7 +352,7 @@ export interface AiResult {
   auto?: boolean;
   /** How many items the previous hourly check did not have. */
   newCount?: number;
-  items: { title: string; status: "confirmed" | "leak" | "rumor"; summary: string; source: string; url: string; date: string; fresh?: boolean }[];
+  items: { title: string; status: "confirmed" | "leak" | "rumor"; summary: string; source: string; url: string; date: string; fresh?: boolean; upcoming?: boolean; also?: { source: string; url: string }[]; trusted?: string }[];
 }
 
 export interface AiData {
@@ -373,6 +413,30 @@ export interface SettingsData {
   games: string[];
   disabledSteps: string[];
   steps: string[];
+  /** Sources the user tracks for leaks. Absent from an older service or backup. */
+  tracked?: TrackedSource[];
+  /** The always-trusted sources from the defaults. Read only. */
+  builtin?: { name: string; note?: string }[];
+  /** Built-in X accounts with their Official / Leak / News role. Read only. */
+  builtinX?: { handle: string; kind: string; trusted?: boolean; note?: string }[];
+  /** Built-in YouTube channels (Video or Leak). Read only. */
+  builtinYoutube?: { name: string; kind: string; match?: string[]; trusted?: boolean; note?: string }[];
+  /** Built-in subreddits (Community or Leak). Read only. */
+  builtinReddit?: { sub: string; kind: string }[];
+}
+
+export type TrackedPlatform = "x" | "youtube" | "reddit" | "website";
+
+/** Role for a tracked X / YouTube / Reddit source. Websites are Trusted-only. */
+export type TrackedKind = "official" | "leak" | "news" | "video" | "community";
+
+export interface TrackedSource {
+  platform: TrackedPlatform;
+  /** X handle without @, YouTube @handle or channel id, subreddit name, or domain. */
+  value: string;
+  note: string;
+  /** Official / Leak / News (X), Leak / Video (YouTube), Community / Leak (Reddit). */
+  kind?: TrackedKind;
 }
 
 /** GET /api/health. `journalFailed` counts game-mode undo steps that failed at least once and are still pending. */

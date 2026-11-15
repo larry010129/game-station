@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { FEED_KIND_LABEL } from "../lib/feedKind";
 import { age, clockTime } from "../lib/format";
 import type { FeedItem, StationEvent } from "../lib/types";
 import type { Phase, StepStatus } from "../state/useGameMode";
@@ -6,6 +7,8 @@ import { useToast } from "../state/Toast";
 import { openLink } from "../lib/openLink";
 import { Icon } from "./Icon";
 import { PLATFORM_NAME, PlatformIcon, platformOf } from "./PlatformIcon";
+import { xBadge, xSource } from "../lib/xSource";
+import { useStationCtx } from "../state/useApi";
 import { Segmented } from "./Segmented";
 import { StationSelect } from "./StationSelect";
 
@@ -135,14 +138,6 @@ export const GameModePanel = memo(function GameModePanel({ profiles, profile, on
   );
 });
 
-const KIND: Record<FeedItem["kind"], string> = {
-  patch: "Patch",
-  official: "Official",
-  leak: "Unconfirmed leak",
-  video: "Video",
-  community: "Community",
-};
-
 export const FeedPanel = memo(function FeedPanel({
   items,
   error,
@@ -154,23 +149,27 @@ export const FeedPanel = memo(function FeedPanel({
   checking: boolean;
   onCheck: () => void;
 }) {
-  const [filter, setFilter] = useState<"all" | "official" | "leak" | "video">("all");
+  const [filter, setFilter] = useState<"all" | "official" | "leak" | "news" | "video">("all");
   const toast = useToast();
+  const { pack } = useStationCtx();
   const hasLeaks = items.some((i) => i.kind === "leak");
-  const active = filter === "leak" && !hasLeaks ? "all" : filter;
+  const hasNews = items.some((i) => i.kind === "news");
+  const active = (filter === "leak" && !hasLeaks) || (filter === "news" && !hasNews) ? "all" : filter;
   const shown = items.filter((i) =>
     active === "all"
       ? true
       : active === "leak"
         ? i.kind === "leak"
-        : active === "video"
-          ? i.kind === "video"
-          : i.kind === "official" || i.kind === "patch",
+        : active === "news"
+          ? i.kind === "news"
+          : active === "video"
+            ? i.kind === "video"
+            : i.kind === "official" || i.kind === "patch",
   );
   return (
-    <section className="t" id="feed" aria-label="Overwatch feed">
+    <section className="t" id="feed" aria-label={pack.cards.feed}>
       <div className="th">
-        <h2>Overwatch</h2>
+        <h2>{pack.label}</h2>
         <button type="button" className="chk" onClick={onCheck} disabled={checking} aria-label="Check for new stories now" title="Check for new stories now">
           {checking ? "Checking…" : "Check now"}
         </button>
@@ -182,6 +181,7 @@ export const FeedPanel = memo(function FeedPanel({
             { value: "all", label: "All" },
             { value: "official", label: "Official" },
             { value: "video", label: "Video" },
+            ...(hasNews ? [{ value: "news" as const, label: "News" }] : []),
             ...(hasLeaks ? [{ value: "leak" as const, label: "Leaks" }] : []),
           ]}
         />
@@ -191,6 +191,8 @@ export const FeedPanel = memo(function FeedPanel({
       {!error && shown.length === 0 && <p className="empty">Nothing here yet. The feed checks again every 5 minutes.</p>}
       {shown.map((i) => {
         const platform = platformOf(i);
+        const x = i.kind === "leak" || i.kind === "news" || platform === "x" ? xSource(i) : null;
+        const kindLabel = FEED_KIND_LABEL[i.kind];
         return (
           <a
             key={i.id}
@@ -209,7 +211,16 @@ export const FeedPanel = memo(function FeedPanel({
               <h3>{i.title}</h3>
               <p>
                 {i.isNew && <em className="newdot">New</em>}
-                {i.kind === "leak" ? <b>{KIND[i.kind]}</b> : KIND[i.kind]} · {i.source} · {age(i.publishedAt)}
+                <strong className={`kindbadge kind-${i.kind}`}>{kindLabel}</strong>
+                {" · "}
+                {i.source} · {age(i.publishedAt)}
+                {x && <strong className="xbadge"> · {xBadge(x, i.source)}</strong>}
+                {i.trusted && (
+                  <strong className="trustbadge" title={i.trusted}>
+                    {" "}
+                    · ✓ Trusted
+                  </strong>
+                )}
                 {i.summary && i.kind === "patch" ? ` · ${i.summary}` : ""}
               </p>
             </div>

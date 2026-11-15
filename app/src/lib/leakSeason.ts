@@ -17,7 +17,8 @@ export function seasonNumberFromMeta(season: { name?: string | null; number?: nu
 const SEASON_MENTION = /\b(?:seasons?|s)\s*(\d{1,2}(?:\s*(?:,|&|and|-|–|—|\/)\s*\d{1,2})*)/gi;
 const AFTER_NAMED = /\b(?:after|following|post|beyond)\s+(?:the\s+)?(?:current\s+season|this\s+season|season\s*\d{1,2}|s\s*\d{1,2})\b/i;
 const NEXT_SEASON = /\bnext season\b/i;
-const FUTURE = /\b(?:next hero|new heroes?|unreleased|upcoming season|future season|hero reveal|coming soon)\b/i;
+// "Encrypted" files and collab waves are how skins and crossovers leak before they ship, usually with no season named.
+const FUTURE = /\b(?:next hero|new heroes?|unreleased|upcoming season|future season|hero reveal|coming soon|encrypted|(?:collab|collaboration|crossover) wave|wave\s*\d|not yet (?:released|announced|revealed)|next (?:overwatch )?spotlight|(?:new )?hero trailer|(?:is |are )?expected (?:at|in|to|by))\b/i;
 const ALREADY = /\b(?:earlier leak|old leak|leak is old|already (?:released|out|live|in)|was released|now available|went live|is now live|currently live|this season|current season|mid-?season)\b/i;
 
 export function mentionedSeasons(text: string): number[] {
@@ -56,10 +57,25 @@ export function leakCopy(item: { title?: string; summary?: string }): { title: s
   return { title: title || detail, detail: title && detail ? detail : "" };
 }
 
-export function isUpcomingLeak(item: { title?: string; summary?: string }, current: number | null): boolean {
+/** "set for February 2027", "due in 2027": something scheduled for a year that has not started. Only the word right before the year counts. */
+const SCHEDULED_YEAR = /\b(?:set for|due(?: in| on| by)?|scheduled for|slated for|planned for|returns? in|arrives? in|launch(?:es)? in)\s+(?:(?:early|late|mid)[- ])?(?:[a-z]+\s+)?(?:\d{1,2},?\s+)?(20\d\d)\b/i;
+
+function scheduledForLaterYear(text: string, year: number): boolean {
+  const m = SCHEDULED_YEAR.exec(text);
+  return m != null && Number(m[1]) > year;
+}
+
+export function isUpcomingLeak(item: { title?: string; summary?: string; status?: string; upcoming?: boolean }, current: number | null, year: number = new Date().getFullYear()): boolean {
   const text = `${item.title ?? ""} ${leakDetail(item.summary)}`.replace(/\s+/g, " ").trim();
   if (!text || TAG_ONLY.test(text)) return false;
+  // The search itself says this is about something not live yet: believe it unless the text says it is already out.
+  if (item.upcoming === true && !aboutAlreadyOut(text)) return true;
+  // A schedule for a later year wins over a stray season number ("a new story and Season 1 follow" is the next story's Season 1).
+  if (!aboutAlreadyOut(text) && scheduledForLaterYear(text, year)) return true;
   const seasons = mentionedSeasons(text);
+  // The search is told to list only unreleased content, so an unconfirmed leak or rumor that names no season and is not
+  // marked as already out (a name slip, a map teaser, a delayed collab) is kept. A confirmed item still needs a future cue.
+  if ((item.status === "leak" || item.status === "rumor") && seasons.length === 0 && !aboutAlreadyOut(text)) return true;
   if (current != null && seasons.some((n) => n > current)) return true;
   if (seasons.length > 0) {
     if (current == null) return false;

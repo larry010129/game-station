@@ -1,7 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Icon } from "../components/Icon";
+import { ThemeTune } from "../components/ThemeTune";
 import { ThemePanel } from "../components/ThemePanel";
-import { moduleJson, toHex, type Palette, type ThemeDef } from "../state/palette";
-import { CATALOG, THEME_GROUPS } from "../state/themeCatalog";
+import { FONTS, fontOf, fontStack, moduleJson, toHex, type FontKey, type Palette, type ThemeDef } from "../state/palette";
+import {
+  CREDIT_NAME,
+  CREDITS_EVENT,
+  NIGHTSTEEL_COST,
+  formatCredits,
+  readCredits,
+  spendCredits,
+} from "../state/stationCredits";
+import { CATALOG, NIGHTSTEEL, THEME_GROUPS, UNLOCKABLES } from "../state/themeCatalog";
 import type { useTheme } from "../state/useTheme";
 
 type Look = ReturnType<typeof useTheme>;
@@ -51,12 +62,28 @@ function radiusPx(radius: string) {
   return Number.isFinite(n) ? n : 16;
 }
 
-function ThemeCard({ theme, on, onPick, onRemove }: { theme: ThemeDef; on: boolean; onPick: () => void; onRemove?: () => void }) {
+function ThemeCard({
+  theme,
+  on,
+  fav,
+  onPick,
+  onFav,
+  onRemove,
+  onHover,
+}: {
+  theme: ThemeDef;
+  on: boolean;
+  fav: boolean;
+  onPick: () => void;
+  onFav: () => void;
+  onRemove?: () => void;
+  onHover: (over: boolean) => void;
+}) {
   const p = paint(theme);
   return (
-    <div className="theme-pick-wrap">
+    <div className="theme-pick-wrap" onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)}>
       <button type="button" className="theme-pick" aria-pressed={on} onClick={onPick} style={{ background: p.bg, color: p.text, borderRadius: p.radius, boxShadow: p.shadow }}>
-        <span className="theme-pick-card" style={{ background: p.card, borderColor: p.border, borderRadius: p.radius, fontFamily: p.mono ? "ui-monospace, monospace" : undefined }}>
+        <span className="theme-pick-card" style={{ background: p.card, borderColor: p.border, borderRadius: p.radius, fontFamily: fontStack(p) }}>
           <b style={{ color: p.accent }}>Aa</b>
           <span className="theme-pick-dots" aria-hidden="true">
             <i style={{ background: p.accent }} />
@@ -69,6 +96,9 @@ function ThemeCard({ theme, on, onPick, onRemove }: { theme: ThemeDef; on: boole
           <small style={{ color: p.muted }}>{theme.author}</small>
         </span>
       </button>
+      <button type="button" className="theme-pick-star" aria-pressed={fav} aria-label={fav ? `Unstar ${theme.name}` : `Star ${theme.name}`} title={fav ? "Remove from favourites" : "Add to favourites"} onClick={onFav}>
+        <Icon name="star" small />
+      </button>
       {onRemove && (
         <button type="button" className="theme-pick-x" aria-label={`Remove ${theme.name}`} title="Remove this theme" onClick={onRemove}>
           ×
@@ -78,30 +108,399 @@ function ThemeCard({ theme, on, onPick, onRemove }: { theme: ThemeDef; on: boole
   );
 }
 
+/** Pip centres on a 24-unit die face, and which of them each face (1-6) shows. */
+const DICE_PIPS = [[7.5, 7.5], [16.5, 7.5], [7.5, 12], [16.5, 12], [7.5, 16.5], [16.5, 16.5], [12, 12]] as const;
+const DICE_FACES = [[6], [0, 5], [0, 6, 5], [0, 1, 4, 5], [0, 1, 4, 5, 6], [0, 1, 2, 3, 4, 5]];
+const PIP_R = 2.1;
+/** One pip as a closed circular subpath, for cutting out of a face. */
+const pipHole = (pip: number) => {
+  const [cx, cy] = DICE_PIPS[pip];
+  return `M${cx - PIP_R} ${cy}a${PIP_R} ${PIP_R} 0 1 0 ${PIP_R * 2} 0a${PIP_R} ${PIP_R} 0 1 0 ${-PIP_R * 2} 0z`;
+};
+
+/** Same layout as a theme swatch (Aa + three dots), but the colours are
+ *  unknown: each dot is a "?" chip, over a faint 3D die that gets thrown again
+ *  and again while the tile is hovered. */
+function RandomThemeCard({ onPick, picked }: { onPick: () => void; picked?: string }) {
+  const p = PREVIEW;
+  const label = picked ? `Random theme: ${picked}` : "Random theme";
+  const [rolling, setRolling] = useState(false);
+  // The cube's accumulated tumble. Always whole quarter turns, so it comes to
+  // rest square on a face; it only ever grows, so the die never unwinds.
+  const [spin, setSpin] = useState({ x: 0, y: 0 });
+  // Whether another throw should follow the current one. Leaving the tile only
+  // clears this, so a throw in flight always lands instead of snapping back.
+  const again = useRef(false);
+
+  // One full turn on each axis plus 0-3 quarter turns, never zero on both, so
+  // every throw lands showing something different from the last.
+  const toss = () => {
+    const k = 1 + Math.floor(Math.random() * 15);
+    setSpin((s) => ({ x: s.x + 360 + 90 * (k & 3), y: s.y + 360 + 90 * (k >> 2) }));
+  };
+  const start = () => {
+    again.current = true;
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setRolling(true);
+  };
+  const stop = () => {
+    again.current = false;
+  };
+
+  return (
+    <div className="theme-pick-wrap">
+      <button
+        type="button"
+        className="theme-pick theme-pick-random"
+        title={label}
+        aria-label={label}
+        onClick={onPick}
+        onMouseEnter={start}
+        onMouseLeave={stop}
+        onFocus={(e) => e.currentTarget.matches(":focus-visible") && start()}
+        onBlur={stop}
+        style={{ borderRadius: p.radius }}
+      >
+        <span className="theme-pick-card theme-pick-card-random" style={{ borderRadius: p.radius }}>
+          {/* The throw (hop, squash, bounce) is a CSS animation on the outer
+              span; each time it starts or loops, the cube inside is given a new
+              tumble to land on. */}
+          <span
+            className={`theme-dice${rolling ? " is-rolling" : ""}`}
+            aria-hidden="true"
+            onAnimationStart={toss}
+            onAnimationIteration={() => (again.current ? toss() : setRolling(false))}
+          >
+            <span className="theme-dice-view">
+              <span className="theme-dice-cube" style={{ transform: `rotateX(${spin.x}deg) rotateY(${spin.y}deg)` }}>
+                {DICE_FACES.map((pips, i) => (
+                  // Each face is the full square, edge to edge, so neighbours
+                  // meet along the cube's edges; the pips are holes cut out of
+                  // it (evenodd), letting the tile's colour show through.
+                  <svg key={i} className={`theme-dice-face f${i + 1}`} viewBox="0 0 24 24">
+                    <path fillRule="evenodd" d={`M0 0h24v24H0z${pips.map(pipHole).join("")}`} />
+                    <rect width="24" height="24" />
+                  </svg>
+                ))}
+              </span>
+            </span>
+          </span>
+          <b>Aa</b>
+          <span className="theme-pick-dots theme-pick-dots-random" aria-hidden="true">
+            <i>?</i>
+            <i>?</i>
+            <i>?</i>
+          </span>
+        </span>
+        <span className="theme-pick-meta">
+          {/* After a pick the title reads "Random · <theme>"; a long theme name
+              is cut by the ellipsis on <strong>, so "Random" always shows. */}
+          <strong>
+            Random
+            {picked && (
+              <>
+                <span className="theme-pick-sep" aria-hidden="true" />
+                {picked}
+              </>
+            )}
+          </strong>
+          <small>Command Station</small>
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** Looks like a normal theme pick (Aa + colour dots). A small corner lock badge
+ *  marks it as gated. Click opens the unlock dialog — it never applies the theme. */
+function LockedThemeCard({ onOpen }: { onOpen: () => void }) {
+  const p = paint(NIGHTSTEEL);
+  return (
+    <div className="theme-pick-wrap">
+      <button
+        type="button"
+        className="theme-pick theme-pick-locked"
+        title="Nightsteel — locked"
+        aria-label="Locked theme Nightsteel. Open unlock options."
+        aria-haspopup="dialog"
+        onClick={onOpen}
+        style={{ background: p.bg, color: p.text, borderRadius: p.radius, boxShadow: p.shadow }}
+      >
+        <span className="theme-pick-card" style={{ background: p.card, borderColor: p.border, borderRadius: p.radius, fontFamily: fontStack(p) }}>
+          <b style={{ color: p.accent }}>Aa</b>
+          <span className="theme-pick-dots" aria-hidden="true">
+            <i style={{ background: p.accent }} />
+            <i style={{ background: p.caution }} />
+            <i style={{ background: p.alert }} />
+          </span>
+        </span>
+        <span className="theme-pick-meta">
+          <strong>Nightsteel</strong>
+          <small style={{ color: p.muted }}>Command Station</small>
+        </span>
+      </button>
+      <span className="theme-pick-lock" aria-hidden="true">
+        <Icon name="lock" small />
+      </span>
+    </div>
+  );
+}
+
+/** Unlock popup: quest (free) or spend Credits. Pattern from 21st Modal Pricing
+ *  (two clear choices) + accessible dialog shell (Escape, focus trap, aria-modal). */
+function UnlockThemeDialog({
+  open,
+  onClose,
+  onUnlock,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onUnlock: (via: "quest" | "credits") => void;
+}) {
+  const titleId = useId();
+  const descId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [questDone, setQuestDone] = useState(false);
+  const [balance, setBalance] = useState(() => readCredits());
+  const [short, setShort] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setQuestDone(false);
+      setShort(false);
+      return;
+    }
+    const syncBal = () => setBalance(readCredits());
+    syncBal();
+    setShort(false);
+    window.addEventListener(CREDITS_EVENT, syncBal);
+    window.addEventListener("storage", syncBal);
+    const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
+    const focusables = () =>
+      panel
+        ? Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')).filter(
+            (el) => el.getClientRects().length > 0,
+          )
+        : [];
+    const first = focusables()[0] ?? panel;
+    first?.focus({ preventScroll: true });
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !panel) return;
+      const items = focusables();
+      if (items.length === 0) {
+        e.preventDefault();
+        panel.focus({ preventScroll: true });
+        return;
+      }
+      const firstEl = items[0];
+      const lastEl = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === firstEl || active === panel)) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && active === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener(CREDITS_EVENT, syncBal);
+      window.removeEventListener("storage", syncBal);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+      prev?.focus({ preventScroll: true });
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const canAfford = balance >= NIGHTSTEEL_COST;
+
+  const claimQuest = () => {
+    if (!questDone) return;
+    onUnlock("quest");
+  };
+
+  const claimCredits = () => {
+    const next = spendCredits(NIGHTSTEEL_COST);
+    if (next == null) {
+      setBalance(readCredits());
+      setShort(true);
+      return;
+    }
+    setBalance(next);
+    setShort(false);
+    onUnlock("credits");
+  };
+
+  return createPortal(
+    <div
+      className="theme-unlock-root"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={panelRef}
+        className="theme-unlock"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+        tabIndex={-1}
+      >
+        <header className="theme-unlock-head">
+          <div>
+            <h2 id={titleId}>Nightsteel</h2>
+            <p id={descId}>Locked until you finish a short quest or spend station {CREDIT_NAME.toLowerCase()}.</p>
+          </div>
+          <button type="button" className="theme-unlock-x" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+        </header>
+
+        <p className="theme-unlock-balance" aria-live="polite">
+          Balance <strong>{formatCredits(balance)}</strong>
+        </p>
+
+        <div className="theme-unlock-paths" role="group" aria-label="Unlock options">
+          <section className="theme-unlock-path" aria-labelledby="unlock-quest-title">
+            <div className="theme-unlock-path-top">
+              <h3 id="unlock-quest-title">Quest</h3>
+              <span className="theme-unlock-badge">Free</span>
+            </div>
+            <p>Finish this check to unlock without spending {CREDIT_NAME.toLowerCase()}.</p>
+            <label className="theme-unlock-check">
+              <input type="checkbox" checked={questDone} onChange={(e) => setQuestDone(e.target.checked)} />
+              <span>I opened Themes and picked any unlocked look</span>
+            </label>
+            <button type="button" className="pill-btn" disabled={!questDone} aria-disabled={!questDone} onClick={claimQuest}>
+              Unlock with quest
+            </button>
+          </section>
+
+          <section className="theme-unlock-path" aria-labelledby="unlock-credits-title">
+            <div className="theme-unlock-path-top">
+              <h3 id="unlock-credits-title">Spend {CREDIT_NAME}</h3>
+              <span className="theme-unlock-price">{formatCredits(NIGHTSTEEL_COST)}</span>
+            </div>
+            <p>One-time unlock on this install. Uses your station balance only.</p>
+            {(!canAfford || short) && (
+              <p className="theme-unlock-short" role="alert">
+                Not enough {CREDIT_NAME.toLowerCase()} — need {NIGHTSTEEL_COST}, you have {balance}. Finish the quest above to unlock for free.
+              </p>
+            )}
+            <button
+              type="button"
+              className="pill-btn"
+              aria-pressed={canAfford ? true : undefined}
+              disabled={!canAfford}
+              aria-disabled={!canAfford}
+              onClick={claimCredits}
+            >
+              {canAfford ? `Spend ${formatCredits(NIGHTSTEEL_COST)}` : `Need ${formatCredits(NIGHTSTEEL_COST)}`}
+            </button>
+          </section>
+        </div>
+
+        <footer className="theme-unlock-foot">
+          <button type="button" className="link" onClick={onClose}>
+            Not now
+          </button>
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /** Theme store: pick a look, build one, or upload a module. */
 export function ThemesPage({ look }: { look: Look }) {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("All");
+  // What the Random tile last picked. The tile only names it while that theme is
+  // still the active one, so choosing anything else by hand clears the name.
+  const [randomPick, setRandomPick] = useState<{ id: string; name: string } | null>(null);
   const [making, setMaking] = useState(false);
   const [name, setName] = useState("My theme");
   const [draft, setDraft] = useState<Palette>(BLANK);
-  const [mono, setMono] = useState(false);
+  const [font, setFont] = useState<FontKey | "">("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const nightsteelUnlocked = false;
 
   const groups = useMemo(() => {
     const extra = look.modules.length ? ["Yours"] : [];
-    return [...THEME_GROUPS, ...extra.filter((g) => !THEME_GROUPS.includes(g))];
-  }, [look.modules.length]);
+    const own = [...(look.favs.length ? ["Favourites"] : []), ...(look.recent.length ? ["Recent"] : [])];
+    const [all, ...rest] = THEME_GROUPS;
+    return [all, ...own, ...rest, ...extra.filter((g) => !THEME_GROUPS.includes(g))];
+  }, [look.modules.length, look.favs.length, look.recent.length]);
 
   const themes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return [...CATALOG, ...look.modules].filter((t) => {
+    const unlocked = UNLOCKABLES.filter((t) => nightsteelUnlocked && look.unlocks.includes(t.id));
+    const list = [...CATALOG, ...unlocked, ...look.modules].filter((t) => {
+      if (group === "Favourites") return look.favs.includes(t.id);
+      if (group === "Recent") return look.recent.includes(t.id);
       if (group !== "All" && t.group !== group) return false;
       if (!q) return true;
       return `${t.name} ${t.author} ${t.group}`.toLowerCase().includes(q);
     });
-  }, [group, look.modules, query]);
+    if (group === "Recent") return list.sort((a, b) => look.recent.indexOf(a.id) - look.recent.indexOf(b.id));
+    // Starred themes lead the full list; the rest keep the catalogue order.
+    // Unlocked looks stay last among unstarred (same slot as the locked tile).
+    if (group === "All" && !q) {
+      const unlockedIds = new Set(unlocked.map((t) => t.id));
+      const starred = list.filter((t) => look.favs.includes(t.id));
+      const rest = list.filter((t) => !look.favs.includes(t.id) && !unlockedIds.has(t.id));
+      const gated = list.filter((t) => !look.favs.includes(t.id) && unlockedIds.has(t.id));
+      return [...starred, ...rest, ...gated];
+    }
+    return list;
+  }, [group, look.favs, look.modules, look.recent, look.unlocks, query]);
+
+  // Hover preview: the page tries a theme on after a short hover and drops it on leave. Off by default.
+  const hoverTimer = useRef(0);
+  const hoverOn = (id: string, over: boolean) => {
+    window.clearTimeout(hoverTimer.current);
+    if (!over) return look.preview(null);
+    if (look.hover) hoverTimer.current = window.setTimeout(() => look.preview(id), 320);
+  };
+  useEffect(() => {
+    const { preview } = look;
+    return () => {
+      window.clearTimeout(hoverTimer.current);
+      preview(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // If hover preview is switched off mid-preview, put the real theme back.
+  useEffect(() => {
+    if (!look.hover) look.preview(null);
+  }, [look.hover, look.preview]);
+
+  const showRandom = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q) return "random".startsWith(q) || "random theme".startsWith(q);
+    return group === "All";
+  }, [group, query]);
+
+  const showLocked = useMemo(() => {
+    if (nightsteelUnlocked) return false;
+    const q = query.trim().toLowerCase();
+    if (q) return "locked".startsWith(q) || "coming soon".startsWith(q) || "unlock".startsWith(q) || "nightsteel".startsWith(q);
+    return group === "All" || group === "Station";
+  }, [group, nightsteelUnlocked, query]);
 
   const startCreate = () => {
     const current = look.active.palette ?? PREVIEW;
@@ -117,7 +516,7 @@ export function ThemesPage({ look }: { look: Look }) {
       border: toHex(current.border, BLANK.border),
       radius: `${radiusPx(current.radius)}px`,
     });
-    setMono(!!current.mono);
+    setFont(fontOf(current) ?? "");
     setName("My theme");
     setMaking(true);
     setError(null);
@@ -125,7 +524,7 @@ export function ThemesPage({ look }: { look: Look }) {
 
   const saveDraft = () => {
     const radius = /^\d+(\.\d+)?(px|rem)$/.test(draft.radius) ? draft.radius : "16px";
-    look.create(name, { ...draft, radius, mono });
+    look.create(name, { ...draft, radius, font: font || undefined, mono: font === "mono" });
     setMaking(false);
     setNotice(`Saved ${name.trim() || "Untitled"}.`);
     setError(null);
@@ -157,6 +556,14 @@ export function ThemesPage({ look }: { look: Look }) {
     URL.revokeObjectURL(url);
   };
 
+  const randomTheme = () => {
+    const pool = CATALOG.filter((t) => t.id !== look.active.id);
+    const list = pool.length > 0 ? pool : CATALOG;
+    const t = list[Math.floor(Math.random() * list.length)];
+    look.select(t.id);
+    setRandomPick({ id: t.id, name: t.name });
+  };
+
   return (
     <section className="themes" aria-label="Themes">
       <header className="themes-head">
@@ -183,21 +590,51 @@ export function ThemesPage({ look }: { look: Look }) {
         </div>
       </div>
 
-      {themes.length === 0 ? (
+      {themes.length === 0 && !showRandom && !showLocked ? (
         <p className="hint">No themes match that.</p>
       ) : (
         <div className="theme-grid">
+          {showRandom && <RandomThemeCard onPick={randomTheme} picked={randomPick && randomPick.id === look.active.id ? randomPick.name : undefined} />}
           {themes.map((t) => (
             <ThemeCard
               key={t.id}
               theme={t}
               on={look.active.id === t.id}
+              fav={look.favs.includes(t.id)}
               onPick={() => look.select(t.id)}
+              onFav={() => look.toggleFav(t.id)}
+              onHover={(over) => hoverOn(t.id, over)}
               onRemove={t.source === "yours" ? () => look.remove(t.id) : undefined}
             />
           ))}
+          {showLocked && <LockedThemeCard onOpen={() => setUnlockOpen(true)} />}
         </div>
       )}
+
+      <UnlockThemeDialog
+        open={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        onUnlock={(via) => {
+          look.unlock(NIGHTSTEEL.id);
+          look.select(NIGHTSTEEL.id);
+          setUnlockOpen(false);
+          setError(null);
+          setNotice(
+            via === "quest"
+              ? "Nightsteel unlocked via quest."
+              : `Nightsteel unlocked — spent ${formatCredits(NIGHTSTEEL_COST)}.`,
+          );
+        }}
+      />
+
+      <ThemeTune
+        tweaks={look.tweaks}
+        base={{ radius: radiusPx(look.active.palette?.radius ?? "16px"), opacity: look.active.palette ? 82 : 66, accent: toHex(look.active.palette?.accent ?? "#f0893a", "#f0893a") }}
+        onTweak={look.tweak}
+        onClear={look.clearTweaks}
+        hover={look.hover}
+        onHover={look.setHover}
+      />
 
       <div className="themes-split">
         <section className="vault-card" aria-label="Create a theme">
@@ -239,9 +676,15 @@ export function ThemesPage({ look }: { look: Look }) {
                 />
                 <output>{radiusPx(draft.radius)}</output>
               </label>
-              <label className="theme-check">
-                <input type="checkbox" checked={mono} onChange={(e) => setMono(e.target.checked)} />
-                Monospace type
+              <label>
+                Font
+                <select value={font} onChange={(e) => setFont(e.target.value as FontKey | "")} style={{ fontFamily: FONTS.find((f) => f.key === font)?.stack }}>
+                  {FONTS.map((f) => (
+                    <option key={f.key} value={f.key} style={{ fontFamily: f.stack }}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="theme-form-actions">
                 <button type="button" className="pill-btn" aria-pressed="true" onClick={saveDraft}>

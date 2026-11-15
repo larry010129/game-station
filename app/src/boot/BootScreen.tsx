@@ -73,7 +73,7 @@ export function BootScreen({ state, image, onExited }: { state: BootState; image
         <div className="boot-work-veil" />
         <div className="boot-work-stage">
           <div className="boot-work-head">
-            <WorkMark done={leaving} failed={failed} progress={state.progress} />
+            <WorkMark failed={failed} />
             <div className="boot-work-copy">
               <p className="boot-work-title">
                 <b>Command</b> Station
@@ -147,40 +147,17 @@ function SystemsList({ title, steps, noSignal }: { title: string; steps: BootSte
   );
 }
 
-const SIG_BARS = [0.38, 0.52, 0.68, 0.84, 1] as const;
-
-/** Telemetry signal lock: ascending bars fill with real progress; frontier bar pulses while linking. */
-function WorkMark({ done, failed, progress }: { done: boolean; failed: boolean; progress: number }) {
-  const p = done ? 1 : Math.min(1, Math.max(0, progress));
-  const n = SIG_BARS.length;
+/** Command Station brand mark: corner lock + station reticule (static; progress lives in the bar/%). */
+function WorkMark({ failed }: { failed: boolean }) {
   return (
-    <svg className={`boot-sig${done ? " done" : ""}${failed ? " red" : ""}`} viewBox="0 0 100 100" aria-hidden="true">
-      <path className="boot-sig-bracket" d="M16 30 V16 H30" />
-      <path className="boot-sig-bracket" d="M70 16 H84 V30" />
-      <path className="boot-sig-bracket" d="M16 70 V84 H30" />
-      <path className="boot-sig-bracket" d="M70 84 H84 V70" />
-      {SIG_BARS.map((h, i) => {
-        const start = i / n;
-        const slice = 1 / n;
-        const fill = Math.min(1, Math.max(0, (p - start) / slice));
-        const barH = 56 * h;
-        const x = 22 + i * 13;
-        const y = 78 - barH;
-        const frontier = !done && !failed && p >= start && p < start + slice;
-        return (
-          <g key={i}>
-            <rect className="boot-sig-track" x={x} y={y} width={8} height={barH} rx={1.5} />
-            <rect
-              className={`boot-sig-bar${fill > 0.02 ? " on" : ""}${frontier ? " tip" : ""}`}
-              x={x}
-              y={y + barH * (1 - fill)}
-              width={8}
-              height={Math.max(0, barH * fill)}
-              rx={1.5}
-            />
-          </g>
-        );
-      })}
+    <svg className={`boot-mark${failed ? " red" : ""}`} viewBox="0 0 100 100" aria-hidden="true">
+      <path className="boot-mark-bracket" d="M16 30 V16 H30" />
+      <path className="boot-mark-bracket" d="M70 16 H84 V30" />
+      <path className="boot-mark-bracket" d="M16 70 V84 H30" />
+      <path className="boot-mark-bracket" d="M70 84 H84 V70" />
+      <circle className="boot-mark-ring" cx="50" cy="50" r="18" />
+      <path className="boot-mark-cross" d="M50 28 V40 M50 60 V72 M28 50 H40 M60 50 H72" />
+      <circle className="boot-mark-hub" cx="50" cy="50" r="5" />
     </svg>
   );
 }

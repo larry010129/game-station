@@ -5,14 +5,15 @@ import { StationSelect } from "../../components/StationSelect";
 import { signal } from "../../boot/bootSignals";
 import { useStationCtx } from "../../state/useApi";
 import { Card, Empty } from "../ui";
-import { SITE, pct, hotWin, ROLES, RoleFilter, MAP_MODES, useMetaRank, useMetaMode, RankSelect, ModeSelect, useRankStats, rankStatus, useMeta, Stamp, Portrait, Waiting, Foot } from "./shared";
+import { pct, hotWin, useGameMeta, RoleFilter, useMetaRank, useMetaMode, RankSelect, ModeSelect, useRankStats, rankStatus, useMeta, Stamp, Portrait, Waiting, Foot } from "./shared";
 import { readString, writeString } from "../../lib/storage";
 import { KEYS } from "../../lib/storageKeys";
 
 function HeroRow({ hero, note }: { hero: MetaHero; note: string }) {
+  const { game } = useGameMeta();
   return (
     <li className="mrow">
-      <Portrait hero={hero} size={30} />
+      <Portrait hero={hero} size={game === "apex" ? 36 : 30} />
       <span className="mname">
         {hero.name}
         <small>{hero.role}</small>
@@ -27,12 +28,18 @@ function HeroRow({ hero, note }: { hero: MetaHero; note: string }) {
 
 export const MapPicksCard = memo(function MapPicksCard() {
   const { mode: queueMode, pick: pickQueueMode } = useMetaMode();
+  const { game, SITE, ROLES, MAP_MODES, cards } = useGameMeta();
   const m = useMeta(queueMode);
   const { rank, label, pick: pickRank } = useMetaRank();
   const stats = useRankStats(rank, queueMode);
-  const [slug, setSlug] = useState<string>(() => readString(KEYS.metaMap) ?? "");
+  const [slug, setSlug] = useState<string>(() => readString(`${KEYS.metaMap}.${game}`) ?? readString(KEYS.metaMap) ?? "");
   const [mapType, setMapType] = useState("All");
   const [role, setRole] = useState<RoleFilter>("All");
+  useEffect(() => {
+    setSlug(readString(`${KEYS.metaMap}.${game}`) ?? "");
+    setRole("All");
+    setMapType("All");
+  }, [game]);
   const meta = m.meta;
   const maps = useMemo(() => {
     const source: (MetaMap & { heroes?: MetaHero[] })[] = rank === "All" ? (meta?.maps ?? []) : stats.data && !stats.data.empty ? stats.data.maps : [];
@@ -46,7 +53,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
     return ["All", ...present];
-  }, [maps]);
+  }, [maps, MAP_MODES]);
   const modeValue = modeOptions.includes(mapType) ? mapType : "All";
   const inMode = modeValue === "All" ? maps : maps.filter((x) => x.mode === modeValue);
   // With no map chosen yet, start on the most played one in this map type.
@@ -54,7 +61,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
   const map = inMode.find((x) => x.slug === slug) ?? busiest;
   const pick = (s: string) => {
     setSlug(s);
-    writeString(KEYS.metaMap, s);
+    writeString(`${KEYS.metaMap}.${game}`, s);
   };
   const { provider } = useStationCtx();
   const [roster, setRoster] = useState<{ slug: string; mode: string; heroes: MetaHero[] } | null>(null);
@@ -72,7 +79,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
     let alive = true;
     setRosterState("loading");
     provider
-      .api<{ heroes: MetaHero[] }>(`/api/meta/map?slug=${encodeURIComponent(map.slug)}&mode=${encodeURIComponent(queueMode)}`)
+      .api<{ heroes: MetaHero[] }>(`/api/meta/map?game=${encodeURIComponent(game)}&slug=${encodeURIComponent(map.slug)}&mode=${encodeURIComponent(queueMode)}`)
       .then((d) => {
         if (!alive) return;
         setRoster({ slug: map.slug, mode: queueMode, heroes: d.heroes ?? [] });
@@ -87,7 +94,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
     return () => {
       alive = false;
     };
-  }, [provider, map?.slug, meta, rank, queueMode]);
+  }, [provider, map?.slug, meta, rank, queueMode, game]);
   const full = roster && map && roster.slug === map.slug && roster.mode === queueMode ? roster.heroes : null;
   const top = (list: MetaHero[], key: "winRate" | "pickRate") =>
     [...list].filter((h) => role === "All" || h.role === role).sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0)).slice(0, 5);
@@ -101,12 +108,12 @@ export const MapPicksCard = memo(function MapPicksCard() {
   const suggestion = best.find((b) => played.some((p) => p.id === b.id)) ?? best[0];
   const emptyMaps = !!meta && (meta.maps?.length ?? 0) === 0 && queueMode === "6v6";
   return (
-    <Card title="Map hero picks" sub={rank === "All" ? `What wins on each map · ${queueMode}` : `What wins on each map · ${queueMode} · ${label}`} right={<Stamp m={m} />}>
+    <Card title={cards.mappicks} sub={rank === "All" ? `What wins on each map · ${queueMode}` : `What wins on each map · ${queueMode} · ${label}`} right={<Stamp m={m} />}>
       <div className="mfilters">
         <ModeSelect value={queueMode} onChange={pickQueueMode} />
       </div>
       <Waiting m={m} ready={!!meta && ((meta.maps?.length ?? 0) > 0 || emptyMaps)} />
-      {emptyMaps && <Empty>No 6v6 map stats loaded yet. Press reload, or check counterwatch.gg.</Empty>}
+      {emptyMaps && <Empty>No 6v6 map stats loaded yet. Press reload, or check {SITE.replace(/^https?:\/\//, "")}.</Empty>}
       {meta && (meta.maps?.length ?? 0) > 0 && (
         <>
           <div className="mfilters">
@@ -135,7 +142,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
             <div className="msuggest">
               <small>Suggested pick{role === "All" ? "" : ` · ${role}`}</small>
               <div>
-                <Portrait hero={suggestion} size={34} />
+                <Portrait hero={suggestion} size={game === "apex" ? 42 : 34} />
                 <b className="pick">{suggestion.name}</b>
                 <span className="chip or">{pct(suggestion.winRate)} win rate</span>
               </div>
@@ -169,7 +176,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
           </div>
           </>
           )}
-          <Foot meta={meta} href={`${SITE}/maps`} />
+          <Foot meta={meta} href={game === "apex" ? SITE : `${SITE}/maps`} />
         </>
       )}
     </Card>

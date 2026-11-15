@@ -97,6 +97,7 @@ export function useSmartAlerts(provider: Provider, store: StationStore, paused: 
     let alive = true;
     const check = async () => {
       const rules = readRules();
+      if (!rules.ram.on && !rules.cpuTemp.on) return;
       if (rules.ram.on) {
         try {
           const s = await provider.api<SystemData>("/api/system");

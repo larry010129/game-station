@@ -15,6 +15,7 @@ import { TierListCard } from "../cards/meta/TierListCard";
 import { CostCard, CpuTempCard, DiscordCard, LibraryCard, type DiscordToasts } from "../cards/ExtraCards";
 import { NotesCard } from "../cards/ToolCards";
 import { WorldClockCard } from "../cards/WorldClockCard";
+import { WaveLinkCard } from "../cards/WaveLinkCard";
 import { PlayersMap } from "../components/PlayersMap";
 import { AlertsPanel, FeedPanel, GameModePanel } from "../components/Panels";
 import { DeviceTile, LoadTile, UplinkTile } from "../components/Tiles";
@@ -102,6 +103,7 @@ const SteamNewsCardM = memo(SteamNewsCard);
 const TierListCardM = memo(TierListCard);
 const TrendCardM = memo(TrendCard);
 const VerdictCardM = memo(VerdictCard);
+const WaveLinkCardM = memo(WaveLinkCard);
 const WifiCardM = memo(WifiCard);
 
 /** Every card's view, by id. A view is built only when its card is on the page being drawn. */
@@ -127,6 +129,7 @@ export const CARD_VIEWS: Record<CardId, (c: CardCtx, inst: CardInstance) => Reac
   media: () => <MediaCardM />,
   spotify: () => <SpotifyCardM />,
   calendar: (c) => <CalendarCardM onOpen={c.onOpenCalendar} />,
+  wavelink: () => <WaveLinkCardM />,
   memory: () => <MemoryCardM />,
   power: (c) => <PowerView store={c.store} />,
   regionping: () => <RegionPingCardM />,

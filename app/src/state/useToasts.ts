@@ -22,6 +22,7 @@ export function useToasts(provider: Provider) {
 
   useEffect(() => {
     let alive = true;
+    let timer = 0;
     const tick = async () => {
       try {
         const data = await provider.api<ToastPayload>("/api/toasts");
@@ -34,11 +35,23 @@ export function useToasts(provider: Provider) {
         if (alive) setAccess((prev) => (prev === "pending" ? "error" : prev));
       }
     };
+    const schedule = () => {
+      window.clearInterval(timer);
+      // The media PowerShell (~75 MB) stays warm for toast reads; slow down while the window is hidden.
+      const ms = document.visibilityState === "hidden" ? 60_000 : 10_000;
+      timer = window.setInterval(() => void tick(), ms);
+    };
+    const onVis = () => {
+      schedule();
+      if (document.visibilityState === "visible") void tick();
+    };
     void tick();
-    const timer = window.setInterval(tick, 5000);
+    schedule();
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       alive = false;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [provider]);
 

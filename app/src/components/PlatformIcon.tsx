@@ -5,11 +5,13 @@ export const PLATFORM_NAME: Record<FeedPlatform, string> = {
   reddit: "Reddit",
   youtube: "YouTube",
   x: "X",
+  news: "News",
 };
 
 /** Older cached items have no platform field, so fall back to the id prefix. */
 export function platformOf(item: Pick<FeedItem, "id" | "platform" | "source">): FeedPlatform {
   if (item.platform) return item.platform;
+  if (/^x-/.test(item.id)) return "x";
   if (item.id.startsWith("reddit-") || item.source.startsWith("r/")) return "reddit";
   if (item.id.startsWith("yt-")) return "youtube";
   return "blizzard";
@@ -38,6 +40,7 @@ const PATH: Record<FeedPlatform, JSX.Element> = {
       <path d="M10.2 9.4v5.2l4.4-2.6z" fill="currentColor" />
     </>
   ),
+  news: <path d="M5 5h11v14H8a3 3 0 0 1-3-3zM16 9h3v7a3 3 0 0 1-3 3M8 9h5M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />,
   x: <path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />,
 };
 

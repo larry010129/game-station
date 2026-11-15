@@ -66,3 +66,81 @@
 .dlist li:hover .dx, .dx:focus-visible { opacity: 1; }
 .dx:hover { background: var(--glass-hi); color: var(--text); }
 .dav img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+
+/* Vault: navigation tabs and their card lists */
+.vault-field.btns input { width: min(200px, 100%); }
+.navtab { align-items: start; }
+.navtab-name { width: min(220px, 100%); padding: 6px 10px; border-radius: 10px; border: 1px solid var(--edge-2); background: var(--wash); color: var(--text); font: inherit; font-size: 14px; }
+.navtab-cards { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 18px; padding-top: 8px; }
+.navtab-cards fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.navtab-cards legend { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); padding: 0 0 4px; }
+.navtab-cards label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.navtab-cards input { accent-color: var(--orange); width: 15px; height: 15px; }
+
+/* Wave Link card: a mute button and a fader per strip, microphones as one-tap rows. */
+.kwl-mics { display: flex; flex-direction: column; gap: 6px; }
+.kwl-mic { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--edge-2); background: var(--glass-hi); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; transition: background-color 0.15s ease-out, border-color 0.15s ease-out, color 0.15s ease-out; }
+.kwl-mic span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kwl-mic b { font-weight: 400; font-size: 12px; color: var(--dim); }
+.kwl-mic:hover { background: var(--wash-2); }
+.kwl-mic.on { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+.kwl-mic.on b { color: var(--red); }
+.kwl-list { display: flex; flex-direction: column; gap: 6px; }
+.kwl-row { display: grid; grid-template-columns: 36px minmax(64px, 0.9fr) minmax(70px, 2fr) 28px; gap: 8px; align-items: center; font-size: 13px; }
+.kwl-ico { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text); cursor: pointer; transition: background-color 0.15s ease-out, color 0.15s ease-out; }
+.kwl-ico:hover { background: var(--wash-2); }
+.kwl-row.muted .kwl-ico { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
+.kwl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kwl-pct { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 12px; }
+.kwl-row.muted .kwl-name, .kwl-row.muted .kwl-pct { color: var(--mute); }
+/* The fader: the whole bar is the target, filled to the level, with a thin thumb. */
+.kwl-fader { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 8px; cursor: pointer; background: linear-gradient(to right, color-mix(in srgb, var(--orange) 55%, transparent) calc(var(--fill) * 1%), var(--wash) calc(var(--fill) * 1%)); }
+.kwl-fader::-webkit-slider-runnable-track { height: 28px; background: transparent; }
+.kwl-fader::-webkit-slider-thumb { -webkit-appearance: none; width: 4px; height: 28px; border-radius: 2px; background: var(--text); }
+.kwl-fader::-moz-range-track { height: 28px; background: transparent; }
+.kwl-fader::-moz-range-thumb { width: 4px; height: 28px; border: 0; border-radius: 2px; background: var(--text); }
+.kwl-fader:focus-visible, .kwl-ico:focus-visible, .kwl-mic:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.kwl-row.muted .kwl-fader { opacity: 0.4; }
+
+/* Sources: add a tracked account, channel, subreddit or site */
+.srcadd { align-items: stretch; }
+.srcadd .seg { align-self: flex-end; }
+.srcadd-fields { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.vault-field.srcadd .srcadd-fields input { flex: 1 1 190px; width: auto; min-width: 0; }
+.srcerr { margin: 0; color: var(--red); font-size: 12.5px; text-align: right; }
+.srcname { display: flex; align-items: center; gap: 8px; }
+.srcname .pf { flex: none; color: var(--dim); }
+.plist li.builtin { padding-right: 12px; color: var(--dim); }
+.srctags { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; }
+.srctag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: transparent;
+  font-size: 11px;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  color: var(--dim);
+}
+/* Role matches feed kindbadge language: stronger weight and tinted edge. */
+.srctag-role {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: color-mix(in srgb, var(--glass-hi) 70%, transparent);
+}
+.srctag-official { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.srctag-leak { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 50%, transparent); }
+.srctag-news { color: var(--mid); border-color: color-mix(in srgb, var(--mid) 50%, transparent); }
+.srctag-video,
+.srctag-community { color: var(--dim); border-color: var(--edge-2); }
+/* Trusted is secondary — quieter than role, same language as feed trustbadge. */
+.srctag-trusted {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--ok) 72%, var(--dim));
+  border-color: color-mix(in srgb, var(--ok) 28%, var(--edge));
+  background: transparent;
+  opacity: 0.9;
+}
+@media (max-width: 760px) { .srcadd .seg { align-self: stretch; } .srcerr { text-align: left; } }

@@ -1,6 +1,17 @@
 import type { MetaCombat, MetaHeroDetail } from "../../lib/types";
 
-export const ARCH_COLORS: Record<string, string> = { POKE: "#eab308", RUSH: "#f0893a", DIVE: "#a78bfa" };
+export const ARCH_COLORS: Record<string, string> = {
+  POKE: "#eab308",
+  RUSH: "#f0893a",
+  /** Apex axis at the same triangle vertex as OW RUSH. */
+  SUSTAIN: "#f0893a",
+  DIVE: "#a78bfa",
+};
+
+/** Overwatch Counterwatch axes (top / bottom-right / bottom-left). */
+export const OW_ARCH_AXES = ["POKE", "RUSH", "DIVE"] as const;
+/** Apex kit playstyle axes — RUSH replaced by SUSTAIN; same vertex order as OW. */
+export const APEX_ARCH_AXES = ["POKE", "SUSTAIN", "DIVE"] as const;
 export const STAT_ROWS: { key: keyof MetaCombat; label: string }[] = [
   { key: "kills", label: "Kills" },
   { key: "deaths", label: "Deaths" },
@@ -54,10 +65,23 @@ export function CombatRadar({ hero, avg, max }: { hero: MetaCombat; avg: MetaCom
   );
 }
 
-/** POKE / RUSH / DIVE triangle with the lean vertex emphasized. */
-export function ArchetypeRadar({ scores, lean }: { scores: MetaHeroDetail["archetype"]; lean: string }) {
-  const keys = ["POKE", "RUSH", "DIVE"] as const;
-  const values = keys.map((k) => scores[k] ?? 0);
+/**
+ * Playstyle triangle with the lean vertex emphasized.
+ * Overwatch: POKE / RUSH / DIVE. Apex: POKE / SUSTAIN / DIVE (pass `axes` or `game="apex"`).
+ */
+export function ArchetypeRadar({
+  scores,
+  lean,
+  game,
+  axes,
+}: {
+  scores: MetaHeroDetail["archetype"];
+  lean: string;
+  game?: string;
+  axes?: readonly string[];
+}) {
+  const keys = axes ?? (game === "apex" ? APEX_ARCH_AXES : OW_ARCH_AXES);
+  const values = keys.map((k) => Number((scores as Record<string, number | undefined>)[k] ?? 0));
   const cx = 70;
   const cy = 78;
   const r = 52;

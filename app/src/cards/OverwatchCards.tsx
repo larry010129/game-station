@@ -2,10 +2,12 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { age } from "../lib/format";
 import { openLink } from "../lib/openLink";
 import type { FeedItem, MetaData, PlayersData, SteamData } from "../lib/types";
-import { useApi } from "../state/useApi";
+import { withGame } from "../lib/games";
+import { useApi, useStationCtx } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
 import { readString, removeKey, writeString } from "../lib/storage";
 import { KEYS } from "../lib/storageKeys";
+import { useInterval } from "../layout/onScreen";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 const hourWord = (h: number) => {
@@ -101,9 +103,11 @@ export const QueueCard = memo(function QueueCard({ players }: { players: Players
   );
 });
 
-/** Blizzard's patch notes page (and its #patch- date anchor). Other URLs are not the official notes. */
-function officialPatchUrl(url: string | undefined): string | null {
-  if (!url || !/^https:\/\/overwatch\.blizzard\.com\/[^?#]*\/news\/patch-notes\/?(?:[?#]|$)/i.test(url)) return null;
+/** Official patch notes URL when the active game pack recognizes the host. */
+function officialPatchUrl(url: string | undefined, host: RegExp | null): string | null {
+  if (!url) return null;
+  if (!host) return url;
+  if (!host.test(url)) return null;
   return url;
 }
 
@@ -124,16 +128,17 @@ function NotesLink({ url, className, children }: { url: string; className?: stri
 }
 
 export const PatchCard = memo(function PatchCard({ items }: { items: FeedItem[] }) {
+  const { pack } = useStationCtx();
   const patch = items.filter((i) => i.kind === "patch").sort((a, b) => b.publishedAt - a.publishedAt)[0];
-  if (!patch) return <Card title="Patch summary"><Empty>No patch notes loaded yet.</Empty></Card>;
-  const notes = officialPatchUrl(patch.url);
+  if (!patch) return <Card title={pack.cards.patch}><Empty>No patch notes loaded yet.</Empty></Card>;
+  const notes = officialPatchUrl(patch.url, pack.officialPatchHost);
   const heroes = patch.heroChanges ?? [];
   const tag = (h: { up: number; down: number }) => (h.up > h.down ? "buff" : h.down > h.up ? "nerf" : "changed");
   const counts = { buff: 0, nerf: 0, changed: 0 };
   heroes.forEach((h) => (counts[tag(h)] += 1));
   return (
     <Card
-      title="Patch summary"
+      title={pack.cards.patch}
       sub={
         <>
           {notes ? <NotesLink url={notes}>{patch.title}</NotesLink> : patch.title}
@@ -176,10 +181,11 @@ export const PatchCard = memo(function PatchCard({ items }: { items: FeedItem[] 
 });
 
 export const SteamNewsCard = memo(function SteamNewsCard() {
+  const { game, pack } = useStationCtx();
   const ms = useEvery(10 * 60_000, 0);
-  const { data, error } = useApi<SteamData>("/api/steam", ms);
+  const { data, error } = useApi<SteamData>(withGame("/api/steam", game), ms);
   return (
-    <Card title="Steam news" sub="Overwatch 2 on Steam">
+    <Card title={pack.cards.steam} sub={pack.steamSub}>
       {!data ? (
         <Empty>{error ? "Could not reach Steam." : "Loading..."}</Empty>
       ) : data.news.length === 0 ? (
@@ -273,19 +279,22 @@ function easternLabel(ms: number): string {
 }
 
 export const SeasonCard = memo(function SeasonCard() {
-  const [custom, setCustom] = useState<string>(() => readString(SEASON_KEY) ?? "");
+  const { game, pack } = useStationCtx();
+  const seasonKey = `${SEASON_KEY}.${game}`;
+  const [custom, setCustom] = useState<string>(() => readString(seasonKey) ?? (game === "overwatch" ? readString(SEASON_KEY) : null) ?? "");
   const [editing, setEditing] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
+    setCustom(readString(seasonKey) ?? (game === "overwatch" ? readString(SEASON_KEY) : null) ?? "");
+    setEditing(false);
+  }, [game, seasonKey]);
+  useInterval(() => setNow(Date.now()), 60_000);
   const poll = useEvery(10 * 60_000, 0);
-  const { data: meta, error } = useApi<MetaData>("/api/meta", poll);
+  const { data: meta, error } = useApi<MetaData>(withGame("/api/meta", game), poll);
   const save = (v: string) => {
     setCustom(v);
-    if (v) writeString(SEASON_KEY, v);
-    else removeKey(SEASON_KEY);
+    if (v) writeString(seasonKey, v);
+    else removeKey(seasonKey);
   };
   const season = meta?.season;
   const customMs = custom ? new Date(`${custom}T00:00:00`).getTime() : NaN;
@@ -306,7 +315,7 @@ export const SeasonCard = memo(function SeasonCard() {
         : `Ends ${easternLabel(endMs)}`;
   return (
     <Card
-      title="Season countdown"
+      title={pack.cards.season}
       sub={sub}
       right={
         <button className="klink" onClick={() => setEditing((e) => !e)}>

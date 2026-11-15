@@ -10,8 +10,40 @@ export interface Palette {
   border: string;
   radius: string;
   shadow?: string;
-  /** Terminal looks swap the UI font for a monospace stack already on Windows. */
+  /** The type voice; leave it out for the station's own Outfit. */
+  font?: FontKey;
+  /** Older saved themes and modules: the same as `font: "mono"`. */
   mono?: boolean;
+}
+
+/** The faces a theme can speak in. Outfit (the default) is the absence of a key. */
+export type FontKey = "inter" | "grotesk" | "jakarta" | "serif" | "mono" | "system";
+
+/** CJK fallbacks come last in every stack, so Traditional Chinese text keeps working in any voice. */
+const CJK = '"Microsoft JhengHei", "PingFang TC", "Noto Sans TC"';
+
+/** Picker order and labels. The bundled faces are self-hosted (see main.tsx); "system" is already on Windows. */
+export const FONTS: { key: FontKey | ""; label: string; stack: string }[] = [
+  { key: "", label: "Outfit (default)", stack: `"Outfit", "Segoe UI", ${CJK}, system-ui, sans-serif` },
+  { key: "inter", label: "Inter", stack: `"Inter Variable", "Segoe UI", ${CJK}, system-ui, sans-serif` },
+  { key: "grotesk", label: "Space Grotesk", stack: `"Space Grotesk Variable", "Segoe UI", ${CJK}, system-ui, sans-serif` },
+  { key: "jakarta", label: "Plus Jakarta Sans", stack: `"Plus Jakarta Sans Variable", "Segoe UI", ${CJK}, system-ui, sans-serif` },
+  { key: "serif", label: "Lora (serif)", stack: `"Lora Variable", Georgia, ${CJK}, serif` },
+  { key: "mono", label: "JetBrains Mono", stack: `"JetBrains Mono Variable", "Cascadia Mono", "Cascadia Code", "Segoe UI Mono", ${CJK}, ui-monospace, monospace` },
+  { key: "system", label: "System (Segoe UI)", stack: `"Segoe UI", ${CJK}, system-ui, sans-serif` },
+];
+
+const FONT_KEYS = new Set<string>(FONTS.map((f) => f.key).filter(Boolean));
+
+/** The font key a palette speaks in, folding in the older `mono` flag. */
+export function fontOf(p: Palette): FontKey | undefined {
+  return p.font ?? (p.mono ? "mono" : undefined);
+}
+
+/** The CSS font stack for a palette, or undefined for the station default. */
+export function fontStack(p: Palette): string | undefined {
+  const key = fontOf(p);
+  return key ? FONTS.find((f) => f.key === key)?.stack : undefined;
 }
 
 export interface ThemeDef {
@@ -44,8 +76,6 @@ const APPLIED = [
   "--card-shadow",
   "--ui",
 ] as const;
-
-const MONO = '"Cascadia Mono", "Cascadia Code", "Segoe UI Mono", ui-monospace, monospace';
 
 type Rgb = [number, number, number];
 
@@ -114,7 +144,8 @@ export function applyPalette(p: Palette | null) {
   );
   if (p.shadow) style.setProperty("--card-shadow", p.shadow);
   else style.removeProperty("--card-shadow");
-  if (p.mono) style.setProperty("--ui", MONO);
+  const stack = fontStack(p);
+  if (stack) style.setProperty("--ui", stack);
   else style.removeProperty("--ui");
   setScheme(root, r);
 }
@@ -326,6 +357,7 @@ function asPalette(raw: Record<string, unknown>): Palette | null {
     border: pick("border") || accent,
     radius: radiusOf(raw.radius),
     shadow: typeof raw.shadow === "string" ? raw.shadow : undefined,
+    font: typeof raw.font === "string" && FONT_KEYS.has(raw.font) ? (raw.font as FontKey) : raw.mono === true ? "mono" : undefined,
     mono: raw.mono === true,
   };
 }

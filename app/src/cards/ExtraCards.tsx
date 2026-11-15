@@ -49,11 +49,13 @@ export const CpuTempCard = memo(function CpuTempCard() {
 /* ---------- What this app costs ---------- */
 
 export const CostCard = memo(function CostCard() {
-  const ms = useEvery(5000, 5000);
+  // Cost walks every process; match the service's 15 s refresh floor.
+  const ms = useEvery(15_000, 30_000);
   const { data } = useApi<CostData>("/api/cost", ms);
   if (!data) return <Card title="App cost"><Empty>Measuring…</Empty></Card>;
   const cpu = (data.service.cpuPct ?? 0) + (data.shell?.cpuPct ?? 0);
-  const mb = data.service.mb + (data.shell?.mb ?? 0);
+  // Memory is judged on the service and its helpers. The window is a Chromium view, shown for reference below.
+  const mb = data.service.mb;
   const cpuOk = cpu <= data.budget.cpuPct;
   const mbOk = mb <= data.budget.mb;
   const tone = (ok: boolean): Tone => (ok ? "ok" : "or");
@@ -86,7 +88,10 @@ export const CostCard = memo(function CostCard() {
           <b>{data.shell ? `${data.shell.mb} MB` : "Browser"}</b>
         </div>
       </div>
-      <p className="khint">Budget: under {data.budget.cpuPct}% CPU and {data.budget.mb} MB.{data.shell ? "" : " Open the desktop app to include its window."}</p>
+      <p className="khint">
+        Budget: under {data.budget.cpuPct}% CPU in all, and {data.budget.mb} MB for the service and its helpers. The window is a web view and is not held to the memory number.
+        {data.shell ? "" : " Open the desktop app to include its window."}
+      </p>
     </Card>
   );
 });

@@ -1,0 +1,108 @@
+/* Tailwind for Event Manager / calendar (content paths limited in tailwind.config). */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colour tokens live in tailwind.config.js and read the station theme vars on <html>
+   (--bg --text --dim --edge --glass-solid ...), so every theme re-skins the calendar.
+   Only non-colour tokens are declared here; :root so portaled dialogs/menus resolve them. */
+:root {
+  --radius: 12px;
+  --on-red: #fff;
+}
+
+/* Preflight is off, so Tailwind's border-b / border-r have no style or colour of their own.
+   :where() keeps specificity at 0 so every utility still wins. */
+:where(.calendar-page, [role="dialog"], [role="menu"], [role="listbox"]) :where(*, ::before, ::after) {
+  border: 0 solid var(--edge);
+}
+
+/* app.css `.grid` is the dashboard's 3-track layout and also hits Tailwind's `grid`
+   (dialog body, month/week grid). Reset it here; utilities (grid-cols-*, gap-*) still win. */
+@layer components {
+  :where(.calendar-page) .grid,
+  .grid:where([role="dialog"]) {
+    grid-template-columns: none;
+    gap: 0;
+    align-items: normal;
+  }
+}
+
+/* Form controls ship with UA text and a grey/white "buttonface" fill (preflight is off);
+   take the theme text and no fill instead. Utilities such as bg-secondary still win. */
+:where(.calendar-page, [role="dialog"], [role="menu"], [role="listbox"]) :where(input, textarea, select, button) {
+  color: inherit;
+  background-color: transparent;
+}
+
+.calendar-page {
+  color: var(--text);
+  font-family: var(--ui);
+}
+
+.calendar-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: calc(100vh - 150px);
+  padding: 4px 2px 12px;
+}
+
+/* Month grid as the hero surface: glass panel, hairline edges, warm today mark. */
+.calendar-page .em-month-grid {
+  background: var(--glass);
+  border: 1px solid var(--edge-2);
+  border-radius: var(--r);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  backdrop-filter: blur(12px) saturate(120%);
+  box-shadow: var(--card-shadow, none);
+  overflow: hidden;
+  flex: 1;
+  min-height: 420px;
+}
+
+.calendar-page .em-toolbar {
+  background: color-mix(in srgb, var(--glass) 80%, transparent);
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 10px 12px;
+}
+
+.calendar-page [data-radix-popper-content-wrapper] {
+  z-index: 80;
+}
+
+/* Soften default purple-leaning utility chips when used as event colors. */
+.calendar-page .bg-purple-500 {
+  background-color: color-mix(in srgb, var(--dim) 70%, #7c6a9a) !important;
+}
+
+/* Event Manager uses animate-in / fade-in / slide-in-* without tw-animate plugin. */
+.calendar-page .animate-in {
+  animation-duration: 0.2s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+.calendar-page .fade-in {
+  animation-name: cal-fade-in;
+}
+.calendar-page .slide-in-from-top-1 {
+  animation-name: cal-slide-top-1;
+}
+.calendar-page .slide-in-from-top-2 {
+  animation-name: cal-slide-top-2;
+}
+@keyframes cal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cal-slide-top-1 {
+  from { opacity: 0; transform: translateY(-0.25rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cal-slide-top-2 {
+  from { opacity: 0; transform: translateY(-0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}

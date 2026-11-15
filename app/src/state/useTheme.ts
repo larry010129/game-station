@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { readJson, readString, removeKey, writeJson, writeString } from "../lib/storage";
 import { deletePicture, loadPicture, savePicture } from "./imageStore";
 import { applyPalette, parseThemeModule, type Palette, type ThemeDef } from "./palette";
-import { CATALOG, CHARCOAL } from "./themeCatalog";
+import { applyTweaks, cleanTweaks, type Tweaks } from "./tweaks";
+import { CATALOG, CHARCOAL, UNLOCKABLES } from "./themeCatalog";
 
 const KEY = "cs.theme";
 /** Before the wallpaper moved to IndexedDB, the whole picture lived here. */
@@ -11,11 +12,28 @@ const LEGACY_IMG_KEY = "cs.bg";
 export const IMG_REF_KEY = "cs.bg.ref";
 export const BG_ID = "wallpaper";
 const MODULES_KEY = "cs.themeModules";
+/** Theme ids unlocked via quest or pay (e.g. Nightsteel). */
+export const UNLOCK_KEY = "cs.themeUnlocks";
 
 interface Saved {
   id?: string;
   tint?: string | null;
   dim?: number;
+  tweaks?: unknown;
+  /** Theme ids the user starred, newest first. */
+  favs?: unknown;
+  /** Theme ids picked lately, newest first. */
+  recent?: unknown;
+  /** Whether hovering a theme tile previews it. */
+  hover?: boolean;
+}
+
+const MAX_RECENT = 8;
+
+/** A saved list of theme ids, without anything that is not a non-empty string or that repeats. */
+function idList(raw: unknown, max: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(new Set(raw.filter((v): v is string => typeof v === "string" && v.length > 0))).slice(0, max);
 }
 
 const DEFAULT_DIM = 35;
@@ -149,16 +167,37 @@ function loadModules(legacy: ThemeDef | null): ThemeDef[] {
   return yours;
 }
 
+function readSaved(): { saved: Saved; legacy: ThemeDef | null } {
+  const raw = read<unknown>(KEY, {});
+  const got: Saved = raw != null && typeof raw === "object" && !Array.isArray(raw) ? (raw as Saved) : {};
+  return { saved: got, legacy: got.id == null && got.tint ? fromLegacyTint(got.tint) : null };
+}
+
+/** Paints the saved look onto the document when App/useTheme never mounted (error screen, `?errorPreview=1`). */
+export function applySavedTheme() {
+  const { saved, legacy } = readSaved();
+  const id = saved.id ?? legacy?.id ?? CHARCOAL.id;
+  const modules = loadModules(legacy);
+  const active = [...CATALOG, ...modules].find((t) => t.id === id) ?? CHARCOAL;
+  applyPalette(active.palette);
+  applyTweaks(cleanTweaks(saved.tweaks));
+  const dim = typeof saved.dim === "number" ? saved.dim : DEFAULT_DIM;
+  document.documentElement.style.setProperty("--bg-dim", String(dim / 100));
+}
+
 export function useTheme() {
   // Saved settings are read once, not on every render.
-  const [{ saved, legacy }] = useState(() => {
-    const raw = read<unknown>(KEY, {});
-    const got: Saved = raw != null && typeof raw === "object" && !Array.isArray(raw) ? (raw as Saved) : {};
-    return { saved: got, legacy: got.id == null && got.tint ? fromLegacyTint(got.tint) : null };
-  });
+  const [{ saved, legacy }] = useState(() => readSaved());
   const [id, setId] = useState(() => saved.id ?? legacy?.id ?? CHARCOAL.id);
   const [dim, setDimState] = useState(() => (typeof saved.dim === "number" ? saved.dim : DEFAULT_DIM));
   const [modules, setModules] = useState<ThemeDef[]>(() => loadModules(legacy));
+  const [tweaks, setTweaks] = useState<Tweaks>(() => cleanTweaks(saved.tweaks));
+  const [favs, setFavs] = useState<string[]>(() => idList(saved.favs, 200));
+  const [recent, setRecent] = useState<string[]>(() => idList(saved.recent, MAX_RECENT));
+  const [hover, setHover] = useState<boolean>(() => saved.hover === true);
+  const [unlocks, setUnlocks] = useState<string[]>(() => idList(readJson<unknown>(UNLOCK_KEY, []), 50));
+  /** A theme being previewed under the cursor; nothing is saved for it. */
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [image, setImageState] = useState<string | null>(null);
   const [imageSaved, setImageSaved] = useState(true);
   /** Set once the user picks or clears a wallpaper, so a slow load of the saved one cannot overwrite it. */
@@ -193,27 +232,56 @@ export function useTheme() {
     };
   }, []);
 
-  const all = useMemo(() => [...CATALOG, ...modules], [modules]);
+  const unlocked = useMemo(() => UNLOCKABLES.filter((t) => unlocks.includes(t.id)), [unlocks]);
+  const all = useMemo(() => [...CATALOG, ...unlocked, ...modules], [unlocked, modules]);
   const active = all.find((t) => t.id === id) ?? CHARCOAL;
 
   // Painted before the browser draws, so a light theme never flashes dark first.
+  const shown = (previewId && all.find((t) => t.id === previewId)) || active;
   useLayoutEffect(() => {
-    applyPalette(active.palette);
-  }, [active]);
+    applyPalette(shown.palette);
+    // The tweaks go on after the palette, which repaints everything the theme owns.
+    applyTweaks(tweaks);
+  }, [shown, tweaks]);
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty("--bg-dim", String(dim / 100));
   }, [dim]);
 
   useEffect(() => {
-    write(KEY, { id: active.id, dim });
-  }, [active, dim]);
+    write(KEY, { id: active.id, dim, tweaks, favs, recent, hover });
+  }, [active, dim, tweaks, favs, recent, hover]);
 
   useEffect(() => {
     write(MODULES_KEY, modules);
   }, [modules]);
 
-  const select = useCallback((next: string) => setId(next), []);
+  useEffect(() => {
+    write(UNLOCK_KEY, unlocks);
+  }, [unlocks]);
+
+  const select = useCallback((next: string) => {
+    setPreviewId(null);
+    setId(next);
+    setRecent((list) => [next, ...list.filter((x) => x !== next)].slice(0, MAX_RECENT));
+  }, []);
+
+  /** Marks a gated theme as unlocked for this install (persists in `cs.themeUnlocks`). */
+  const unlock = useCallback((themeId: string) => {
+    setUnlocks((list) => (list.includes(themeId) ? list : [...list, themeId]));
+  }, []);
+
+  /** Changes some tweaks; a field set to `undefined` goes back to the theme's own value. */
+  const tweak = useCallback((patch: Partial<Tweaks>) => {
+    setTweaks((t) => {
+      const next: Record<string, unknown> = { ...t, ...patch };
+      for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
+      return cleanTweaks(next);
+    });
+  }, []);
+  const clearTweaks = useCallback(() => setTweaks({}), []);
+  const toggleFav = useCallback((themeId: string) => setFavs((l) => (l.includes(themeId) ? l.filter((x) => x !== themeId) : [themeId, ...l])), []);
+  const preview = useCallback((themeId: string | null) => setPreviewId(themeId), []);
   const setDim = useCallback((next: number) => setDimState(next), []);
 
   const setImage = useCallback((data: string | null) => {
@@ -263,11 +331,27 @@ export function useTheme() {
     return themes.length;
   }, []);
 
+  /** Puts on a theme that came with a shared layout: its module if it brought one, else the catalogue theme of that id. */
+  const applyShared = useCallback(
+    (t: { id: string; tweaks: Tweaks; module?: string }) => {
+      if (t.module) {
+        try {
+          importModules(t.module, "shared.json");
+        } catch {
+          // A module that cannot be read leaves the theme as it is.
+        }
+      } else if (CATALOG.some((c) => c.id === t.id)) select(t.id);
+      setTweaks(cleanTweaks(t.tweaks));
+    },
+    [importModules, select],
+  );
+
   const reset = useCallback(() => {
     setId(CHARCOAL.id);
     setDimState(DEFAULT_DIM);
+    setTweaks({});
     setImage(null);
   }, [setImage]);
 
-  return { active, dim, modules, image, imageSaved, select, setDim, setImage, create, remove, importModules, reset };
+  return { active, dim, modules, image, imageSaved, tweaks, favs, recent, hover, unlocks, select, unlock, applyShared, tweak, clearTweaks, toggleFav, setHover, preview, setDim, setImage, create, remove, importModules, reset };
 }

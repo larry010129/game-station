@@ -17,7 +17,7 @@ const CENTER: Record<string, [number, number]> = {
   eu: [12, 50],
   asia: [98, 33],
   oce: [135, -25],
-  other: [28, 6],
+  other: [25, -6],
 };
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -29,7 +29,7 @@ type Crowd = "quiet" | "busy" | "packed";
 const CROWD: Record<Crowd, { label: string; chip: string }> = {
   quiet: { label: "Quiet", chip: "or" },
   busy: { label: "Busy", chip: "mid" },
-  packed: { label: "Packed", chip: "good" },
+  packed: { label: "Packed", chip: "accent" },
 };
 
 /** Absolute OW2 Steam bands when history is too flat or too short. */
@@ -109,21 +109,26 @@ export const PlayersMap = memo(function PlayersMap({ data, failed }: { data: Pla
             const [x, y] = map.project(CENTER[r.id] ?? [0, 0]);
             const count = now == null ? null : Math.round(now * r.share);
             const rad = 14 + Math.sqrt(r.share) * 62;
+            const name = r.id === "other" ? "Middle East & Africa" : r.name;
+            // Europe sits above Middle East & Africa, so its label goes beside the bubble, not under it.
+            const side = r.id === "eu";
             return (
               <g key={r.id} transform={`translate(${x} ${y})`}>
                 <circle className="halo" r={rad * 1.5} />
                 <circle className="dot" r={rad} />
-                <text className="pct" y={-2}>
+                <text className="pct" y={1}>
                   {Math.round(r.share * 100)}%
                 </text>
-                <text className="rn" y={16}>
-                  {r.name}
-                </text>
-                {count != null && (
-                  <text className="rc" y={32}>
-                    ~{fmt(count)}
+                <g className={`lbl${side ? " side" : ""}`} transform={side ? `translate(${rad + 10} 0)` : `translate(0 ${rad + 8})`}>
+                  <text className="rn" y={side ? -8 : 10}>
+                    {name}
                   </text>
-                )}
+                  {count != null && (
+                    <text className="rc" y={side ? 10 : 28}>
+                      ~{fmt(count)}
+                    </text>
+                  )}
+                </g>
               </g>
             );
           })}

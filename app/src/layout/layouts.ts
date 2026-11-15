@@ -33,6 +33,7 @@ export const CARDS = {
   media: { name: "Now playing", group: "Media", blurb: "Spotify and other media: title, art, play, skip", size: [6, 9], min: [4, 7], on: true },
   calendar: { name: "Calendar", group: "Tools", blurb: "Month at a glance and what is next. Click to open the calendar", size: [6, 12], min: [4, 9] },
   spotify: { name: "Spotify control", group: "Media", blurb: "Play, skip, volume, shuffle and device for any Spotify account", size: [6, 12], min: [4, 9] },
+  wavelink: { name: "Wave Link", group: "Media", blurb: "Elgato Wave Link 3: mic mute, mix and channel volumes", size: [6, 24], min: [4, 12] },
   memory: { name: "Memory", group: "This PC", blurb: "RAM used and the top apps using it", size: [6, 8], min: [4, 7] },
   power: { name: "Power and battery", group: "This PC", blurb: "Battery, charge watts, unplugged warning", size: [6, 8], min: [4, 7] },
   regionping: { name: "Ping by region", group: "Connection", blurb: "Americas, Europe and Asia side by side", size: [6, 8], min: [4, 7] },
@@ -44,11 +45,11 @@ export const CARDS = {
   season: { name: "Season countdown", group: "Overwatch", blurb: "Days left in the season", size: [6, 6], min: [4, 5] },
   steam: { name: "Steam news", group: "Overwatch", blurb: "Latest Overwatch posts on Steam", size: [6, 9], min: [4, 7] },
   queue: { name: "Best time to play", group: "Overwatch", blurb: "Busy and quiet hours in your time zone", size: [6, 8], min: [4, 7] },
-  airesearch: { name: "Leak feed", group: "Overwatch", blurb: "Claude or Gemini (API key) searches the web for leaks every hour", size: [6, 20], min: [4, 10], on: true },
+  airesearch: { name: "Leak feed", group: "Overwatch", blurb: "Hourly leak headlines from Google News, Reddit and YouTube", size: [6, 20], min: [4, 10], on: true },
   tierlist: { name: "Hero tier list", group: "Meta", blurb: "S to F tiers from Counterwatch, by role", size: [6, 20], min: [4, 9], on: true },
   mappicks: { name: "Map hero picks", group: "Meta", blurb: "Pick a map: most played and best win-rate heroes", size: [6, 20], min: [4, 9], on: true },
   bestpicks: { name: "Best pick per role", group: "Meta", blurb: "The strongest hero for tank, damage and support", size: [6, 11], min: [4, 8] },
-  heroprofile: { name: "Hero profile", group: "Meta", blurb: "Win rate, KDA radar, poke/dive/rush, vs role avg", size: [12, 22], min: [6, 16], on: true },
+  heroprofile: { name: "Hero profile", group: "Meta", blurb: "OW: poke/rush/dive · Apex: poke/dive/sustain + ALS pick rate", size: [12, 22], min: [6, 16], on: true },
   session: { name: "Session timer", group: "Game", blurb: "How long you have played, with a break reminder", size: [6, 6], min: [4, 5] },
   playhistory: { name: "Play history", group: "Game", blurb: "Hours per day this week", size: [6, 8], min: [4, 7] },
   report: { name: "Session report", group: "Game", blurb: "Ping, load and temperature of your last session", size: [6, 8], min: [4, 7] },
@@ -65,7 +66,7 @@ export type CardId = keyof typeof CARDS;
 export const CARD_IDS = Object.keys(CARDS) as CardId[];
 
 /**
- * Top-bar pages. Home is every card in one place. Each other card page keeps its smaller slice.
+ * Top-bar pages. Home is the saved card set in one place. Each other card page keeps its smaller slice.
  * A "page" tab is drawn by its own component and has no card layout; `note` says so when Edit layout is pressed there.
  */
 export const TABS = [
@@ -75,10 +76,13 @@ export const TABS = [
   { id: "gamemode", label: "Game mode", kind: "cards" },
   { id: "calendar", label: "Calendar", kind: "page", note: "The calendar is a page, not a card layout." },
   { id: "credits", label: "Credits", kind: "page", note: "Credits is a page, not a card layout." },
+  { id: "buy-credits", label: "Support", kind: "page", note: "Support is a page, not a card layout." },
   { id: "themes", label: "Themes", kind: "page", note: "Themes is a page, not a card layout." },
   { id: "vault", label: "Vault", kind: "page", note: "Vault is settings, not a card layout." },
 ] as const;
-export type TabId = (typeof TABS)[number]["id"];
+export type BuiltinTabId = (typeof TABS)[number]["id"];
+/** A built-in tab id, or the id of a tab the user added in the Vault. */
+export type TabId = string;
 /** The tabs that are a page of their own rather than a grid of cards. */
 export type PageTabId = Extract<(typeof TABS)[number], { kind: "page" }>["id"];
 
@@ -106,6 +110,8 @@ export const CARD_NAMES = Object.fromEntries(CARD_IDS.map((id) => [id, CARDS[id]
 export const DEFAULT_ON: CardId[] = CARD_IDS.filter((id) => "on" in CARDS[id]);
 
 export const BREAKPOINTS = { lg: 1280, md: 760, sm: 0 };
+/** In a split-view pane the two-column layout starts sooner, so a half-width pane is not a phone layout. */
+export const PANE_BREAKPOINTS = { lg: 1280, md: 560, sm: 0 };
 export const COLS = { lg: 24, md: 12, sm: 1 };
 export const ROW_HEIGHT = 20;
 export const MARGIN: [number, number] = [12, 12];
@@ -192,6 +198,42 @@ export interface CardInstance {
   id: string;
   type: CardId;
   look?: string;
+  /** Held in place: the grid will not move or resize it. */
+  locked?: boolean;
+}
+
+export type SizePreset = "S" | "M" | "L";
+const PRESET_FACTOR: Record<SizePreset, number> = { S: 0.75, M: 1, L: 1.4 };
+
+/** The width and height a size preset gives a card: M is its default, S and L scale it, never below its minimum. */
+export function presetBox(type: CardId, bp: "lg" | "md", preset: SizePreset): { w: number; h: number } {
+  const [w0, h0] = CARDS[type].size;
+  const base = bp === "md" ? Math.min(12, w0) : w0;
+  const m = mins(type, bp);
+  const f = PRESET_FACTOR[preset];
+  return { w: Math.min(COLS[bp], Math.max(m.minW, Math.round(base * f))), h: Math.max(m.minH, Math.round(h0 * f)) };
+}
+
+/** The distinct sizes the presets give this card, smallest first. A card whose minimum is already its default has no S. */
+export function presetSizes(type: CardId, bp: "lg" | "md"): { preset: SizePreset; w: number; h: number }[] {
+  const out: { preset: SizePreset; w: number; h: number }[] = [];
+  for (const preset of ["S", "M", "L"] as const) {
+    const b = presetBox(type, bp, preset);
+    // Where two presets coincide the later one's name wins, so a card at its default size reads M.
+    const same = out.findIndex((o) => o.w === b.w && o.h === b.h);
+    if (same >= 0) out[same] = { preset, ...b };
+    else out.push({ preset, ...b });
+  }
+  return out;
+}
+
+/** Which preset a size is exactly, or null for a size the user dragged to. M wins where presets coincide. */
+export function presetOf(type: CardId, bp: "lg" | "md", w: number, h: number): SizePreset | null {
+  for (const p of ["M", "S", "L"] as const) {
+    const b = presetBox(type, bp, p);
+    if (b.w === w && b.h === h) return p;
+  }
+  return null;
 }
 
 export const defaultLook = (type: CardId): string | undefined => (CARDS[type] as CardDef).looks?.[0].id;
@@ -200,17 +242,21 @@ export function defaultInstances(): CardInstance[] {
   return DEFAULT_ON.map((type) => ({ id: type, type, look: defaultLook(type) }));
 }
 
+/** The card types a tab shows: the ones the user picked for it, else the saved cards of its group (none on a tab the user added). */
+export function tabCardTypes(tab: TabId, instances: readonly CardInstance[], chosen?: readonly CardId[]): CardId[] {
+  if (chosen) return [...chosen];
+  return [...new Set(instances.filter((inst) => tabOf(inst.type) === tab).map((inst) => inst.type))];
+}
+
 /**
- * Home shows the whole catalog, plus any extra copies already saved.
- * A saved layout that omitted a card still leaves it on Home.
- * Other pages show only the saved cards that belong to that slice.
+ * Home shows the saved cards (minus any the user hid). Other pages show only the
+ * saved cards that belong to that slice, or the ones the user picked for it.
+ * Extra cards are added from the Cards list — Home no longer mounts the whole catalog.
  */
-export function instancesForTab(tab: TabId, instances: CardInstance[], hidden: readonly CardId[] = []): CardInstance[] {
-  if (tab !== "home") return instances.filter((inst) => tabOf(inst.type) === tab);
-  const seen = new Set<CardId>();
-  for (const inst of instances) seen.add(inst.type);
-  const missing = CARD_IDS.filter((type) => !seen.has(type) && !hidden.includes(type)).map((type) => ({ id: type, type, look: defaultLook(type) }));
-  return [...instances, ...missing];
+export function instancesForTab(tab: TabId, instances: CardInstance[], hidden: readonly CardId[] = [], chosen?: readonly CardId[]): CardInstance[] {
+  if (tab !== "home") return instances.filter((inst) => (chosen ? chosen.includes(inst.type) : tabOf(inst.type) === tab));
+  if (chosen) return instances.filter((inst) => chosen.includes(inst.type));
+  return instances.filter((inst) => !hidden.includes(inst.type));
 }
 
 /** Where a fresh card goes when it has no position yet: at the bottom, and the grid packs it upward. */
@@ -251,16 +297,66 @@ export function sanitize(saved: Layouts | null | undefined, instances: CardInsta
       const base = got.find((g) => g.i === inst.id) ?? (inst.id === inst.type ? DEFAULT_LAYOUTS[bp]?.find((g) => g.i === inst.id) : undefined);
       if (!base) return newBox(inst, bp);
       const w = Math.min(cols, Math.max(base.w, m.minW));
-      // The old ten-pill defaults were gpu 8 rows and load/uplink 6. A saved copy of those
-      // drops to the shorter ring size; a height the user chose themselves stays.
-      const wasPill = inst.type === "gpu" ? 8 : inst.type === "load" || inst.type === "uplink" ? 6 : 0;
-      const wasRoomy = inst.type === "gpu" || inst.type === "uplink" ? 5 : 0;
-      const raw = base.h === wasPill || base.h === wasRoomy ? CARDS[inst.type].size[1] : base.h;
+      // Any height at or above the card's minimum is kept as saved. (An older rule reset the retired
+      // ten-pill defaults, 8 and 6 rows, to the new size; it also made those heights impossible to choose.)
+      const raw = base.h;
       const h = Math.max(raw, m.minH);
       return { i: inst.id, x: Math.max(0, Math.min(base.x, cols - w)), y: Math.max(0, base.y), w, h, ...m };
     });
   }
   return out;
+}
+
+/**
+ * Packs boxes into `cols` columns with no holes: each card, in Home's reading order (top to bottom, left to right),
+ * goes where it sits lowest, leftmost first. A page that shows only some of Home's cards would otherwise keep
+ * Home's column gaps, such as the empty strip where the chart used to be.
+ */
+export function packBoxes(boxes: Layout[], cols: number): Layout[] {
+  const sky = new Array<number>(cols).fill(0);
+  const order = [...boxes].sort((a, b) => a.y - b.y || a.x - b.x);
+  return order.map((item) => {
+    const w = Math.min(item.w, cols);
+    let bestX = 0;
+    let bestY = Infinity;
+    for (let x = 0; x + w <= cols; x++) {
+      let top = 0;
+      for (let c = x; c < x + w; c++) top = Math.max(top, sky[c]);
+      if (top < bestY) {
+        bestY = top;
+        bestX = x;
+      }
+    }
+    for (let c = bestX; c < bestX + w; c++) sky[c] = bestY + item.h;
+    return { ...item, x: bestX, y: bestY, w };
+  });
+}
+
+/**
+ * A saved page layout that has an empty column band between cards (the strip left where a card Home has, and this page
+ * does not, used to sit) is packed again. A layout with no such band is the user's own and stays exactly as saved.
+ */
+export function closeColumnGaps(boxes: Layout[], cols: number): Layout[] {
+  const used = new Array<boolean>(cols).fill(false);
+  for (const b of boxes) for (let c = Math.max(0, b.x); c < Math.min(cols, b.x + b.w); c++) used[c] = true;
+  const first = used.indexOf(true);
+  const last = used.lastIndexOf(true);
+  const gap = first >= 0 && used.slice(first, last + 1).includes(false);
+  return gap ? packBoxes(boxes, cols) : boxes;
+}
+
+/**
+ * The boxes for a tab other than Home. A tab has its own layout once it has been opened. Until then its cards
+ * start in Home's order, packed to the top left with no gaps.
+ */
+export function layoutsForTab(instances: CardInstance[], home: Layouts, own?: Layouts): Layouts {
+  const ids = new Set(instances.map((inst) => inst.id));
+  const pick = (bp: "lg" | "md"): Layout[] => {
+    if (own) return (own[bp] ?? []).filter((item) => ids.has(item.i));
+    const boxes = (home[bp] ?? []).filter((item) => ids.has(item.i) && item.y < BOTTOM);
+    return packBoxes(boxes, COLS[bp]);
+  };
+  return layoutsFor(instances, { lg: pick("lg"), md: pick("md"), sm: [] });
 }
 
 /** Saved boxes for the cards on screen. Catalog cards with no saved box keep their default spot. */

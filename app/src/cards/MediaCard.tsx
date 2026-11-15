@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { MediaStatus } from "../lib/types";
 import { useApi, useStationCtx } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
+import { useInterval } from "../layout/onScreen";
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -70,11 +71,7 @@ export const MediaCard = memo(function MediaCard() {
     if (data?.available) base.current = { pos: data.positionMs ?? 0, at: Date.now() };
   }, [data]);
 
-  useEffect(() => {
-    if (!data?.playing) return;
-    const id = window.setInterval(() => setNow(Date.now()), 500);
-    return () => window.clearInterval(id);
-  }, [data?.playing]);
+  useInterval(() => setNow(Date.now()), data?.playing ? 500 : null);
 
   const send = async (action: string, extra?: object) => {
     if (busy) return;

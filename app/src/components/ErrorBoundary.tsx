@@ -1,5 +1,6 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { readString, removeKey } from "../lib/storage";
+import { applySavedTheme } from "../state/useTheme";
 
 interface Props {
   /** The failure screen. Gets the error and a way to try again. */
@@ -73,20 +74,61 @@ export function CardBoundary({ name, keys, children }: { name: string; keys: str
   );
 }
 
-/** Last resort around the whole app: a plain message and a reload instead of a blank window. */
-export function AppBoundary({ children }: { children: ReactNode }) {
+/** The last-resort screen: the station mark, what happened, and a way back. Also drawn by `?errorPreview=1`. */
+export function AppErrorScreen({ message }: { message?: string }) {
+  // Preview and a crash before App mounts never run useTheme; paint the saved look here.
+  useLayoutEffect(() => {
+    applySavedTheme();
+  }, []);
   return (
-    <ErrorBoundary
-      fallback={(error) => (
-        <main className="app-error" role="alert">
-          <h1>Something went wrong</h1>
-          <p>{error.message || "The app hit an unexpected error."}</p>
-          <button type="button" className="eb-btn primary" onClick={() => window.location.reload()}>
-            Reload
-          </button>
-        </main>
-      )}
-    >
+    <main className="app-error" role="alert">
+      <section className="app-error-panel">
+        <svg className="app-error-mark" viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M16 30 V16 H30 M70 16 H84 V30 M16 70 V84 H30 M70 84 H84 V70" />
+          <circle cx="50" cy="50" r="18" />
+          <path d="M50 28 V40 M50 60 V72 M28 50 H40 M60 50 H72" />
+        </svg>
+        <h1>Something went wrong</h1>
+        <p className="app-error-msg">{message || "The app hit an unexpected error."}</p>
+        <button
+          type="button"
+          className="eb-btn primary"
+          onClick={() => {
+            // Fresh launch: drop the error preview flag and the short-boot mark so the start screen runs again.
+            try {
+              sessionStorage.removeItem("cs.booted");
+            } catch {
+              // Boot still runs; only the short path may stay.
+            }
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("errorPreview")) {
+              url.searchParams.delete("errorPreview");
+              window.location.assign(url.pathname + url.search + url.hash);
+            } else {
+              window.location.reload();
+            }
+          }}
+        >
+          Reload
+        </button>
+      </section>
+    </main>
+  );
+}
+
+/** Last resort around the whole app: a message and a reload instead of a blank window. */
+export function AppBoundary({ children }: { children: ReactNode }) {
+  // Dev only: after a hot update the old error is stale (a changed hook list throws "Rendered more hooks…"), so draw the app fresh.
+  const [hot, setHot] = useState(0);
+  useEffect(() => {
+    const h = import.meta.hot;
+    if (!h) return;
+    const bump = () => setHot((n) => n + 1);
+    h.on("vite:afterUpdate", bump);
+    return () => h.off("vite:afterUpdate", bump);
+  }, []);
+  return (
+    <ErrorBoundary resetKey={String(hot)} fallback={(error) => <AppErrorScreen message={error.message} />}>
       {children}
     </ErrorBoundary>
   );

@@ -11,4 +11,6 @@ export const KEYS = {
   verdictMetrics: "cs.verdict.metrics",
   seasonEnd: "cs.season.end",
   breakHours: "cs.break.hours",
+  stationCredits: "cs.stationCredits",
+  themeUnlocks: "cs.themeUnlocks",
 } as const;

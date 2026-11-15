@@ -1,8 +1,15 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import type { GameId, GamePack } from "../lib/games";
 import type { Provider } from "../lib/types";
+import { useOnScreen } from "../layout/onScreen";
 
-/** What the cards need beyond their own props: the provider, and whether a match is on (so polling slows down). */
-export const StationContext = createContext<{ provider: Provider; quiet: boolean } | null>(null);
+/** What the cards need beyond their own props: the provider, quiet mode, and which game is selected. */
+export const StationContext = createContext<{
+  provider: Provider;
+  quiet: boolean;
+  game: GameId;
+  pack: GamePack;
+} | null>(null);
 
 export function useStationCtx() {
   const c = useContext(StationContext);
@@ -38,6 +45,20 @@ function record(path: string, r: ApiResult) {
 /** Read-only: what an endpoint has returned so far, or null if nothing yet. */
 export const apiResult = (path: string): ApiResult | null => results.get(path) ?? null;
 
+/**
+ * Like apiResult, but also matches `path?…` (cards often add query strings;
+ * boot steps list the bare path).
+ */
+export function apiResultMatch(path: string): ApiResult | null {
+  const exact = results.get(path);
+  if (exact) return exact;
+  const prefix = `${path}?`;
+  for (const [key, r] of results) {
+    if (key.startsWith(prefix)) return r;
+  }
+  return null;
+}
+
 /** Read-only: called after any endpoint returns data or fails. Returns the unsubscribe. */
 export function watchApi(f: () => void): () => void {
   watchers.add(f);
@@ -51,8 +72,10 @@ export function watchApi(f: () => void): () => void {
  * endpoint share one request at the fastest interval any of them asks for.
  * `ms` of 0 pauses polling for that card (for example during a match).
  */
-export function useApi<T>(path: string, ms: number): { data: T | null; error: boolean; reload: () => void } {
+export function useApi<T>(path: string, wanted: number): { data: T | null; error: boolean; reload: () => void } {
   const { provider } = useStationCtx();
+  // A card you have to scroll to stops polling until it is back in view.
+  const ms = useOnScreen() ? wanted : 0;
   const [, tick] = useState(0);
   const k = `${provider.id}:${path}`;
 

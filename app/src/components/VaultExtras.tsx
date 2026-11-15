@@ -76,9 +76,12 @@ export function AlertSettings() {
 const STEP_NAMES: Record<string, string> = {
   power: "Power mode to Best performance",
   close: "Close background apps",
+  trim: "Free this app's own memory",
+  memory: "Clean system memory (may ask permission)",
   gpu: "Run Overwatch on the high-performance GPU",
   poll: "Slow live stats while playing",
   launch: "Launch Overwatch",
+  priority: "Raise Overwatch priority to High",
   obs: "OBS scene (not linked yet)",
 };
 

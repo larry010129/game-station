@@ -4,6 +4,9 @@ import type { FeedItem, GameModeStep, PlayersData, Profile, Provider, Sample } f
 const PORT = /^\d{2,5}$/.test(new URLSearchParams(location.search).get("svc") ?? "") ? new URLSearchParams(location.search).get("svc") : "8787";
 const BASE = `http://127.0.0.1:${PORT}`;
 
+/** Absolute origin of the local service — portraits and other media resolve against this. */
+export const apiBase = BASE;
+
 /** Throws the server's `{error}` text when it sent one, else "<path> → <status>". Shared by get and post. */
 async function failure(path: string, res: Response): Promise<Error> {
   let msg = `${path} → ${res.status}`;
@@ -58,9 +61,9 @@ export function liveProvider(machine: Provider["machine"], profiles: Profile[]):
       return Array.from({ length: count }, (_, i) => emptySample(endT - (count - 1 - i) * 1000));
     },
     readSample: () => get<Sample>("/api/sample"),
-    readFeed: () => get<FeedItem[]>("/api/feed"),
-    refreshFeed: () => post<FeedItem[]>("/api/feed/refresh", {}),
-    readPlayers: () => get<PlayersData>("/api/players"),
+    readFeed: (game = "overwatch") => get<FeedItem[]>(`/api/feed?game=${encodeURIComponent(game)}`),
+    refreshFeed: (game = "overwatch") => post<FeedItem[]>(`/api/feed/refresh?game=${encodeURIComponent(game)}`, {}),
+    readPlayers: (game = "overwatch") => get<PlayersData>(`/api/players?game=${encodeURIComponent(game)}`),
     // GET when no body is given, POST when there is one. A POST route must be called with an explicit body
     // (use `{}` for "none"): passing `undefined` would silently turn it into a GET and a 404.
     api: <T,>(path: string, body?: unknown) => (body === undefined ? get<T>(path) : post<T>(path, body)),

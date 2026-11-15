@@ -11,10 +11,10 @@ const CATCH_UP_MS = [8_000, 25_000, 60_000] as const;
 const byNewest = (list: FeedItem[]) => [...list].sort((a, b) => b.publishedAt - a.publishedAt);
 
 /**
- * Loads the Overwatch feed now and every 5 minutes, but never during a match.
+ * Loads the selected game's feed now and every 5 minutes, but never during a match.
  * Anything that appears after the first load is reported through `onNew`.
  */
-export function useFeed(provider: Provider, paused: boolean, onNew?: (items: FeedItem[]) => void) {
+export function useFeed(provider: Provider, paused: boolean, onNew?: (items: FeedItem[]) => void, game = "overwatch") {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -34,11 +34,18 @@ export function useFeed(provider: Provider, paused: boolean, onNew?: (items: Fee
   }, []);
 
   useEffect(() => {
+    // Switching games resets "seen" so Apex stories are not treated as Overwatch news.
+    known.current = null;
+    setItems([]);
+    setError(null);
+  }, [game]);
+
+  useEffect(() => {
     if (paused) return;
     let alive = true;
     const load = () =>
       provider
-        .readFeed()
+        .readFeed(game)
         .then((list) => {
           signal("/api/feed", "ok");
           if (alive) apply(list);
@@ -55,19 +62,19 @@ export function useFeed(provider: Provider, paused: boolean, onNew?: (items: Fee
       for (const t of catchUps) window.clearTimeout(t);
       window.clearInterval(id);
     };
-  }, [provider, paused, apply]);
+  }, [provider, paused, apply, game]);
 
   /** Asks the service to look at every source right now. */
   const checkNow = useCallback(async () => {
     setChecking(true);
     try {
-      apply(await provider.refreshFeed());
+      apply(await provider.refreshFeed(game));
     } catch {
       setError("Couldn't check for new stories. Is the service running?");
     } finally {
       setChecking(false);
     }
-  }, [provider, apply]);
+  }, [provider, apply, game]);
 
   return { items, error, checking, checkNow };
 }

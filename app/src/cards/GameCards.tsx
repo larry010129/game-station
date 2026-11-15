@@ -1,10 +1,11 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { clockTime } from "../lib/format";
 import type { GameModeRun, SessionsData } from "../lib/types";
 import { useApi } from "../state/useApi";
 import { Bar, Card, Empty, span, useEvery } from "./ui";
 import { readString, writeString } from "../lib/storage";
 import { KEYS } from "../lib/storageKeys";
+import { useInterval } from "../layout/onScreen";
 
 const HOUR = 3600_000;
 const BREAK_KEY = KEYS.breakHours;
@@ -18,10 +19,7 @@ export const SessionCard = memo(function SessionCard() {
   const { data } = useSessions();
   const [now, setNow] = useState(Date.now());
   const [limit, setLimit] = useState<number>(() => Number(readString(BREAK_KEY)) || 2);
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  useInterval(() => setNow(Date.now()), 1000);
   const change = (d: number) => {
     const next = Math.min(6, Math.max(0.5, limit + d));
     setLimit(next);

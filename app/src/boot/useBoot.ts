@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CardId } from "../layout/layouts";
 import type { Provider } from "../lib/types";
 import { connectProvider, liveAvailable, StageError } from "../providers";
-import { apiResult, watchApi, type ApiResult } from "../state/useApi";
+import { apiResultMatch, watchApi, type ApiResult } from "../state/useApi";
 import { failCount, onSignal, signalled } from "./bootSignals";
 import { CORE, HARDWARE, PROFILES, TELEMETRY, stepsFor, type StepDef, type StepSource } from "./bootSteps";
 import type { BootPhase, BootState, BootStep, StepStatus } from "./types";
@@ -11,10 +11,10 @@ const MIN_MS = 1200;
 const MIN_SHORT_MS = 600;
 /**
  * How long optional steps may hold the reveal once the required ones are done.
- * Long enough for the refreshable cards (feed, meta, players, network) to finish
- * the grab they started, then the cover gives up and those cards fill in later.
+ * Meta serves cache immediately and refreshes in the background, so this only
+ * covers short first-fetches (feed, players, network); then those cards fill in later.
  */
-const OPTIONAL_MS = 50_000;
+const OPTIONAL_MS = 8_000;
 const NO_SIGNAL_MS = 10_000;
 const HEALTH_MS = 1000;
 const HEALTH_TIMEOUT_MS = 1500;
@@ -23,6 +23,12 @@ const RETRY_MS = 1500;
 const FAILS_SHOWN = 2;
 const SAMPLE_FAILS_SHOWN = 3;
 const LINKING_SHARE = 0.3;
+/** While meta is still linking (cold, empty cache), ease its weight share up toward this. */
+const META_LINKING_CEIL = 0.92;
+/** Short ease while a cold meta first-fetch is pending — not the full Counterwatch scrape. */
+const META_EASE_MS = 6_000;
+const META_TICK_MS = 250;
+const META = "meta";
 const BOOTED_KEY = "cs.booted";
 
 const NO_SIGNAL = "The local service hasn't started. It may still be launching, or it may have stopped.";
@@ -56,7 +62,7 @@ const replay = () => new URLSearchParams(location.search).get("boot") === "repla
 
 /** What a source has returned: useApi's cache first, then the loaders that report on their own. */
 function resultOf(path: string): ApiResult | null {
-  const r = apiResult(path);
+  const r = apiResultMatch(path);
   if (r) return r;
   const s = signalled(path);
   return s === "ok" ? { ok: true, data: undefined } : s === "error" ? { ok: false } : null;
@@ -225,19 +231,39 @@ export function useBoot({ cards, onProvider }: Options): BootState {
     return () => window.clearTimeout(id);
   }, [ready, requiredDone, requiredAt, minPassed, settled, late, minMs, bump]);
 
+  const metaLinking = steps.some((s) => s.id === META && s.status === "linking");
+  // Keep the % moving while meta scrapes (signals alone won't fire often enough).
+  useEffect(() => {
+    if (ready || !metaLinking) return;
+    const id = window.setInterval(bump, META_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [ready, metaLinking, bump]);
+
   const failedStep = steps.find((s) => s.required && s.status === "failed");
   const phase: BootPhase = ready ? "ready" : failedStep ? "error" : !health ? "connecting" : "booting";
   const problem = phase !== "error" || !failedStep ? null : failedStep.id === CORE ? NO_SIGNAL : (PROBLEM[failedStep.id] ?? null);
 
-  // Weighted, and only ever forwards.
+  // Weighted, and only ever forwards. Meta while linking eases across most of its weight.
   const best = useRef(0);
+  const metaLinkAt = useRef<number | null>(null);
+  if (metaLinking && metaLinkAt.current == null) metaLinkAt.current = Date.now();
+  if (!metaLinking) metaLinkAt.current = null;
+
   let total = 0;
   let done = 0;
   defs.forEach((d, i) => {
     const s = steps[i].status;
     total += d.weight;
     if (s === "online" || s === "offline" || s === "deferred") done += d.weight;
-    else if (s === "linking") done += d.weight * LINKING_SHARE;
+    else if (s === "linking") {
+      if (d.id === META && metaLinkAt.current != null) {
+        const t = Math.min(1, (Date.now() - metaLinkAt.current) / META_EASE_MS);
+        const eased = 1 - (1 - t) * (1 - t);
+        done += d.weight * (LINKING_SHARE + (META_LINKING_CEIL - LINKING_SHARE) * eased);
+      } else {
+        done += d.weight * LINKING_SHARE;
+      }
+    }
   });
   const raw = ready ? 1 : total ? Math.min(0.99, done / total) : 0;
   best.current = Math.max(best.current, raw);

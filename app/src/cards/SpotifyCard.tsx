@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { SpotifyPlaylist, SpotifyStatus } from "../lib/types";
 import { useApi, useStationCtx } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
+import { useInterval } from "../layout/onScreen";
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -90,11 +91,7 @@ export const SpotifyCard = memo(function SpotifyCard() {
     if (data?.state === "ready") base.current = { pos: data.positionMs ?? 0, at: Date.now() };
   }, [data]);
 
-  useEffect(() => {
-    if (data?.state !== "ready" || !data.playing) return;
-    const id = window.setInterval(() => setNow(Date.now()), 500);
-    return () => window.clearInterval(id);
-  }, [data?.state, data?.playing]);
+  useInterval(() => setNow(Date.now()), data?.state === "ready" && data.playing ? 500 : null);
 
   useEffect(() => () => window.clearTimeout(volTimer.current), []);
 

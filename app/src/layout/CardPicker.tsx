@@ -4,6 +4,8 @@ import { CARD_MIME, dragging } from "./dragCard";
 
 interface Props {
   tab: TabId;
+  /** Offer every card, not just the ones that belong to this tab by default. */
+  all?: boolean;
   instances: CardInstance[];
   onAdd: (type: CardId) => void;
   onClose: () => void;
@@ -19,14 +21,14 @@ function matchesQuery(id: CardId, q: string): boolean {
 }
 
 /** Every card you can add. Drag one onto the dashboard (or press +). You can add the same card as many times as you like. */
-export function CardPicker({ tab, instances, onAdd, onClose }: Props) {
+export function CardPicker({ tab, all = false, instances, onAdd, onClose }: Props) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const count = (t: CardId) => instances.filter((i) => i.type === t).length;
 
   const sections = GROUPS.map((g) => {
     const ids = CARD_IDS.filter(
-      (id) => CARDS[id].group === g && (tab === "home" || tabOf(id) === tab) && matchesQuery(id, q),
+      (id) => CARDS[id].group === g && (all || tab === "home" || tabOf(id) === tab) && matchesQuery(id, q),
     );
     return { g, ids };
   }).filter((s) => s.ids.length > 0);

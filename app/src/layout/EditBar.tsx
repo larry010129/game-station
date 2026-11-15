@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "../components/Icon";
 
 interface Props {
   customised: boolean;
@@ -9,10 +10,18 @@ interface Props {
   onDone: () => void;
   onCards: () => void;
   cardsOpen: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  /** The active named layout, if any, shown on the Layouts button. */
+  layoutName?: string;
+  layoutsOpen: boolean;
+  onLayouts: () => void;
 }
 
 /** Shown while editing the layout. Reset asks for a second click before it throws a layout away. */
-export function EditBar({ customised, hasSavedDefault, onSaveDefault, onClearDefault, onReset, onDone, onCards, cardsOpen }: Props) {
+export function EditBar({ customised, hasSavedDefault, onSaveDefault, onClearDefault, onReset, onDone, onCards, cardsOpen, canUndo, canRedo, onUndo, onRedo, layoutName, layoutsOpen, onLayouts }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [saved, setSaved] = useState(false);
   const timer = useRef<number>();
@@ -28,8 +37,17 @@ export function EditBar({ customised, hasSavedDefault, onSaveDefault, onClearDef
   return (
     <div className="editbar" role="region" aria-label="Layout editing">
       <p>
-        <b>Editing layout.</b> Drag a card to move it, its corner to resize it, × to remove it. Open Add cards to drag in more, even copies.
+        <b>Editing layout.</b> Drag a card to move it, any edge or corner to resize it, × to remove it. Click a card and use the arrow keys to nudge it (Shift to resize).
       </p>
+      <button className="eb-btn eb-icon" disabled={!canUndo} onClick={onUndo} aria-label="Undo" title="Undo (Ctrl+Z)">
+        <Icon name="undo" small />
+      </button>
+      <button className="eb-btn eb-icon" disabled={!canRedo} onClick={onRedo} aria-label="Redo" title="Redo (Ctrl+Y)">
+        <Icon name="redo" small />
+      </button>
+      <button className={`eb-btn${layoutsOpen ? " primary" : ""}`} onClick={onLayouts} title="Save, switch, share and import layouts">
+        {layoutName ? `Layout: ${layoutName}` : "Layouts"}
+      </button>
       <button className={`eb-btn${cardsOpen ? " primary" : ""}`} onClick={onCards} title="Open the list of cards and drag them onto the dashboard">
         Add cards
       </button>

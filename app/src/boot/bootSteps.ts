@@ -54,20 +54,16 @@ export const STEPS: readonly StepDef[] = [
     detail: "Pulling the intel feed…",
     required: false,
     weight: 1,
-    sources: [{ path: "/api/feed", cards: ["feed", "patch"] }],
+    sources: [{ path: "/api/feed", cards: ["feed", "patch", "airesearch"] }],
   },
   {
     id: "meta",
     label: "Overwatch meta",
     detail: "Reading the Overwatch meta…",
     required: false,
-    weight: 1,
-    sources: [
-      { path: "/api/meta", cards: ["tierlist", "mappicks", "bestpicks", "heroprofile", "season"] },
-      { path: "/api/meta/hero", cards: ["heroprofile"] },
-      { path: "/api/meta/map", cards: ["mappicks"] },
-      { path: "/api/meta/rank", cards: ["tierlist", "mappicks"] },
-    ],
+    // Snapshot is cache-first; Counterwatch scrape continues in the background (hero/map/rank fill in later).
+    weight: 2,
+    sources: [{ path: "/api/meta", cards: ["tierlist", "mappicks", "bestpicks", "heroprofile", "season"] }],
   },
   {
     id: "media",
@@ -94,14 +90,11 @@ export const STEPS: readonly StepDef[] = [
   },
   {
     id: "stories",
-    label: "News and leaks",
-    detail: "Pulling news and the leak feed…",
+    label: "Steam news",
+    detail: "Pulling Steam news…",
     required: false,
     weight: 1,
-    sources: [
-      { path: "/api/steam", cards: ["steam"] },
-      { path: "/api/ai", cards: ["airesearch"] },
-    ],
+    sources: [{ path: "/api/steam", cards: ["steam"] }],
   },
   {
     id: "library",

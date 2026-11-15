@@ -1,13 +1,23 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { FEED_KIND_LABEL } from "../lib/feedKind";
 import { age } from "../lib/format";
+import { xBadge, xSource } from "../lib/xSource";
 import { isUpcomingLeak, leakCopy, seasonNumberFromMeta } from "../lib/leakSeason";
 import { openLink } from "../lib/openLink";
-import type { AiData, AiResult, MetaData } from "../lib/types";
-import { Segmented } from "../components/Segmented";
+import { readString, writeString } from "../lib/storage";
+import type { FeedItem, MetaData } from "../lib/types";
+import { withGame } from "../lib/games";
 import { useApi, useStationCtx } from "../state/useApi";
 import { Card, Empty } from "./ui";
+import { useInterval } from "../layout/onScreen";
 
-const STATUS_WORD = { confirmed: "Confirmed", leak: "Leak", rumor: "Rumor" } as const;
+const HOUR = 60 * 60 * 1000;
+const HOURLY_KEY = "cs.leak.hourly";
+
+function untilWord(ms: number) {
+  const m = Math.max(0, Math.round(ms / 60_000));
+  return m < 1 ? "under a minute" : m < 60 ? `${m} min` : `${Math.round(m / 60)} h`;
+}
 
 /** Tasteful intel-tone lines while the leak feed is fetching. */
 const LEAK_LOAD_LINES = [
@@ -29,20 +39,16 @@ function LeakFeedLoading({ lines = LEAK_LOAD_LINES }: { lines?: readonly string[
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
 
-  useEffect(() => {
-    let fadeOut: number | undefined;
-    const id = window.setInterval(() => {
-      setVisible(false);
-      fadeOut = window.setTimeout(() => {
-        setIndex((i) => (i + 1) % lines.length);
-        setVisible(true);
-      }, 220);
-    }, 2400);
-    return () => {
-      window.clearInterval(id);
-      if (fadeOut != null) window.clearTimeout(fadeOut);
-    };
-  }, [lines]);
+  const fadeOut = useRef<number | undefined>(undefined);
+  useInterval(() => {
+    setVisible(false);
+    window.clearTimeout(fadeOut.current);
+    fadeOut.current = window.setTimeout(() => {
+      setIndex((i) => (i + 1) % lines.length);
+      setVisible(true);
+    }, 220);
+  }, 2400);
+  useEffect(() => () => window.clearTimeout(fadeOut.current), []);
 
   const line = lines[index] ?? lines[0];
   return (
@@ -57,46 +63,40 @@ function LeakFeedLoading({ lines = LEAK_LOAD_LINES }: { lines?: readonly string[
   );
 }
 
-function Elapsed({ since }: { since: number }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  return <>{Math.max(0, Math.round((now - since) / 1000))} s</>;
-}
-
-function untilWord(ms: number) {
-  const m = Math.max(0, Math.round(ms / 60_000));
-  return m < 1 ? "under a minute" : m < 60 ? `${m} min` : `${Math.round(m / 60)} h`;
-}
-
-function Items({ items }: { items: AiResult["items"] }) {
+/** Headline, source, time and link. The free feed has no Confirmed / Leak / Rumor label. */
+function Items({ items }: { items: FeedItem[] }) {
   return (
     <ul className="aitems">
-      {items.map((i, k) => {
-        const copy = leakCopy(i);
+      {items.map((i) => {
+        const title = leakCopy(i).title || i.title;
+        const x = xSource(i);
         const body = (
           <>
-            <b>{copy.title}</b>
-            {copy.detail && <p>{copy.detail}</p>}
+            <b>{title}</b>
             <div className="ahead">
-              <span className={`astatus ${i.status}`}>{STATUS_WORD[i.status]}</span>
-              {i.fresh && <span className="anew">New</span>}
-              {i.date && <small>{i.date}</small>}
+              {i.isNew && <span className="anew">New</span>}
+              {i.publishedAt ? <small>{age(i.publishedAt)} ago</small> : null}
             </div>
-            {(i.source || i.url) && (
+            {(i.source || i.url || i.kind) && (
               <small className="asrc">
-                {i.source || "Source"}
+                <strong className={`kindbadge kind-${i.kind}`}>{FEED_KIND_LABEL[i.kind]}</strong>
+                {i.source ? ` · ${i.source}` : ""}
                 {i.url ? " ↗" : ""}
+                {x && <strong className="xbadge"> · {xBadge(x, i.source)}</strong>}
+                {i.trusted && (
+                  <strong className="trustbadge" title={i.trusted}>
+                    {" "}
+                    · ✓ Trusted
+                  </strong>
+                )}
               </small>
             )}
           </>
         );
         return (
-          <li key={`${i.url || copy.title}-${k}`} className={i.status}>
+          <li key={i.id || title}>
             {i.url ? (
-              <button type="button" className="aleak" onClick={() => openLink(i.url)} title={i.url}>
+              <button type="button" className="aleak" onClick={() => openLink(i.url!)} title={i.url}>
                 {body}
               </button>
             ) : (
@@ -109,133 +109,120 @@ function Items({ items }: { items: AiResult["items"] }) {
   );
 }
 
-/** The leak feed: Claude or Gemini (API key) searches the web for leaks once an hour, on its own, and the card shows what it found. */
+/**
+ * Leak headlines from the free feed. Check now and the hourly timer both call POST /api/feed/refresh,
+ * which searches Google News RSS plus Reddit, YouTube and Blizzard. No paid AI.
+ */
 export const AiResearchCard = memo(function AiResearchCard() {
-  const { provider } = useStationCtx();
-  const [running, setRunning] = useState(false);
-  const api = useApi<AiData>("/api/ai", running ? 2000 : 60_000);
-  const metaApi = useApi<MetaData>("/api/meta", 10 * 60_000);
-  const data = api.data;
-  const job = data?.job ?? null;
+  const { provider, game, pack } = useStationCtx();
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [hourly, setHourly] = useState(() => readString(HOURLY_KEY) !== "0");
+  const [nextAt, setNextAt] = useState(() => Date.now() + HOUR);
+  const api = useApi<FeedItem[]>(withGame("/api/feed", game), checking ? 2000 : 60_000);
+  const metaApi = useApi<MetaData>(withGame("/api/meta", game), 10 * 60_000);
+  const data = api.data;
+  const reloadRef = useRef(api.reload);
+  reloadRef.current = api.reload;
+  const busy = useRef(false);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-  useEffect(() => {
-    setRunning(job?.state === "running");
-  }, [job?.state, job?.id]);
+  useInterval(() => setNow(Date.now()), 30_000);
 
-  const send = (path: string, body: unknown) =>
+  const check = useCallback(() => {
+    if (busy.current) return;
+    busy.current = true;
+    setError(null);
+    setChecking(true);
+    setNextAt(Date.now() + HOUR);
     provider
-      .api(path, body)
-      .then(() => api.reload())
-      .catch((e: Error) => {
-        setRunning(false);
-        setError(e.message);
+      .api<FeedItem[]>(withGame("/api/feed/refresh", game), {})
+      .then(() => reloadRef.current())
+      .catch((e: Error) => setError(e.message))
+      .finally(() => {
+        busy.current = false;
+        setChecking(false);
       });
+  }, [provider, game]);
 
-  const busy = job?.state === "running" || running;
-  const auto = data?.auto;
-  const engines = data?.engines ?? {};
-  const latest = data?.results.find((r) => r.topic === "leaks") ?? null;
+  useEffect(() => {
+    if (!hourly) return;
+    const delay = Math.max(1000, nextAt - Date.now());
+    const id = window.setTimeout(() => check(), delay);
+    return () => window.clearTimeout(id);
+  }, [hourly, nextAt, check]);
+
+  const leaks = (data ?? []).filter((i) => i.kind === "leak");
   const seasonReady = metaApi.data != null || metaApi.error;
   const current = metaApi.data ? seasonNumberFromMeta(metaApi.data.season) : null;
-  const shown = seasonReady && latest ? latest.items.filter((i) => isUpcomingLeak(i, current)) : [];
-  const freshCount = shown.filter((i) => i.fresh).length;
+  const shown = seasonReady ? leaks.filter((i) => isUpcomingLeak({ title: i.title, summary: i.summary, status: "leak" }, current)) : [];
+  const freshCount = shown.filter((i) => i.isNew).length;
   const seasonLabel = current != null ? `S${current}` : null;
+  const newest = leaks.reduce((m, i) => (i.publishedAt > m ? i.publishedAt : m), 0);
   const noneWhy =
     current == null
       ? "The current season number isn't available, so only a leak that is clearly about something unreleased can show."
-      : `Nothing in the last check is about a season after ${seasonLabel}.`;
-  const failed = !busy ? (auto?.error ?? (job?.state === "error" ? job.error : null)) : null;
-  const engineName = engines[auto?.engine ?? "claude"] ?? "AI";
-  const status = !auto
-    ? ""
-    : !auto.enabled
-      ? "Hourly check is off"
-      : busy
-        ? `${engineName} is searching…`
-        : auto.nextAt > now
-          ? `Next check in ${untilWord(auto.nextAt - now)}`
-          : "Checking soon";
+      : `Nothing in the feed is about a season after ${seasonLabel}.`;
+  const when = checking ? "Checking Google News, Reddit and YouTube…" : hourly ? `Next check in ${untilWord(nextAt - now)}` : "Hourly check is off";
+  const status = newest ? `${when} · newest story ${age(newest, now)} ago` : when;
 
-  // One stable Card shell: busy tint only while searching; glass again when done.
   return (
     <Card
-      className={busy ? "aleak-busy" : undefined}
-      title="Leak feed"
+      className={checking ? "aleak-busy" : undefined}
+      title={pack.cards.airesearch}
       sub={
         data
           ? seasonLabel
-            ? `${engineName} · after ${seasonLabel}`
-            : `${engineName} searches the web for leaks every hour`
+            ? `After ${seasonLabel} · Google News`
+            : game === "apex"
+              ? "Events, leaks · Google News, Reddit, YouTube"
+              : "Google News, Reddit and YouTube"
           : undefined
       }
       right={freshCount ? <span className="chip">{freshCount} new</span> : undefined}
     >
       {api.error && !data ? (
-        <Empty>The local service isn't answering, so the hourly leak check can't run.</Empty>
+        <Empty>The local service isn't answering, so leak headlines can't load.</Empty>
       ) : !data ? (
         <LeakFeedLoading />
       ) : (
         <>
           <div className="aauto">
             <label className="aswitch">
-              <input type="checkbox" checked={auto?.enabled ?? false} onChange={(e) => send("/api/ai/auto", { enabled: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={hourly}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setHourly(on);
+                  writeString(HOURLY_KEY, on ? "1" : "0");
+                  if (on) setNextAt(Date.now() + HOUR);
+                }}
+              />
               <span>Check every hour</span>
             </label>
-            <button
-              className="abtn"
-              disabled={busy}
-              onClick={() => {
-                setError(null);
-                setRunning(true);
-                send("/api/ai/ask", { engine: auto?.engine ?? "claude", topic: "leaks" });
-              }}
-            >
-              {busy ? (
-                <>
-                  Searching… <Elapsed since={job?.startedAt ?? Date.now()} />
-                </>
-              ) : (
-                "Check now"
-              )}
+            <button className="abtn" disabled={checking} onClick={check}>
+              {checking ? "Checking…" : "Check now"}
             </button>
           </div>
-          {auto && Object.keys(engines).length > 1 && (
-            <Segmented label="AI" value={auto.engine} options={Object.entries(engines).map(([value, label]) => ({ value, label }))} onChange={(e) => send("/api/ai/auto", { engine: e })} />
-          )}
-          <p className="anote">
-            {status}
-            {latest ? ` · last checked ${age(latest.at)} ago` : ""}
-          </p>
-          {(error || failed) && (
+          <p className="anote">{status}</p>
+          {error && (
             <p className="aerr" role="alert">
-              {error ?? failed}
+              {error}
             </p>
           )}
-          {latest && (latest.summary || latest.items.length > 0) ? (
+          {leaks.length === 0 ? (
+            <Empty>No leak headlines in the feed yet.</Empty>
+          ) : !seasonReady ? (
+            <LeakFeedLoading lines={SEASON_LOAD_LINES} />
+          ) : shown.length > 0 ? (
             <div className="aanswer">
-              {latest.summary && <p className="asum">{latest.summary}</p>}
-              {shown.length > 0 ? (
-                <Items items={shown} />
-              ) : !seasonReady ? (
-                <LeakFeedLoading lines={SEASON_LOAD_LINES} />
-              ) : (
-                <Empty>{noneWhy}</Empty>
-              )}
-              {seasonReady && current == null && shown.length > 0 && (
-                <p className="anote">Current season number isn't known, so anything that names a season is hidden.</p>
-              )}
-              <p className="mfoot">AI can be wrong: open a leak to read the source.</p>
+              <Items items={shown} />
+              {current == null && <p className="anote">Current season number isn't known, so anything that names a season is hidden.</p>}
+              <p className="mfoot">These are unconfirmed headlines. Open one to read the source.</p>
             </div>
-          ) : busy ? (
-            <LeakFeedLoading />
           ) : (
-            <Empty>{latest ? "No leaks found in the last check." : "No check has finished yet. The first one runs a couple of minutes after the app starts."}</Empty>
+            <Empty>{noneWhy}</Empty>
           )}
         </>
       )}

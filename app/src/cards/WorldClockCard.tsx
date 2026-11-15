@@ -1,8 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStoredJson } from "../lib/storage";
 import { CLOCK_LOOKS } from "../layout/layouts";
 import { Card, useEvery } from "./ui";
 import { KEYS } from "../lib/storageKeys";
+import { useInterval } from "../layout/onScreen";
 
 interface City {
   label: string;
@@ -352,11 +353,7 @@ export function WorldClockCard({ look, onLook }: Props) {
   const [tz, setTz] = useState("");
   const [now, setNow] = useState(() => new Date());
   const ms = useEvery(1000, 15000);
-  useEffect(() => {
-    if (!ms) return;
-    const id = window.setInterval(() => setNow(new Date()), ms);
-    return () => window.clearInterval(id);
-  }, [ms]);
+  useInterval(() => setNow(new Date()), ms || null);
 
   const P = useMemo(() => cities.map((c) => parts(c.tz, now)), [cities, now]);
   const View = LOOKS[(look as keyof typeof LOOKS) in LOOKS ? (look as keyof typeof LOOKS) : "rulers"];

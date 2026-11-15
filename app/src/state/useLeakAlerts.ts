@@ -1,18 +1,16 @@
 import { useEffect, useRef } from "react";
-import type { AiData, AiResult, Provider } from "../lib/types";
+import type { FeedItem, Provider } from "../lib/types";
 import { readString, writeString } from "../lib/storage";
 
-const KEY = "cs.leak.seen";
+const KEY = "cs.leak.feedSeen";
 const POLL_MS = 5 * 60_000;
 
-type Fresh = AiResult["items"];
-
 /**
- * Watches the hourly leak check. When a finished check holds leaks that the one before it did not,
- * `onNew` gets them once. The id of the last check you were told about is remembered, so a restart does not repeat it.
- * Never polls during a match.
+ * Watches free leak headlines on the news feed. When a leak shows up that the last look did not have,
+ * `onNew` gets it once. Ids already reported are remembered, so a restart does not repeat them.
+ * The first look stays quiet. Never polls during a match.
  */
-export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items: Fresh) => void) {
+export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items: FeedItem[]) => void, game = "overwatch") {
   const onNewRef = useRef(onNew);
   onNewRef.current = onNew;
 
@@ -21,17 +19,16 @@ export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items
     let alive = true;
     const check = () =>
       provider
-        .api<AiData>("/api/ai")
-        .then((d) => {
-          if (!alive) return;
-          const latest = d.results.find((r) => r.topic === "leaks");
-          if (!latest) return;
-          // No storage: reports once per session.
-          const seen = readString(KEY);
-          if (seen === latest.id) return;
-          writeString(KEY, latest.id);
-          if (seen == null) return; // first run on this app: nothing to compare with, stay quiet
-          const fresh = latest.items.filter((i) => i.fresh);
+        .api<FeedItem[]>(`/api/feed?game=${encodeURIComponent(game)}`)
+        .then((items) => {
+          if (!alive || !Array.isArray(items)) return;
+          const leaks = items.filter((i) => i.kind === "leak" && i.id);
+          const ids = leaks.map((i) => i.id);
+          const raw = readString(`${KEY}.${game}`);
+          writeString(`${KEY}.${game}`, ids.join("\n"));
+          if (raw == null) return;
+          const seen = new Set(raw.split("\n").filter(Boolean));
+          const fresh = leaks.filter((i) => !seen.has(i.id));
           if (fresh.length) onNewRef.current(fresh);
         })
         .catch(() => {});
@@ -41,5 +38,5 @@ export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items
       alive = false;
       window.clearInterval(id);
     };
-  }, [provider, paused]);
+  }, [provider, paused, game]);
 }

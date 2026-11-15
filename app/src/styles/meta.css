@@ -8,23 +8,34 @@
 @keyframes mspin { to { transform: rotate(360deg); } }
 .calm .micon .spin, .quiet .micon .spin { animation: none; }
 .mport { flex: 0 0 auto; border-radius: 50%; object-fit: cover; background: color-mix(in srgb, var(--text) 10%, transparent); border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); display: inline-grid; place-items: center; font-size: 12px; color: var(--dim); }
-.mport.tank { border-color: rgba(96, 165, 250, 0.85); }
-.mport.damage { border-color: rgba(240, 137, 58, 0.85); }
+/* Weapon plates: widescreen, contain — full silhouette, no circular crop. */
+.mport.gun { border-radius: 8px; object-fit: contain; object-position: center; padding: 2px; box-sizing: border-box; }
+/* Apex legend tiles: square plates, full tile visible (same craft as guns). Overwatch stays circular. */
+.mport.legend { border-radius: 10px; object-fit: contain; object-position: center; padding: 1px; box-sizing: border-box; }
+.mport.tank, .mport.controller { border-color: rgba(96, 165, 250, 0.85); }
+.mport.damage, .mport.assault, .mport.ar, .mport.smg, .mport.lmg, .mport.shotgun, .mport.sniper, .mport.marksman, .mport.pistol { border-color: rgba(240, 137, 58, 0.85); }
 .mport.support { border-color: rgba(110, 200, 150, 0.85); }
+.mport.skirmisher { border-color: rgba(167, 139, 250, 0.85); }
+.mport.recon { border-color: rgba(56, 189, 248, 0.85); }
 .mtiers { display: flex; flex-direction: column; gap: 8px; }
-.mtier { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; }
-.mbadge { display: grid; place-items: center; height: 34px; border-radius: 10px; font-size: 18px; font-weight: 300; border: 1px solid var(--edge-2); background: var(--wash); }
+.mtier { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: start; }
+.mbadge { display: grid; place-items: center; height: 40px; border-radius: 10px; font-size: 18px; font-weight: 300; border: 1px solid var(--edge-2); background: var(--wash); }
 .mbadge.ts { background: var(--text); color: var(--on-text); border-color: transparent; font-weight: 500; }
 .mbadge.ta { background: color-mix(in srgb, var(--text) 28%, transparent); }
 .mbadge.td, .mbadge.tf { color: var(--orange); border-color: rgba(240, 137, 58, 0.6); }
-.mchips { display: flex; flex-wrap: wrap; gap: 6px; }
-.mchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; border: 1px solid var(--edge-2); background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.mchips { display: flex; flex-wrap: wrap; gap: 7px; }
+.mchip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 11px 4px 4px; border-radius: 999px; border: 1px solid var(--edge-2); background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .mchip:hover { background: var(--wash-2); }
+.mchip.gun { border-radius: 12px; padding-left: 5px; }
 .mchip small { color: var(--mute); font-size: 12px; }
 .mchip small.hi { color: var(--orange); }
 .mfoot { margin-top: auto; padding-top: 6px; font-size: 12px; color: var(--mute); }
 .mlink { background: none; border: 0; padding: 0; color: var(--dim); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .mlink:hover { color: var(--text); }
+/* Apex-only: Legends | Guns sits above Mode/Role so the second list is obvious. */
+.mfocus { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; padding: 6px 8px; border-radius: 14px; border: 1px solid var(--edge-2); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.mfocus-label { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.08em; }
+.mfocus .seg { background: var(--glass); }
 .mfilters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mfilters .msel { flex: 1 1 9rem; min-width: 9rem; max-width: 16rem; }
 .mfilters .msel.map { flex: 2 1 14rem; max-width: none; }
@@ -96,6 +107,25 @@
 .hlean small { font-size: 12px; text-transform: uppercase; letter-spacing: 0.22em; color: var(--mute); }
 .hlean b { font-size: 28px; font-weight: 500; font-style: italic; letter-spacing: 0.04em; line-height: 1.1; margin-top: 2px; }
 .hlean p { margin-top: 8px; font-size: 12.5px; color: var(--dim); line-height: 1.45; }
+
+/* Apex legend profile — pick rate + class peers (no OW combat/archetype radars) */
+.hapex { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+.hapex-block { min-width: 0; }
+.hapex-pick { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin: 4px 0 10px; }
+.hapex-pick b { font-size: 32px; font-weight: 400; line-height: 1; }
+.hapex-delta { font-size: 12.5px; color: var(--mute); }
+.hapex-delta.up { color: #4ade80; }
+.hapex-delta.down { color: #ff8b8f; }
+.hapex-vs { display: grid; grid-template-columns: 88px minmax(0, 1fr) 64px; gap: 8px; align-items: center; font-size: 12.5px; color: var(--dim); margin-bottom: 8px; }
+.hapex-facts { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.hapex-facts li { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--dim); padding: 6px 0; border-top: 1px solid var(--wash); }
+.hapex-facts b { font-weight: 500; color: var(--text); }
+.hapex-peers li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.hapex-note { margin: 12px 0 0; font-size: 12.5px; color: var(--dim); line-height: 1.45; }
+.hapex-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+@media (max-width: 720px) {
+  .hapex { grid-template-columns: 1fr; }
+}
 @media (max-width: 720px) {
   .hhero { grid-template-columns: auto minmax(0, 1fr); }
   .hwin { grid-column: 1 / -1; text-align: left; }
@@ -158,10 +188,10 @@ button.aleak:hover b { text-decoration: underline; }
 .hm .hbar { height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
 .hm .hbar i { display: block; height: 100%; border-radius: 999px; }
 .hm.bad .hbar i { background: #ff6b6b; }
-.hm.good .hbar i { background: #3ddc84; }
+.hm.good .hbar i { background: var(--good); }
 .hm .hs { font-size: 14px; font-weight: 600; min-width: 34px; text-align: right; }
 .hm.bad .hs { color: #ff8b8f; }
-.hm.good .hs { color: #3ddc84; }
+.hm.good .hs { color: var(--good); }
 .hm .hmore { align-self: flex-start; margin-top: 8px; font-size: 12px; }
 .hmaps { margin-top: 8px; }
 .hmaps li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto auto; align-items: center; gap: 10px; font-size: 13.5px; }
