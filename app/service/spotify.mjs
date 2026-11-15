@@ -67,7 +67,12 @@ export function createSpotify(log, getPort) {
     return saved.access;
   }
 
+  // After a 429 every call fails fast until Spotify's Retry-After has passed, so polling does not keep the limit alive.
+  let blockedUntil = 0;
+  const slowDown = () => bad("Spotify asked us to slow down. Try again in a moment.", 429);
+
   async function call(method, route, { query, body } = {}, retried = false) {
+    if (Date.now() < blockedUntil) throw slowDown();
     const token = await accessToken();
     const url = new URL(`${API}${route}`);
     for (const [k, v] of Object.entries(query ?? {})) if (v != null) url.searchParams.set(k, String(v));
@@ -81,7 +86,11 @@ export function createSpotify(log, getPort) {
       saved.access = null;
       return call(method, route, { query, body }, true);
     }
-    if (res.status === 429) throw bad("Spotify asked us to slow down. Try again in a moment.", 429);
+    if (res.status === 429) {
+      const wait = Math.min(Math.max(Number(res.headers.get("retry-after")) || 30, 1), 300);
+      blockedUntil = Date.now() + wait * 1000;
+      throw slowDown();
+    }
     const text = await res.text();
     let json = null;
     try {

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "app", "run", "live"],
       "port": 1420
+    },
+    {
+      "name": "frontend-only",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "app", "run", "dev"],
+      "port": 1420
     }
   ]
 }

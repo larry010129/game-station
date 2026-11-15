@@ -2,7 +2,7 @@
 //   1. src-tauri/binaries/node-x86_64-pc-windows-msvc.exe  a copy of the current Node (the `binaries/node` sidecar)
 //   2. src-tauri/service-stage/service/                    a clean copy of service/ without its tests
 // tauri.conf.json bundles service-stage/service/ as the `service/` resource (the .ps1 helpers stay in).
-import { cpSync, copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,3 +33,8 @@ cpSync(serviceSrc, stage, {
   },
 });
 console.log(`[sidecar] service/ (without test/) -> ${stage}`);
+
+// The bundled service has no package.json beside it, so stage the app version for constants.mjs to read.
+const { version } = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+writeFileSync(resolve(stage, "version.json"), JSON.stringify({ version }) + "\n");
+console.log(`[sidecar] version.json (${version})`);

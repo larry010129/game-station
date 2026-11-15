@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,27 +23,29 @@ function fail(message, status = 500) {
 export function cleanMemory() {
   if (process.platform !== "win32") return Promise.reject(fail("Memory cleaning is Windows-only.", 501));
   if (running) return running;
-  const out = path.join(os.tmpdir(), `command-station-memclean-${randomBytes(6).toString("hex")}.json`);
-  running = new Promise((resolve, reject) => {
-    // Generous timeout: a UAC prompt may be waiting on the user.
-    execFile(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", SCRIPT, "-Out", out],
-      { windowsHide: true, timeout: 120000 },
-      async (err) => {
-        try {
-          const text = await readFile(out, "utf8");
-          const r = JSON.parse(text.trim());
-          if (r.error) reject(fail(r.error));
-          else resolve(r);
-        } catch {
-          reject(fail(err?.message || "Memory cleaning did not produce a result."));
-        } finally {
-          rm(out, { force: true }).catch(() => {});
-        }
-      },
-    );
-  }).finally(() => {
+  running = (async () => {
+    // The script runs elevated, so run a private copy from a fresh random folder, not the long-lived install path.
+    const dir = await mkdtemp(path.join(os.tmpdir(), `command-station-memclean-${randomBytes(4).toString("hex")}-`));
+    const script = path.join(dir, "memclean.ps1");
+    const out = path.join(dir, "result.json");
+    try {
+      await copyFile(SCRIPT, script);
+      // Generous timeout: a UAC prompt may be waiting on the user. Once elevated, the child cannot be killed from here.
+      const err = await new Promise((done) => {
+        execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Out", out], { windowsHide: true, timeout: 120000 }, (e) => done(e));
+      });
+      try {
+        const r = JSON.parse((await readFile(out, "utf8")).trim());
+        if (r.error) throw fail(r.error);
+        return r;
+      } catch (e) {
+        if (e.status) throw e;
+        throw fail(err?.message || "Memory cleaning did not produce a result.");
+      }
+    } finally {
+      rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  })().finally(() => {
     running = null;
   });
   return running;

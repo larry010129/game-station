@@ -13,12 +13,15 @@ export const APEX_APP_ID = 1172470;
 
 /** The app version, from package.json. A bundled service has no package.json beside it, so it falls back. */
 export const VERSION = (() => {
-  try {
-    const file = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json");
-    const v = JSON.parse(fs.readFileSync(file, "utf8")).version;
-    if (typeof v === "string" && v) return v;
-  } catch {
-    // not shipped beside the service
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  // package.json in development, the version.json that prepare-sidecar stages in a bundle.
+  for (const file of [path.join(here, "..", "package.json"), path.join(here, "version.json")]) {
+    try {
+      const v = JSON.parse(fs.readFileSync(file, "utf8")).version;
+      if (typeof v === "string" && v) return v;
+    } catch {
+      // not there: try the next
+    }
   }
   return "0.2.0";
 })();
