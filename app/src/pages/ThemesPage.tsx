@@ -13,6 +13,7 @@ import {
   spendCredits,
 } from "../state/stationCredits";
 import { CATALOG, NIGHTSTEEL, THEME_GROUPS, UNLOCKABLES } from "../state/themeCatalog";
+import { takePick, useQuests } from "../state/useQuests";
 import type { useTheme } from "../state/useTheme";
 
 type Look = ReturnType<typeof useTheme>;
@@ -254,18 +255,18 @@ function UnlockThemeDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onUnlock: (via: "quest" | "credits") => void;
+  onUnlock: (via: "weekly" | "credits") => void;
 }) {
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [questDone, setQuestDone] = useState(false);
+  const { state: quests } = useQuests();
+  const waiting = quests.looksWaiting;
   const [balance, setBalance] = useState(() => readCredits());
   const [short, setShort] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setQuestDone(false);
       setShort(false);
       return;
     }
@@ -325,9 +326,8 @@ function UnlockThemeDialog({
 
   const canAfford = balance >= NIGHTSTEEL_COST;
 
-  const claimQuest = () => {
-    if (!questDone) return;
-    onUnlock("quest");
+  const useWeekly = () => {
+    if (takePick()) onUnlock("weekly");
   };
 
   const claimCredits = () => {
@@ -361,7 +361,7 @@ function UnlockThemeDialog({
         <header className="theme-unlock-head">
           <div>
             <h2 id={titleId}>Nightsteel</h2>
-            <p id={descId}>Locked until you finish a short quest or spend station {CREDIT_NAME.toLowerCase()}.</p>
+            <p id={descId}>Locked. Use a weekly unlock, or spend {CREDIT_NAME.toLowerCase()}. Every locked look costs the same.</p>
           </div>
           <button type="button" className="theme-unlock-x" aria-label="Close" onClick={onClose}>
             ×
@@ -373,18 +373,18 @@ function UnlockThemeDialog({
         </p>
 
         <div className="theme-unlock-paths" role="group" aria-label="Unlock options">
-          <section className="theme-unlock-path" aria-labelledby="unlock-quest-title">
+          <section className="theme-unlock-path" aria-labelledby="unlock-weekly-title">
             <div className="theme-unlock-path-top">
-              <h3 id="unlock-quest-title">Quest</h3>
-              <span className="theme-unlock-badge">Free</span>
+              <h3 id="unlock-weekly-title">Weekly unlock</h3>
+              <span className="theme-unlock-badge">{waiting > 0 ? `${waiting} waiting` : "Free"}</span>
             </div>
-            <p>Finish this check to unlock without spending {CREDIT_NAME.toLowerCase()}.</p>
-            <label className="theme-unlock-check">
-              <input type="checkbox" checked={questDone} onChange={(e) => setQuestDone(e.target.checked)} />
-              <span>I opened Themes and picked any unlocked look</span>
-            </label>
-            <button type="button" className="pill-btn" disabled={!questDone} aria-disabled={!questDone} onClick={claimQuest}>
-              Unlock with quest
+            <p>
+              {waiting > 0
+                ? "Pick this look with a weekly unlock. It costs nothing."
+                : "Check in on 5 different days in one week to earn one. Find it under Quests."}
+            </p>
+            <button type="button" className="pill-btn" disabled={waiting < 1} aria-disabled={waiting < 1} onClick={useWeekly}>
+              {waiting > 0 ? "Use a weekly unlock" : "None waiting"}
             </button>
           </section>
 
@@ -393,10 +393,10 @@ function UnlockThemeDialog({
               <h3 id="unlock-credits-title">Spend {CREDIT_NAME}</h3>
               <span className="theme-unlock-price">{formatCredits(NIGHTSTEEL_COST)}</span>
             </div>
-            <p>One-time unlock on this install. Uses your station balance only.</p>
+            <p>Spending {CREDIT_NAME.toLowerCase()} never uses up a waiting weekly unlock.</p>
             {(!canAfford || short) && (
               <p className="theme-unlock-short" role="alert">
-                Not enough {CREDIT_NAME.toLowerCase()} — need {NIGHTSTEEL_COST}, you have {balance}. Finish the quest above to unlock for free.
+                Not enough {CREDIT_NAME.toLowerCase()}: need {NIGHTSTEEL_COST}, you have {balance}.
               </p>
             )}
             <button
@@ -437,7 +437,7 @@ export function ThemesPage({ look }: { look: Look }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
-  const nightsteelUnlocked = false;
+  const nightsteelUnlocked = look.unlocks.includes(NIGHTSTEEL.id);
 
   const groups = useMemo(() => {
     const extra = look.modules.length ? ["Yours"] : [];
@@ -620,8 +620,8 @@ export function ThemesPage({ look }: { look: Look }) {
           setUnlockOpen(false);
           setError(null);
           setNotice(
-            via === "quest"
-              ? "Nightsteel unlocked via quest."
+            via === "weekly"
+              ? "Nightsteel unlocked with a weekly unlock."
               : `Nightsteel unlocked — spent ${formatCredits(NIGHTSTEEL_COST)}.`,
           );
         }}
