@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../components/Icon";
+import { DrawPanel } from "../components/DrawPanel";
+import { GachaPanel } from "../components/GachaPanel";
 import { ThemeTune } from "../components/ThemeTune";
 import { ThemePanel } from "../components/ThemePanel";
 import { FONTS, fontOf, fontStack, moduleJson, toHex, type FontKey, type Palette, type ThemeDef } from "../state/palette";
@@ -640,6 +642,7 @@ export function ThemesPage({ look }: { look: Look }) {
       />
 
       <div className="themes-split">
+        <GachaPanel owned={look.unlocks} onWin={(id) => look.unlock(id)} />
         <section className="vault-card" aria-label="Create a theme">
           <h3>Create</h3>
           <p className="hint">Build a look on this PC. It stays in Yours.</p>
@@ -704,6 +707,8 @@ export function ThemesPage({ look }: { look: Look }) {
             </div>
           )}
         </section>
+
+        <DrawPanel owned={look.unlocks} onWin={look.unlock} />
 
         <section className="vault-card" aria-label="Upload a theme module">
           <h3>Upload a module</h3>
