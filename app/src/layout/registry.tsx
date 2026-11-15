@@ -12,7 +12,7 @@ import { BestPicksCard } from "../cards/meta/BestPicksCard";
 import { HeroProfileCard } from "../cards/meta/HeroProfileCard";
 import { MapPicksCard } from "../cards/meta/MapPicksCard";
 import { TierListCard } from "../cards/meta/TierListCard";
-import { CostCard, CpuTempCard, DiscordCard, LibraryCard, type DiscordToasts } from "../cards/ExtraCards";
+import { CostCard, DiscordCard, LibraryCard, type DiscordToasts } from "../cards/ExtraCards";
 import { NotesCard } from "../cards/ToolCards";
 import { WorldClockCard } from "../cards/WorldClockCard";
 import { WaveLinkCard } from "../cards/WaveLinkCard";
@@ -78,7 +78,6 @@ const AlertsPanelM = memo(AlertsPanel);
 const BestPicksCardM = memo(BestPicksCard);
 const CalendarCardM = memo(CalendarCard);
 const CostCardM = memo(CostCard);
-const CpuTempCardM = memo(CpuTempCard);
 const DiscordCardM = memo(DiscordCard);
 const FeedPanelM = memo(FeedPanel);
 const GameModeHistoryCardM = memo(GameModeHistoryCard);
@@ -151,7 +150,6 @@ export const CARD_VIEWS: Record<CardId, (c: CardCtx, inst: CardInstance) => Reac
   report: () => <ReportCardM />,
   gmhistory: () => <GameModeHistoryCardM />,
   clocks: (c, inst) => <ClockView id={inst.id} look={inst.look} onLook={c.onLook} />,
-  cputemp: () => <CpuTempCardM />,
   cost: () => <CostCardM />,
   library: () => <LibraryCardM />,
   discord: (c) => <DiscordCardM toasts={c.toasts} />,

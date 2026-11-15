@@ -364,13 +364,6 @@ export interface AiData {
   results: AiResult[];
 }
 
-export interface CpuTempData {
-  temp: number | null;
-  source: string | null;
-  hint: string | null;
-  at: number;
-}
-
 export interface CostData {
   at: number;
   service: { cpuPct: number | null; mb: number };

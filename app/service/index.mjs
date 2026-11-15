@@ -17,7 +17,7 @@ import { createNetStats } from "./netstats.mjs";
 import { createPlayers } from "./players.mjs";
 import { createSessions } from "./sessions.mjs";
 import { createSteam } from "./steam.mjs";
-import { createCpuTemp, createCost } from "./hwextra.mjs";
+import { createCost } from "./hwextra.mjs";
 import { createLibrary } from "./library.mjs";
 import { createSettings } from "./settings.mjs";
 import { createDiscord } from "./discord.mjs";
@@ -77,7 +77,6 @@ const sysStats = createSysStats(log);
 const steam = createSteam(log, config);
 const toasts = createToasts(log, { read: (force) => media.toasts(force) });
 const sessions = createSessions(sensors, log);
-const cpuTemp = createCpuTemp(config, log);
 const cost = createCost(log);
 const waveLink = createWaveLink({ log });
 const library = createLibrary(log);
@@ -180,7 +179,6 @@ const server = createServer({
     "GET /api/net": async () => netStats.snapshot(),
     "GET /api/system": async () => sysStats.snapshot(),
     "GET /api/steam": async (_body, url) => steam.snapshot(url.searchParams.get("game")),
-    "GET /api/cputemp": async () => cpuTemp.snapshot(),
     "GET /api/cost": async () => cost.snapshot(),
     "GET /api/wavelink": async () => waveLink.snapshot(),
     "POST /api/wavelink/set": async (body) => waveLink.set(body ?? {}),

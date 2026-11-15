@@ -148,12 +148,6 @@ const SOURCES: Source[] = [
     url: "https://github.com/GameTechDev/PresentMon",
   },
   {
-    group: "Runs locally",
-    name: "LibreHardwareMonitor",
-    blurb: "CPU temperature via its local web server when enabled.",
-    url: "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor",
-  },
-  {
     group: "Built with",
     name: "React",
     blurb: "UI library for the dashboard.",

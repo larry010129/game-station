@@ -55,7 +55,6 @@ The desktop shell starts a bundled Node service and stops it when you quit. You 
 **Optional hardware helpers:**
 
 - NVIDIA GPU + `nvidia-smi` for GPU temperature
-- [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (Remote Web Server) for CPU temperature
 
 ## How to use
 
@@ -95,7 +94,7 @@ Data folder: `%APPDATA%\CommandStation\`
 
 | File | Purpose |
 | --- | --- |
-| `config.json` | Settings (feed sources, `lhmUrl`, close apps, games, …) |
+| `config.json` | Settings (feed sources, close apps, games, …) |
 | `journal.json` | Game-mode undo journal |
 | `feed-cache.json` | Last feed pull |
 | `counterwatch.json` | Cached meta stats |

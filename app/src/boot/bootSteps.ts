@@ -84,7 +84,6 @@ export const STEPS: readonly StepDef[] = [
     weight: 1,
     sources: [
       { path: "/api/system", cards: ["memory", "power"] },
-      { path: "/api/cputemp", cards: ["cputemp"], unset: (d) => field(d, "temp") == null && field(d, "source") == null },
       { path: "/api/cost", cards: ["cost"] },
     ],
   },

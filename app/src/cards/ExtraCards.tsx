@@ -1,50 +1,14 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { clockTime } from "../lib/format";
-import type { CostData, CpuTempData, DiscordStatus, LibraryData } from "../lib/types";
+import type { CostData, DiscordStatus, LibraryData } from "../lib/types";
 import type { AppToast } from "../state/useToasts";
 import { useToast } from "../state/Toast";
 import { useApi, useStationCtx } from "../state/useApi";
-import { Bar, Card, Empty, Sparkline, span, useEvery, type Tone } from "./ui";
+import { Bar, Card, Empty, span, useEvery, type Tone } from "./ui";
 import { readJson, writeJson } from "../lib/storage";
 import { KEYS } from "../lib/storageKeys";
 
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
-
-/* ---------- CPU temperature ---------- */
-
-export const CpuTempCard = memo(function CpuTempCard() {
-  const ms = useEvery(3000, 15000);
-  const { data } = useApi<CpuTempData>("/api/cputemp", ms);
-  const history = useRef<(number | null)[]>([]);
-  const [, bump] = useState(0);
-
-  useEffect(() => {
-    if (!data) return;
-    history.current = [...history.current, data.temp].slice(-60);
-    bump((n) => n + 1);
-  }, [data?.at]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!data) return <Card title="CPU temperature"><Empty>Reading the CPU…</Empty></Card>;
-  if (data.temp == null) {
-    return (
-      <Card title="CPU temperature" sub="No sensor found">
-        <Empty>Windows does not share the CPU temperature by itself.</Empty>
-        <p className="khint">{data.hint}</p>
-      </Card>
-    );
-  }
-  const t = data.temp;
-  const tone = t >= 90 ? "red" : t >= 80 ? "or" : t >= 70 ? "mid" : "good";
-  return (
-    <Card title="CPU temperature" sub={data.source} label={`CPU temperature ${t} degrees`} right={<span className={`chip ${tone}`}>{t >= 90 ? "Too hot" : t >= 80 ? "Warm" : "Fine"}</span>}>
-      <div className={`big ${tone}`}>
-        {t}
-        <small>°C</small>
-      </div>
-      <Sparkline values={history.current} lo={30} hi={100} />
-    </Card>
-  );
-});
 
 /* ---------- What this app costs ---------- */
 

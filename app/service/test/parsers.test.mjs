@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   decodeEntities,
   parseGateway,
-  parseLhm,
   parseNews,
   parseNvidiaLine,
   parsePatchNotes,
@@ -29,33 +28,6 @@ test("typeperf rows, skipping the header", () => {
   assert.equal(parseTypeperfLine('"(PDH-CSV 4.0)","\\\\PC\\a","\\\\PC\\b"'), null);
   assert.deepEqual(parseTypeperfLine('"11/11/2026 23:47:24.135","11.859075","81.557854"'), { utility: 11.859075, performance: 81.557854 });
   assert.equal(parseTypeperfLine("Exiting, please wait..."), null);
-});
-
-test("LibreHardwareMonitor tree: picks the Ryzen Tctl/Tdie reading", () => {
-  const tree = {
-    Text: "Sensor",
-    Children: [
-      {
-        Text: "YUZI",
-        Children: [
-          {
-            Text: "AMD Ryzen 9 8940HX",
-            ImageURL: "images_icon/cpu.png",
-            Children: [
-              { Text: "Temperatures", Children: [
-                { Text: "Core (Tctl/Tdie)", Value: "83.4 °C", Children: [] },
-                { Text: "Core #1", Value: "71.0 °C", Children: [] },
-              ] },
-              { Text: "Load", Children: [{ Text: "CPU Total", Value: "12.0 %", Children: [] }] },
-            ],
-          },
-          { Text: "NVIDIA GeForce RTX 5060", ImageURL: "images_icon/nvidia.png", Children: [{ Text: "GPU Core", Value: "50.0 °C", Children: [] }] },
-        ],
-      },
-    ],
-  };
-  assert.equal(parseLhm(tree), 83);
-  assert.equal(parseLhm({ Text: "empty", Children: [] }), null);
 });
 
 test("news listing", () => {

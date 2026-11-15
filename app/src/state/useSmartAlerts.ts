@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { readEvents } from "../cards/CalendarPage";
-import type { CpuTempData, Provider, SystemData } from "../lib/types";
+import type { Provider, SystemData } from "../lib/types";
 import type { StationStore } from "./useStation";
 import { readJson, writeJson } from "../lib/storage";
 
@@ -10,11 +10,10 @@ export interface AlertRule {
   limit: number;
 }
 
-export type RuleId = "gpuTemp" | "cpuTemp" | "ram" | "ping" | "calendar";
+export type RuleId = "gpuTemp" | "ram" | "ping" | "calendar";
 
 export const RULE_INFO: Record<RuleId, { name: string; unit: string; min: number; max: number; step: number; blurb: string }> = {
   gpuTemp: { name: "GPU too hot", unit: "°C", min: 60, max: 100, step: 1, blurb: "When the GPU goes over this" },
-  cpuTemp: { name: "CPU too hot", unit: "°C", min: 60, max: 105, step: 1, blurb: "When the CPU goes over this (needs a CPU sensor)" },
   ram: { name: "Memory nearly full", unit: "%", min: 60, max: 99, step: 1, blurb: "When RAM in use goes over this" },
   ping: { name: "Ping spike", unit: "ms", min: 50, max: 500, step: 10, blurb: "When ping stays over this for 3 readings" },
   calendar: { name: "Calendar event soon", unit: "min", min: 1, max: 120, step: 1, blurb: "This many minutes before an event with a time" },
@@ -24,7 +23,6 @@ export const RULE_IDS = Object.keys(RULE_INFO) as RuleId[];
 
 export const DEFAULT_RULES: Record<RuleId, AlertRule> = {
   gpuTemp: { on: true, limit: 85 },
-  cpuTemp: { on: true, limit: 90 },
   ram: { on: true, limit: 90 },
   ping: { on: true, limit: 120 },
   calendar: { on: true, limit: 10 },
@@ -91,26 +89,18 @@ export function useSmartAlerts(provider: Provider, store: StationStore, paused: 
     return store.subscribe(check);
   }, [store, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Slower checks that ask the service: memory and CPU temperature.
+  // A slower check that asks the service: memory.
   useEffect(() => {
     if (paused || provider.id !== "live") return;
     let alive = true;
     const check = async () => {
       const rules = readRules();
-      if (!rules.ram.on && !rules.cpuTemp.on) return;
+      if (!rules.ram.on) return;
       if (rules.ram.on) {
         try {
           const s = await provider.api<SystemData>("/api/system");
           const pct = (s.mem.usedMb / s.mem.totalMb) * 100;
           if (alive && pct >= rules.ram.limit) fire("ram", `Memory is ${Math.round(pct)}% full, over your ${rules.ram.limit}% limit`);
-        } catch {
-          // service busy
-        }
-      }
-      if (rules.cpuTemp.on) {
-        try {
-          const c = await provider.api<CpuTempData>("/api/cputemp");
-          if (alive && c.temp != null && c.temp >= rules.cpuTemp.limit) fire("cpuTemp", `CPU is at ${c.temp}°C, over your ${rules.cpuTemp.limit}°C limit`);
         } catch {
           // service busy
         }

@@ -23,7 +23,7 @@ If port 1420 or 8787 is busy, see TROUBLESHOOTING.md.
 
 ## Temperatures
 
-GPU temperature comes from `nvidia-smi` and needs nothing extra. The CPU temperature card needs LibreHardwareMonitor (see `../README.md`, New cards).
+GPU temperature comes from `nvidia-smi` and needs nothing extra.
 
 ## Desktop app
 

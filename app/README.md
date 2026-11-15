@@ -12,7 +12,7 @@ The look follows `../design/command-station-redesign.html`: charcoal glass tiles
 | Local service (`service/`) | Working. Reads GPU/CPU/network/battery, fetches Overwatch news, runs game-mode steps. Localhost only, with an origin check. |
 | Undo journal | Each game-mode step is written to disk before it runs, and leftovers are restored when the service starts. Stored in `%APPDATA%\CommandStation\journal.json`. |
 | Players online | Hourly count from Steam's public API (Overwatch 2, Steam players only), with an estimated regional split on a world map. History builds while the app runs. |
-| GPU temperature | From `nvidia-smi`, nothing extra needed. The CPU temperature card needs LibreHardwareMonitor (see New cards). |
+| GPU temperature | From `nvidia-smi`, nothing extra needed. |
 | Tauri desktop app | Build it with `npm run prepare:sidecar` then `npm run tauri build -- --bundles nsis`; the installer starts its own service. The old `CommandStation-v0.2` folder is outdated. |
 
 Tests: `npm run test:service` covers the parsers, server guard, game mode, settings and config, spawn helpers and the API table below.
@@ -73,7 +73,6 @@ Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser
 | `GET /api/net` | Ping to Americas, Europe and Asia, jitter and packet loss, Wi-Fi details. Probing only runs while a card is asking |
 | `GET /api/system` | Memory in use, top apps by memory, battery charge rate |
 | `GET /api/steam` | Latest Overwatch 2 posts on Steam |
-| `GET /api/cputemp` | CPU temperature (LibreHardwareMonitor or ACPI) |
 | `GET /api/cost` | This app's own CPU and memory (refreshed at most every 15 s) |
 | `GET /api/library` | Installed Steam games and whether Battle.net is installed |
 | `POST /api/library/launch` | Start a game by id (`steam:<appid>` or `battlenet`) |
@@ -118,7 +117,6 @@ On first run the service writes `%APPDATA%\CommandStation\config.json` with the 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `host` | `127.0.0.1` | Bind address. Leave as is. The port is fixed at 8787 (a `port` key in an old config is ignored and the `PORT` environment variable is not used). |
-| `lhmUrl` | `http://127.0.0.1:8085/data.json` | LibreHardwareMonitor web server, for the CPU temperature card |
 | `allowedOrigins` | `[]` | Extra browser origins allowed to call the service (added to the four built-in ones) |
 | `regionHost` | `battle.net` | Host pinged for the latency reading |
 | `games` | `["Overwatch.exe"]` | Processes treated as the game |
@@ -180,7 +178,6 @@ Now playing works through Windows' own media session, so it controls Spotify and
 
 ## New cards
 
-- **CPU temperature:** Windows does not provide this. Run LibreHardwareMonitor as administrator and turn on Options > Remote Web Server (default `http://127.0.0.1:8085`, config key `lhmUrl`). Without it the card says so; some laptops also answer through the ACPI thermal zone.
 - **App cost:** CPU of the service, its helpers and the desktop window together (budget: under 1%), and memory of the service plus its helpers (budget: 200 MB). The window (command-station.exe and its Chromium web view) is shown for reference: about 300–370 MB private is Chromium’s floor and is not held to the memory budget. Memory is private bytes, not working set, so shared pages are not counted twice. Sensor helpers slow to every 3 s in game mode or when the window is hidden, and stop on the kill switch.
 - **Game library:** installed Steam games, newest played first, with a Play button, plus a Battle.net button when it is installed. Only games found by the scan can be started.
 - **Discord:** mute, deafen and who is in your voice channel, over Discord's local pipe. Needs your own Discord application (client id and secret from discord.com/developers, with `http://127.0.0.1` added as a redirect). The secret is kept in `%APPDATA%\CommandStation\discord.json`. Not yet tried against a real Discord account.

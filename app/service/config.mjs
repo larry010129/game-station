@@ -6,7 +6,6 @@ import { applyTracked, normalizeTrackedList } from "./tracked.mjs";
 /** Defaults for this laptop. A local config.json can override any field except the port, which is fixed. */
 export const DEFAULTS = {
   host: "127.0.0.1",
-  lhmUrl: "http://127.0.0.1:8085/data.json",
   regionHost: "battle.net",
   allowedOrigins: [],
   games: ["Overwatch.exe", "r5apex.exe", "r5apex_dx12.exe"],
@@ -243,7 +242,6 @@ export function loadConfig(deps = {}) {
   const config = {
     ...DEFAULTS,
     host: pick("host", isStr),
-    lhmUrl: pick("lhmUrl", isStr),
     regionHost: pick("regionHost", isStr),
     games: pick("games", strList),
     closeApps: pick("closeApps", strList),

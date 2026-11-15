@@ -55,7 +55,6 @@ export const CARDS = {
   report: { name: "Session report", group: "Game", blurb: "Ping, load and temperature of your last session", size: [6, 8], min: [4, 7] },
   gmhistory: { name: "Game mode history", group: "Game", blurb: "Past runs and what they changed", size: [6, 8], min: [4, 7] },
   clocks: { name: "World clock", group: "Tools", blurb: "Time where your teammates are, in five looks you can switch", size: [6, 11], min: [4, 8], on: true, looks: CLOCK_LOOKS },
-  cputemp: { name: "CPU temperature", group: "This PC", blurb: "CPU temperature with a short history (needs LibreHardwareMonitor)", size: [6, 8], min: [4, 7] },
   cost: { name: "App cost", group: "This PC", blurb: "How much CPU and memory this app uses, against its budget", size: [6, 8], min: [4, 7] },
   library: { name: "Game library", group: "Game", blurb: "Installed Steam games and Battle.net, one-tap play", size: [6, 12], min: [4, 8] },
   discord: { name: "Discord", group: "Media", blurb: "Who is in your voice channel, and your Discord notifications", size: [6, 16], min: [4, 11] },

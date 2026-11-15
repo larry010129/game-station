@@ -82,28 +82,6 @@ export function parseTypeperfLine(line) {
   return { utility, performance };
 }
 
-/**
- * LibreHardwareMonitor's web server (`/data.json`) is a tree of nodes with
- * Text, Value and Children. Returns the best CPU temperature it can find.
- */
-export function parseLhm(root) {
-  const found = [];
-  const walk = (node, underCpu) => {
-    if (!node || typeof node !== "object") return;
-    const isCpu = underCpu || /cpu/i.test(node.ImageURL ?? "") || /ryzen|intel.*core|core i\d|xeon/i.test(node.Text ?? "");
-    const m = /^(-?\d+(?:[.,]\d+)?)\s*°?\s*C$/i.exec(String(node.Value ?? "").trim());
-    if (isCpu && m && !(node.Children?.length)) {
-      found.push({ name: String(node.Text ?? ""), value: Number(m[1].replace(",", ".")) });
-    }
-    for (const c of node.Children ?? []) walk(c, isCpu);
-  };
-  walk(root, false);
-  if (!found.length) return null;
-  const pick = (re) => found.find((f) => re.test(f.name));
-  const best = pick(/tctl|tdie/i) ?? pick(/package/i) ?? pick(/core.*max|average/i);
-  return Math.round(best ? best.value : Math.max(...found.map((f) => f.value)));
-}
-
 /** Blizzard's news listing: cards inside `<a slot="gallery-items" href="/news/ID/slug">`. */
 export function parseNews(html, origin = "https://overwatch.blizzard.com") {
   const out = [];
