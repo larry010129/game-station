@@ -140,8 +140,97 @@ test("validateFeed: keeps good values, drops bad list entries", () => {
   assert.equal(f.refreshMs, 120_000);
   assert.equal(f.redditGapMs, 0);
   assert.deepEqual(f.reddit, [{ sub: "Overwatch2", kind: "community" }]);
-  assert.deepEqual(f.youtube, [{ channelId: "UCabc-_1", name: "Chan" }]);
+  assert.deepEqual(f.youtube, [{ channelId: "UCabc-_1", name: "Chan", kind: "video" }]);
   assert.equal(problems.length, 5);
+});
+
+test("validateFeed: older built-in-only lists pick up new default sources", () => {
+  const problems = [];
+  const f = validateFeed(
+    {
+      reddit: [
+        { sub: "Overwatch", kind: "community" },
+        { sub: "CompetitiveOverwatch", kind: "community" },
+      ],
+      youtube: [{ channelId: "UClOf1XXinvZsy4wKPAkro2A", name: "PlayOverwatch" }],
+      newsSearch: ["Overwatch leak", "Overwatch season leak", "Overwatch rumor"],
+      x: [
+        { handle: "PlayOverwatch", kind: "official" },
+        { handle: "wiki_ow", kind: "leak" },
+        { handle: "SkaVorah", kind: "leak" },
+      ],
+      tracked: [{ platform: "x", value: "MyLeaker", note: "keep me" }],
+    },
+    problems,
+  );
+  assert.ok(f.reddit.some((r) => r.sub === "Overwatch_Leaks" && r.kind === "leak"));
+  assert.ok(f.youtube.some((y) => y.handle === "@YourOverwatch"));
+  assert.ok(f.youtube.some((y) => y.handle === "@stylosa"));
+  assert.deepEqual(f.newsSearch, DEFAULTS.feed.newsSearch);
+  assert.ok(f.tracked.some((t) => t.value === "MyLeaker"));
+  assert.ok(f.x.some((x) => x.handle === "MyLeaker"));
+  assert.ok(f.x.some((x) => x.handle === "OWCavalry" && x.kind === "news"));
+  assert.ok(f.x.some((x) => x.handle === "OmnicPost" && x.kind === "news"));
+  assert.deepEqual(problems, []);
+});
+
+test("validateFeed: built-in-only x list picks up news accounts and keeps role kinds", () => {
+  const problems = [];
+  const f = validateFeed(
+    {
+      x: [
+        { handle: "PlayOverwatch" },
+        { handle: "wiki_ow", kind: "leak" },
+        { handle: "SkaVorah", kind: "leak" },
+      ],
+    },
+    problems,
+  );
+  assert.equal(f.x.find((x) => x.handle === "PlayOverwatch")?.kind, "official");
+  assert.equal(f.x.find((x) => x.handle === "wiki_ow")?.kind, "leak");
+  assert.equal(f.x.find((x) => x.handle === "SkaVorah")?.kind, "leak");
+  assert.ok(f.x.some((x) => x.handle === "OWCavalry" && x.kind === "news"));
+  assert.ok(f.x.some((x) => x.handle === "OmnicPost" && x.kind === "news"));
+  assert.ok(!f.x.some((x) => x.handle === "_FireMonkey" || x.handle === "Naeri"));
+  assert.deepEqual(problems, []);
+});
+
+test("validateFeed: retires Fortnite-primary handles and soft-merges trusted", () => {
+  const problems = [];
+  const f = validateFeed(
+    {
+      x: [
+        { handle: "PlayOverwatch", kind: "official" },
+        { handle: "wiki_ow", kind: "leak" },
+        { handle: "SkaVorah", kind: "leak" },
+        { handle: "_FireMonkey", kind: "leak" },
+        { handle: "Naeri", kind: "leak" },
+      ],
+      trusted: [
+        { name: "Blizzard" },
+        { name: "PlayOverwatch" },
+        { name: "SkaVorah" },
+        { name: "_FireMonkey" },
+      ],
+    },
+    problems,
+  );
+  assert.ok(!f.x.some((x) => x.handle === "_FireMonkey" || x.handle === "Naeri"));
+  assert.ok(f.x.some((x) => x.handle === "OWCavalry" && x.kind === "news"));
+  assert.ok(f.x.some((x) => x.handle === "OmnicPost" && x.kind === "news"));
+  assert.ok(!f.trusted.some((t) => t.name === "_FireMonkey"));
+  assert.ok(f.trusted.some((t) => t.name === "wiki_ow"));
+  assert.deepEqual(problems, []);
+});
+
+test("validateFeed: custom x list is left alone (no wipe, no forced append)", () => {
+  const problems = [];
+  const f = validateFeed({ x: [{ handle: "OnlyMine", kind: "news" }] }, problems);
+  assert.deepEqual(
+    f.x.map((x) => [x.handle, x.kind]),
+    [["OnlyMine", "news"]],
+  );
+  assert.deepEqual(problems, []);
 });
 
 test("feed: the subreddit is URL-encoded and a missing reddit list does not crash", async () => {

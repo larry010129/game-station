@@ -24,6 +24,9 @@ test("tier list, maps and picks are trimmed to what the dashboard needs", () => 
   assert.equal(tier.season.until, null);
   const dated = parseTierList(`"canonicalTiers":[{"tier":"S","heroes":[${JSON.stringify(h)}]}] "windows":[{"kind":"season","name":"S","seasonNumber":1,"startsOn":"2026-01-01","endsOn":"2026-03-05"}]`);
   assert.equal(dated.season.until, "2026-03-05");
+  // Every patch and season window goes to the calendar, newest first; windows without a date are dropped.
+  assert.deepEqual(tier.timeline.map((w) => [w.kind, w.startsOn, w.number]), [["patch", "2026-11-06", null], ["season", "2026-10-07", 5]]);
+  assert.equal(dated.timeline[0].endsOn, "2026-03-05");
   const maps = parseMaps(`"rows":[{"cleanedMapName":"Rialto","mapSlug":"rialto","gameModeName":"Escort","sharePct":"4.6%","totalMatches":10,"topHeroes":{"mostPlayed":[{"hero_id":1,"displayName":"Ana","role_name":"Support","shrunk_win_rate":0.5,"map_share":0.05,"total_matches":9}],"bestPerforming":[]}}]`);
   assert.equal(maps[0].share, 0.046);
   assert.equal(maps[0].mostPlayed[0].name, "Ana");
@@ -264,6 +267,110 @@ test("buildRankView strips 6V6 mode prefixes and buildHeroFromRankRows aggregate
   assert.equal(hero.topMaps.length, 2);
   assert.equal(hero.counters.losesTo.length, 0);
   assert.match(hero.leanBlurb, /6v6/i);
+});
+
+test("warm cache snapshot stays usable while a refresh runs in the background", async () => {
+  const rsc = (text) => `<script>self.__next_f.push([1,${JSON.stringify(text)}])</script>`;
+  const h = { heroId: 3, displayName: "Tracer", roleName: "Damage", shrunkWinRate: 0.5, winRate: 0.5, pickrate: 0.05, totalMatches: 1000, kills: 10, deaths: 5, heroHref: "/stats/overwatch/heroes/tracer" };
+  const tierText = `"canonicalTiers":[{"tier":"S","heroes":[${JSON.stringify(h)}]}] "windows":[]`;
+  const mapsText = `"rows":[{"cleanedMapName":"Rialto","mapSlug":"rialto","gameModeName":"Escort","sharePct":"4.6%","totalMatches":10,"topHeroes":{"mostPlayed":[],"bestPerforming":[]}}]`;
+  const picksText = `"canonicalPicks":[{"role":"Tank","top":{"hero":${JSON.stringify(h)},"why":["w"]},"mentions":[]}]`;
+  const cached = {
+    fetchedAt: Date.now() - 2 * 24 * 3600_000,
+    source: "counterwatch.gg",
+    url: "https://www.counterwatch.gg/stats/overwatch",
+    tiers: [{ tier: "A", heroes: [{ id: 1, name: "Old", slug: "old", role: "Tank", winRate: 0.5, pickRate: 0.1, matches: 1, img: null, kd: null }] }],
+    maps: [{ name: "Old Map", slug: "old", mode: "Control", share: 0.1, matches: 1, mostPlayed: [], best: [] }],
+    picks: [],
+    modes: {
+      "5v5": {
+        tiers: [{ tier: "A", heroes: [{ id: 1, name: "Old", slug: "old", role: "Tank", winRate: 0.5, pickRate: 0.1, matches: 1, img: null, kd: null }] }],
+        maps: [{ name: "Old Map", slug: "old", mode: "Control", share: 0.1, matches: 1, mostPlayed: [], best: [] }],
+        picks: [],
+      },
+    },
+  };
+  let release;
+  const gate = new Promise((r) => {
+    release = r;
+  });
+  const respond = (body) => ({ ok: true, status: 200, text: async () => rsc(body), json: async () => ({}) });
+  const fakeFetch = async (url) => {
+    const u = String(url);
+    if (u.includes("tier-list") && !u.includes("6v6")) {
+      await gate;
+      return respond(tierText);
+    }
+    if (u.endsWith("/maps")) return respond(mapsText);
+    if (u.includes("best-onetricks")) return respond(picksText);
+    if (u.includes("tier-list/6v6")) return respond(tierText);
+    return { ok: false, status: 500, text: async () => "", json: async () => ({}) };
+  };
+  const cw = createCounterwatch({}, () => {}, {
+    file: "fake-counterwatch-warm.json",
+    fetch: fakeFetch,
+    pause: async () => {},
+    readJson: () => structuredClone(cached),
+    writeJson: () => {},
+  });
+  const job = cw.refresh({ force: true });
+  const mid = cw.snapshot("5v5");
+  assert.equal(mid.updating, true);
+  assert.equal(mid.tiers[0].heroes[0].name, "Old", "boot/cards still see the warm cache");
+  assert.ok(mid.fetchedAt, "fetchedAt stays set while updating");
+  release();
+  const done = await job;
+  assert.equal(done.updating, false);
+  assert.equal(done.tiers[0].heroes[0].name, "Tracer");
+});
+
+test("5v5 is published before the 6v6 half of a cold scrape finishes", async () => {
+  const rsc = (text) => `<script>self.__next_f.push([1,${JSON.stringify(text)}])</script>`;
+  const h = { heroId: 3, displayName: "Tracer", roleName: "Damage", shrunkWinRate: 0.5, winRate: 0.5, pickrate: 0.05, totalMatches: 1000, kills: 10, deaths: 5, heroHref: "/stats/overwatch/heroes/tracer" };
+  const h6 = { ...h, displayName: "Tracer6", heroId: 4 };
+  const tierText = `"canonicalTiers":[{"tier":"S","heroes":[${JSON.stringify(h)}]}] "windows":[]`;
+  const tier6Text = `"canonicalTiers":[{"tier":"S","heroes":[${JSON.stringify(h6)}]}] "windows":[]`;
+  const mapsText = `"rows":[{"cleanedMapName":"Rialto","mapSlug":"rialto","gameModeName":"Escort","sharePct":"4.6%","totalMatches":10,"topHeroes":{"mostPlayed":[],"bestPerforming":[]}}]`;
+  const picksText = `"canonicalPicks":[{"role":"Tank","top":{"hero":${JSON.stringify(h)},"why":["w"]},"mentions":[]}]`;
+  let release6;
+  const gate6 = new Promise((r) => {
+    release6 = r;
+  });
+  let resolveSeen;
+  const seen5 = new Promise((r) => {
+    resolveSeen = r;
+  });
+  let saw5v5WhileBusy = false;
+  const respond = (body) => ({ ok: true, status: 200, text: async () => rsc(body), json: async () => ({}) });
+  const fakeFetch = async (url) => {
+    const u = String(url);
+    if (u.includes("tier-list/6v6")) {
+      const mid = cw.snapshot("5v5");
+      saw5v5WhileBusy = mid.updating === true && mid.tiers.length > 0 && mid.tiers[0].heroes[0].name === "Tracer";
+      resolveSeen();
+      await gate6;
+      return respond(tier6Text);
+    }
+    if (u.includes("tier-list")) return respond(tierText);
+    if (u.endsWith("/maps")) return respond(mapsText);
+    if (u.includes("best-onetricks")) return respond(picksText);
+    return { ok: false, status: 500, text: async () => "", json: async () => ({}) };
+  };
+  let cw;
+  cw = createCounterwatch({}, () => {}, {
+    file: "fake-counterwatch-early.json",
+    fetch: fakeFetch,
+    pause: async () => {},
+    readJson: () => null,
+    writeJson: () => {},
+  });
+  const job = cw.refresh({ force: true });
+  await seen5;
+  assert.equal(saw5v5WhileBusy, true, "5v5 snapshot is usable before 6v6 finishes");
+  release6();
+  const done = await job;
+  assert.ok(done.tiers.length);
+  assert.equal(cw.snapshot("6v6").tiers[0].heroes[0].name, "Tracer6");
 });
 
 test("a hero cached while a refresh is running survives the refresh commit", async () => {

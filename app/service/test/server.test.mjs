@@ -91,9 +91,9 @@ test("an allowlisted Origin is let through even though browsers label it cross-s
   assert.equal(bad.status, 403);
 });
 
-test("the Spotify sign-in callback may arrive cross-site with no Origin", async () => {
-  const r = await req("GET", "/api/spotify/callback?code=x&state=y", { headers: { "Sec-Fetch-Site": "cross-site" } });
-  assert.notEqual(r.status, 403);
+test("browser return callbacks may arrive cross-site with no Origin", async () => {
+  const spotify = await req("GET", "/api/spotify/callback?code=x&state=y", { headers: { "Sec-Fetch-Site": "cross-site" } });
+  assert.notEqual(spotify.status, 403);
 });
 
 test("same-origin, same-site, none and a missing Sec-Fetch-Site header are all allowed", async () => {

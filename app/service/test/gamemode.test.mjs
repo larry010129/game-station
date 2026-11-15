@@ -24,6 +24,12 @@ function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) 
     beforeSet: new Map(), // power GUID -> () => Error thrown without changing anything
     journalReadError: null, // makes the journal read throw (corrupt / locked file)
     journalReads: 0,
+    running: true, // is the game running
+    priority: "Normal", // the game's priority class
+    startAfter: 0, // the game starts after this many sleeps (0 = never changes)
+    sleeps: 0,
+    trimFails: null,
+    cleanFails: null,
   };
   const system = {
     detectOverwatch: async () => ({ exe: EXE, appId: "1" }),
@@ -47,7 +53,12 @@ function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) 
     },
     findProcesses: async () => [],
     closePolitely: async () => true,
-    isRunning: async () => true,
+    isRunning: async () => env.running,
+    getProcessPriority: async () => (env.running ? env.priority : null),
+    setProcessPriority: async (name, level) => {
+      env.calls.push(["setPriority", name, level]);
+      env.priority = level;
+    },
     gpuWord: () => "x",
   };
   const sensors = { setSlow: (v) => (env.slow = v) };
@@ -67,6 +78,21 @@ function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) 
       env.disk = JSON.parse(JSON.stringify(v));
     },
     launch: () => env.calls.push(["launch"]),
+    trim: async () => {
+      env.calls.push(["trim"]);
+      if (env.trimFails) throw env.trimFails;
+      return { freedMb: 40 };
+    },
+    cleanMemory: async () => {
+      env.calls.push(["cleanMemory"]);
+      if (env.cleanFails) throw env.cleanFails;
+      return { freedMb: 900 };
+    },
+    sleep: async () => {
+      env.sleeps++;
+      if (env.startAfter && env.sleeps >= env.startAfter) env.running = true;
+    },
+    priorityTries: 3,
     newId: () => `id-${++n}`,
   };
   const make = () => createGameMode({ closeApps: ["spotify.exe"] }, sensors, (m) => logs.push(m), deps);
@@ -419,4 +445,74 @@ test("cleanStep: only a string id from the known set gets through; the rest is a
   assert.deepEqual(cleanStep({ id: "gpu", label: "G", before: "a", after: "b", extra: 1 }), { id: "gpu", label: "G", before: "a", after: "b" });
   assert.deepEqual(cleanStep({ id: "poll", label: 5, before: {}, entryId: "e1" }), { id: "poll", label: "poll", entryId: "e1" });
   assert.equal(cleanStep({ id: "power", label: "x".repeat(500) }).label.length, 200);
+});
+
+test("trim and memory steps run their cleaners, and a refusal does not stop game mode", async () => {
+  const { env, logs, make } = makeEnv();
+  const gm = make();
+  await gm.applyStep(step("trim"));
+  await gm.applyStep(step("memory"));
+  assert.deepEqual(
+    env.calls.filter((c) => c[0] === "trim" || c[0] === "cleanMemory").map((c) => c[0]),
+    ["trim", "cleanMemory"],
+  );
+  assert.equal(env.disk.entries.find((e) => e.step.id === "memory").undo.freedMb, 900);
+
+  env.cleanFails = new Error("Administrator permission was declined.");
+  const again = make();
+  await again.restoreStep(step("memory"));
+  await again.applyStep(step("memory")); // does not throw
+  assert.match(logs.join(" | "), /system memory was not cleaned: Administrator permission was declined/);
+  assert.equal(env.disk.entries.find((e) => e.step.id === "memory").undo.unchanged, true);
+});
+
+test("priority step raises the game to High and puts the old priority back on undo", async () => {
+  const { env, make } = makeEnv();
+  const gm = make();
+  await gm.applyStep(step("priority"));
+  assert.equal(env.priority, "High");
+  assert.deepEqual(env.calls.find((c) => c[0] === "setPriority"), ["setPriority", "Overwatch.exe", "High"]);
+  await gm.restoreStep(step("priority"));
+  assert.equal(env.priority, "Normal");
+  assert.equal(env.disk.entries.length, 0);
+});
+
+test("priority step waits for the game to start, then raises it", async () => {
+  const { env, make } = makeEnv();
+  env.running = false;
+  env.startAfter = 2; // the game appears after the second wait
+  await make().applyStep(step("priority"));
+  assert.equal(env.sleeps, 2);
+  assert.equal(env.priority, "High");
+});
+
+test("priority step leaves the game alone if it never starts", async () => {
+  const { env, logs, make } = makeEnv();
+  env.running = false;
+  const gm = make();
+  await gm.applyStep(step("priority")); // does not throw
+  assert.equal(env.calls.some((c) => c[0] === "setPriority"), false);
+  assert.match(logs.join(" | "), /did not start/);
+  await gm.restoreStep(step("priority"));
+  assert.equal(env.calls.some((c) => c[0] === "setPriority"), false);
+});
+
+test("priority undo does nothing once the game has closed", async () => {
+  const { env, make } = makeEnv();
+  const gm = make();
+  await gm.applyStep(step("priority"));
+  env.running = false;
+  await gm.restoreStep(step("priority"));
+  assert.equal(env.calls.filter((c) => c[0] === "setPriority").length, 1);
+  assert.equal(env.disk.entries.length, 0);
+});
+
+test("the new steps are known ids, and the ranked profile lists them in order", async () => {
+  assert.deepEqual(cleanStep({ id: "priority", label: "x" }), { id: "priority", label: "x" });
+  assert.deepEqual(cleanStep({ id: "trim" }), { id: "trim", label: "trim" });
+  assert.deepEqual(cleanStep({ id: "memory" }), { id: "memory", label: "memory" });
+  const { make } = makeEnv();
+  const profiles = await make().describeProfiles();
+  assert.deepEqual(profiles[0].steps.map((s) => s.id), ["power", "close", "trim", "memory", "gpu", "poll", "launch", "priority"]);
+  assert.deepEqual(profiles[1].steps.map((s) => s.id), ["power", "close", "trim", "poll"]);
 });

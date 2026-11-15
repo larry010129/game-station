@@ -114,3 +114,20 @@ test("stop() kills the helper, forgets it, and never starts another", async () =
   assert.deepEqual(await media.status(), { available: false, error: "no answer" });
   assert.equal(spawn.calls.length, 1); // stopped: no new helper
 });
+
+test("toasts asks the helper for the toast list (force asks for all of it) and returns a plain object", async () => {
+  const { spawn, media } = mk();
+  const p = media.toasts();
+  await flush();
+  const child = spawn.calls[0].child;
+  child.stdout.write(line({ toasts: true, unchanged: true }));
+  assert.deepEqual(await p, { toasts: true, unchanged: true });
+  const q = media.toasts(true);
+  await flush();
+  child.stdout.write("[1]\n"); // not an object: no usable answer
+  assert.equal(await q, null);
+  const r = media.toasts();
+  await flush();
+  child.stdout.write("not json\n");
+  assert.equal(await r, null);
+});

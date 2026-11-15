@@ -1,11 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseAnswer, createAi, AUTH_ERROR, looksSignedOut } from "../ai.mjs";
+import { parseAnswer, createAi, AUTH_ERROR, looksSignedOut, defaultEngineId, resolveEngineId } from "../ai.mjs";
 import { fakeSpawner, flush } from "./fakeChild.mjs";
 
 // Every createAi in this file gets in-memory storage: no test reads or writes ai-research.json / ai-auto.json.
 const memory = (extra = {}) => ({ readJson: (_f, d) => d, writeJson: () => {}, ...extra });
 const mkAi = (busy, extra) => createAi(() => {}, busy, memory(extra));
+
+test("default engine is the first registered engine, not a Claude hardcode", () => {
+  assert.equal(defaultEngineId(), "antigravity");
+  assert.equal(resolveEngineId(undefined), "antigravity");
+  assert.equal(resolveEngineId("nope"), "antigravity");
+  assert.equal(resolveEngineId("gemini"), "antigravity");
+  assert.equal(resolveEngineId("claude"), "claude");
+  const st = mkAi().status();
+  assert.equal(st.auto.engine, defaultEngineId());
+  assert.equal(st.auto.enabled, false);
+});
 
 test("parseAnswer reads JSON wrapped in a fence and cleans each item", () => {
   const text = 'Here you go:\n```json\n{"summary":"S","items":[{"title":"A","status":"leak","summary":"x","source":"Reddit","url":"https://r.example/1","date":"2026-11-01"},{"title":"B","status":"made-up","url":"javascript:alert(1)"},{"nope":1}]}\n```';
@@ -33,9 +44,10 @@ test("start rejects bad input before running anything", () => {
 test("setAuto validates the engine and reports the hourly schedule", () => {
   const ai = mkAi();
   assert.throws(() => ai.setAuto({ engine: "nope" }), /Unknown AI engine/);
-  const st = ai.setAuto({ enabled: false, engine: "gemini" });
+  const st = ai.setAuto({ enabled: false, engine: "antigravity" });
   assert.equal(st.auto.enabled, false);
-  assert.equal(st.auto.engine, "gemini");
+  assert.equal(st.auto.engine, "antigravity");
+  assert.equal(ai.setAuto({ engine: "gemini" }).auto.engine, "antigravity"); // legacy id
   ai.setAuto({ enabled: true, engine: "claude" });
 });
 
@@ -136,4 +148,9 @@ test("the busy dependency is a named argument and is not part of the test deps",
   assert.equal(typeof ai.status().auto.enabled, "boolean");
   assert.equal(busyCalls, 0); // only asked by the hourly tick
   ai.stop();
+});
+
+test("parseAnswer keeps the model's upcoming mark, and only a real true", () => {
+  const a = parseAnswer(JSON.stringify({ summary: "s", items: [{ title: "a", status: "leak", upcoming: true }, { title: "b", status: "leak", upcoming: "yes" }, { title: "c", status: "leak" }] }));
+  assert.deepEqual(a.items.map((i) => i.upcoming), [true, false, false]);
 });

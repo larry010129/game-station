@@ -1,85 +1,86 @@
-import test, { mock } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { createToasts } from "../toasts.mjs";
-import { fakeSpawner, flush } from "./fakeChild.mjs";
 
-const mk = () => {
-  const spawn = fakeSpawner();
-  const toasts = createToasts(() => {}, { spawnSafe: spawn, platform: "win32" });
-  return { spawn, toasts };
-};
+const flush = () => new Promise((r) => setImmediate(r));
 
-test("restart delay doubles 4s, 8s, 16s and resets to 4s after a healthy run", () => {
-  mock.timers.enable({ apis: ["setTimeout", "Date"] });
-  try {
-    const { spawn, toasts } = mk();
-    toasts.start();
-    assert.equal(spawn.calls.length, 1);
+/** A `read` that answers from a queue and remembers whether each call asked for the whole list. */
+function mk(answers) {
+  const calls = [];
+  const logs = [];
+  const queue = [...answers];
+  const read = async (force) => {
+    calls.push(force);
+    const next = queue.length > 1 ? queue.shift() : queue[0];
+    if (next instanceof Error) throw next;
+    return next;
+  };
+  const toasts = createToasts((m) => logs.push(m), { read, platform: "win32", everyMs: 60_000 });
+  return { calls, logs, toasts };
+}
 
-    spawn.calls[0].child.finish(1); // dies at once: next start in 4 s
-    assert.equal(toasts.snapshot().access, "error");
-    mock.timers.tick(3999);
-    assert.equal(spawn.calls.length, 1);
-    mock.timers.tick(1);
-    assert.equal(spawn.calls.length, 2);
-
-    spawn.calls[1].child.finish(1); // next in 8 s
-    mock.timers.tick(7999);
-    assert.equal(spawn.calls.length, 2);
-    mock.timers.tick(1);
-    assert.equal(spawn.calls.length, 3);
-
-    spawn.calls[2].child.finish(1); // next in 16 s
-    mock.timers.tick(15999);
-    assert.equal(spawn.calls.length, 3);
-    mock.timers.tick(1);
-    assert.equal(spawn.calls.length, 4);
-
-    // A helper that lived over 30 s is healthy: the delay goes back to 4 s.
-    mock.timers.tick(31_000);
-    spawn.calls[3].child.finish(1);
-    mock.timers.tick(3999);
-    assert.equal(spawn.calls.length, 4);
-    mock.timers.tick(1);
-    assert.equal(spawn.calls.length, 5);
-    toasts.stop();
-  } finally {
-    mock.timers.reset();
-  }
+test("a list becomes the snapshot, and an 'unchanged' answer keeps it", async () => {
+  const { calls, toasts } = mk([
+    { toasts: true, access: "allowed", items: [{ app: "Discord" }], error: null },
+    { toasts: true, unchanged: true },
+  ]);
+  toasts.start();
+  await flush();
+  assert.equal(toasts.snapshot().access, "allowed");
+  assert.equal(toasts.snapshot().items.length, 1);
+  assert.deepEqual(calls, [true]); // the first ask is for the whole list (nothing is known yet)
+  toasts.stop();
 });
 
-test("exit and error from the same helper schedule only one restart", () => {
-  mock.timers.enable({ apis: ["setTimeout", "Date"] });
-  try {
-    const { spawn, toasts } = mk();
-    toasts.start();
-    const c = spawn.calls[0].child;
-    c.emit("error", new Error("x"));
-    c.finish(1);
-    mock.timers.tick(4000);
-    assert.equal(spawn.calls.length, 2);
-    mock.timers.tick(60_000);
-    assert.equal(spawn.calls.length, 2);
-    toasts.stop();
-  } finally {
-    mock.timers.reset();
-  }
+test("while the last answer was not a good one the whole list is asked for", async () => {
+  const { calls, toasts } = mk([null, { toasts: true, access: "allowed", items: [], error: null }]);
+  toasts.start();
+  await flush();
+  assert.equal(toasts.snapshot().access, "error"); // no answer: shown as an error, not as an empty list
+  assert.match(toasts.snapshot().error, /did not answer/);
+  assert.deepEqual(calls, [true]);
+  toasts.stop();
 });
 
-test("a notification line becomes the snapshot; stop() prevents restarts", async () => {
-  mock.timers.enable({ apis: ["setTimeout", "Date"] });
-  try {
-    const { spawn, toasts } = mk();
-    toasts.start();
-    spawn.calls[0].child.stdout.write(JSON.stringify({ access: "allowed", items: [{ app: "Discord" }] }) + "\n");
-    await flush();
-    assert.equal(toasts.snapshot().access, "allowed");
-    assert.equal(toasts.snapshot().items.length, 1);
-    toasts.stop();
-    spawn.calls[0].child.finish(0);
-    mock.timers.tick(10 * 60_000);
-    assert.equal(spawn.calls.length, 1);
-  } finally {
-    mock.timers.reset();
-  }
+test("a read that throws is reported once and shown as an error", async () => {
+  const { logs, toasts } = mk([new Error("pipe closed")]);
+  toasts.start();
+  await flush();
+  assert.equal(toasts.snapshot().access, "error");
+  assert.match(toasts.snapshot().error, /pipe closed/);
+  assert.equal(logs.length, 1);
+  toasts.stop();
+});
+
+test("a denied listener is passed through; items are capped at 40", async () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({ id: String(i) }));
+  const a = mk([{ toasts: true, access: "denied", items: [], error: null }]);
+  a.toasts.start();
+  await flush();
+  assert.equal(a.toasts.snapshot().access, "denied");
+  a.toasts.stop();
+  const b = mk([{ toasts: true, access: "allowed", items: many, error: null }]);
+  b.toasts.start();
+  await flush();
+  assert.equal(b.toasts.snapshot().items.length, 40);
+  b.toasts.stop();
+});
+
+test("an answer that is not a toast reply is not trusted; stop() ends the polling", async () => {
+  const { calls, toasts } = mk([{ available: false }]);
+  toasts.start();
+  await flush();
+  assert.equal(toasts.snapshot().access, "error");
+  toasts.stop();
+  const before = calls.length;
+  toasts.start(); // stopped for good
+  await flush();
+  assert.equal(calls.length, before);
+});
+
+test("off Windows there is nothing to read", () => {
+  const toasts = createToasts(() => {}, { read: async () => ({}), platform: "linux" });
+  toasts.start();
+  assert.equal(toasts.snapshot().access, "unsupported");
+  toasts.stop();
 });

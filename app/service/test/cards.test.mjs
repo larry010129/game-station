@@ -81,9 +81,32 @@ test("jitter and loss: nothing answered", () => {
 });
 
 test("Steam news: maps items and converts seconds to milliseconds", () => {
-  const out = parseNews({ appnews: { newsitems: [{ gid: 7, title: "Update", url: "https://x/y", date: 1000, feedlabel: "Community Announcements" }] } });
-  assert.deepEqual(out, [{ id: "7", title: "Update", url: "https://x/y", date: 1_000_000, source: "Community Announcements" }]);
+  const out = parseNews({
+    appnews: {
+      newsitems: [
+        { gid: 7, title: "Update", url: "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/7", date: 1000, feedlabel: "Community Announcements", feedname: "steam_community_announcements" },
+      ],
+    },
+  });
+  assert.deepEqual(out, [
+    { id: "7", title: "Update", url: "https://store.steampowered.com/news/app/2357570/view/7", date: 1_000_000, source: "Community Announcements" },
+  ]);
   assert.deepEqual(parseNews({}), []);
+});
+
+test("Steam news: drops .ru sources and rewrites to store.steampowered.com", () => {
+  const out = parseNews({
+    appnews: {
+      newsitems: [
+        { gid: 1, title: "RU junk", url: "https://steamstore-a.akamaihd.net/news/externalpost/PlayGround.ru/1", date: 100, feedlabel: "PlayGround.ru", feedname: "PlayGround.ru - группа" },
+        { gid: 2, title: "RU host", url: "https://store.steampowered.ru/news/2", date: 200, feedlabel: "Community Announcements", feedname: "steam_community_announcements" },
+        { gid: 3, title: "Keep", url: "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/3", date: 300, feedlabel: "Community Announcements", feedname: "steam_community_announcements" },
+      ],
+    },
+  });
+  assert.deepEqual(out, [
+    { id: "3", title: "Keep", url: "https://store.steampowered.com/news/app/2357570/view/3", date: 300_000, source: "Community Announcements" },
+  ]);
 });
 
 test("patch notes: heroes get a buff or nerf count from the wording", () => {
