@@ -12,6 +12,7 @@ import { feedCacheFileFor, feedConfigFor, normalizeGame } from "./games.mjs";
 import { createGameMode } from "./gamemode.mjs";
 import { createMedia } from "./media.mjs";
 import { createSpotify } from "./spotify.mjs";
+import { createPatreon } from "./patreon.mjs";
 import { createNetStats } from "./netstats.mjs";
 import { createPlayers } from "./players.mjs";
 import { createSessions } from "./sessions.mjs";
@@ -72,6 +73,7 @@ const ai = createAi(log, () => Boolean(sensors.state.game), {}, {
 });
 const media = createMedia(log);
 const spotify = createSpotify(log, () => server.port());
+const patreon = createPatreon(log, () => server.port());
 const netStats = createNetStats(config, log);
 const sysStats = createSysStats(log);
 const steam = createSteam(log, config);
@@ -87,7 +89,7 @@ const discord = createDiscord(log);
 let machine = { name: "This PC", cpu: "CPU", gpu: "GPU" };
 
 const routes = createRoutes({
-  config, sensors, gameMode, sessions, feedOf, metaOf, players, ai, netStats, sysStats, steam, cost, waveLink, trim, library, settings, discord, toasts, media, spotify,
+  config, sensors, gameMode, sessions, feedOf, metaOf, players, ai, netStats, sysStats, steam, cost, waveLink, trim, library, settings, discord, toasts, media, spotify, patreon,
   machine: () => machine,
   port: () => server.port(),
 });
@@ -102,7 +104,7 @@ const server = createServer({
 
 // Modules with a stop() because they own a timer, socket or child process. spotify, library and steam hold
 // neither (one-shot requests only): add them here if that changes. Shutdown and the port-in-use exit stop this list.
-const stoppable = { sensors, feedOw, feedApex, players, ai, metaOw, metaApex, netStats, sessions, media, toasts, discord };
+const stoppable = { sensors, feedOw, feedApex, players, ai, metaOw, metaApex, netStats, sessions, media, toasts, discord, patreon };
 function stopAll() {
   for (const [name, mod] of Object.entries(stoppable)) {
     try {
@@ -132,6 +134,7 @@ async function main() {
   netStats.start();
   sessions.start();
   toasts.start();
+  patreon.start();
   sensors
     .machine()
     .then((m) => (machine = m))

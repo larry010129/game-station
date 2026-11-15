@@ -26,6 +26,7 @@ import { useNav } from "./layout/useNav";
 import { Backdrop } from "./components/Backdrop";
 import { usePlayers } from "./state/usePlayers";
 import { TopBar } from "./components/TopBar";
+import { refreshPatreon } from "./state/patreon";
 import { trackQuest, useQuestTracking } from "./state/useQuests";
 import { useToast } from "./state/Toast";
 import { isQuiet, usePerformanceGate, useStoredFlag } from "./state/useEnvironment";
@@ -118,6 +119,12 @@ function StationApp({
   // Only the running game is read here; the rest of each reading is picked up by the cards that show it.
   const game = useSample(store, (s) => s.game);
   useQuestTracking(game);
+  // Mirror the Patreon unlocks (the service re-checks Patreon on its own schedule).
+  useEffect(() => {
+    void refreshPatreon();
+    const id = window.setInterval(() => void refreshPatreon(), 5 * 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   const activeGame = useActiveGame();
   const onNewStories = useCallback(
     (fresh: FeedItem[]) => {

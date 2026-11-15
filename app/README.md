@@ -97,6 +97,11 @@ Base URL `http://127.0.0.1:8787`. It binds to 127.0.0.1 only and accepts browser
 | `POST /api/spotify/login` | Start the browser sign-in |
 | `GET /api/spotify/callback` | The sign-in redirect target (HTML, used by the browser only) |
 | `POST /api/spotify/logout` | Forget the Spotify sign-in |
+| `GET /api/patreon` | Patreon sign-in state: whether sign-in is set up, who is signed in, their tier and whether it unlocks Basic (all preset looks) and Brand (the brand-colour editor) |
+| `POST /api/patreon/login` | Opens Patreon in the browser to sign in. 501 when this build has no Patreon app set up |
+| `GET /api/patreon/callback` | The sign-in redirect target (HTML, used by the browser only) |
+| `POST /api/patreon/check` | Asks Patreon which tier the signed-in account pays now |
+| `POST /api/patreon/logout` | Forgets the Patreon sign-in |
 | `POST /api/spotify/control` | Play, pause, next, previous, seek, volume, shuffle (`on` must be a boolean), repeat, playlist, transfer. Body: `action` plus its arguments |
 | `POST /api/memory/clean` | Free RAM (Windows only; may show a UAC prompt) |
 | `GET /api/wavelink` | Elgato Wave Link 3 mixer: mixes, channels and microphones with their levels and mute state. `{ "state": "offline" }` when Wave Link is not running. Uses the unofficial local WebSocket of Wave Link, which an update can change |

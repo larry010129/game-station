@@ -1,3 +1,4 @@
+import { usePatreonEntitlement } from "./patreon";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { readJson, readString, removeKey, writeJson, writeString } from "../lib/storage";
 import { deletePicture, loadPicture, savePicture } from "./imageStore";
@@ -233,7 +234,9 @@ export function useTheme() {
     };
   }, []);
 
-  const unlocked = useMemo(() => UNLOCKABLES.filter((t) => unlocks.includes(t.id)), [unlocks]);
+  // Patreon Basic opens every preset look without writing to the earned unlocks, so cancelling never takes an earned look away.
+  const { basic } = usePatreonEntitlement();
+  const unlocked = useMemo(() => UNLOCKABLES.filter((t) => basic || unlocks.includes(t.id)), [unlocks, basic]);
   const all = useMemo(() => [...CATALOG, ...unlocked, ...modules], [unlocked, modules]);
   const active = all.find((t) => t.id === id) ?? CHARCOAL;
 

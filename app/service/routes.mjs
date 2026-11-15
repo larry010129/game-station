@@ -8,7 +8,7 @@ import { proxyApexImg } from "./apex-img.mjs";
  * (`machine()` and `port()` are functions because both change after start-up). Nothing here starts a timer or a process.
  */
 export function createRoutes(d) {
-  const { config, sensors, gameMode, sessions, feedOf, metaOf, players, ai, netStats, sysStats, steam, cost, waveLink, trim, library, settings, discord, toasts, media, spotify, machine, port } = d;
+  const { config, sensors, gameMode, sessions, feedOf, metaOf, players, ai, netStats, sysStats, steam, cost, waveLink, trim, library, settings, discord, toasts, media, spotify, patreon, machine, port } = d;
 
   /** Apply or restore one game-mode step and record the outcome in the session history. */
     async function runStep(kind, body, action) {
@@ -135,6 +135,11 @@ export function createRoutes(d) {
       "POST /api/spotify/login": async () => spotify.login(),
       "GET /api/spotify/callback": async (_body, url) => spotify.callback(url),
       "POST /api/spotify/logout": async () => spotify.logout(),
+      "GET /api/patreon": async () => patreon.status(),
+      "POST /api/patreon/login": async () => patreon.login(),
+      "GET /api/patreon/callback": async (_body, url) => patreon.callback(url),
+      "POST /api/patreon/check": async () => patreon.check(),
+      "POST /api/patreon/logout": async () => patreon.logout(),
       "POST /api/spotify/control": async (body) => spotify.control(body?.action, body ?? {}),
       "POST /api/memory/clean": async () => cleanMemory(),
       "GET /api/profiles": async () => ({ profiles: await gameMode.describeProfiles() }),

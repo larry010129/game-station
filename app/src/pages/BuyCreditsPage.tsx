@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 /** Official yellow mark: https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png */
 import bmcButton from "../assets/bmc-default-yellow.png";
+import { PatreonSection } from "../components/PatreonSection";
 import { openLink } from "../lib/openLink";
 import {
   BUY_ME_A_COFFEE_URL,
@@ -54,6 +55,8 @@ export function BuyCreditsPage() {
           Thanks — Buy Me a Coffee opened in your browser. Your {CREDIT_NAME} balance is unchanged.
         </p>
       )}
+
+      <PatreonSection />
 
       <SupportConfirmDialog open={confirmOpen} onClose={() => setConfirmOpen(false)} onConfirm={() => void openSupport()} />
     </section>

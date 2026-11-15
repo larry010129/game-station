@@ -13,6 +13,7 @@ import {
   spendCredits,
 } from "../state/stationCredits";
 import { CATALOG, NIGHTSTEEL, THEME_GROUPS, UNLOCKABLES } from "../state/themeCatalog";
+import { usePatreonEntitlement } from "../state/patreon";
 import { takePick, useQuests } from "../state/useQuests";
 import type { useTheme } from "../state/useTheme";
 
@@ -437,7 +438,9 @@ export function ThemesPage({ look }: { look: Look }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
-  const nightsteelUnlocked = look.unlocks.includes(NIGHTSTEEL.id);
+  // Patreon Basic opens every preset look; an earned unlock (weekly pick, Credits) is kept separately and survives cancelling.
+  const { basic, brand } = usePatreonEntitlement();
+  const nightsteelUnlocked = basic || look.unlocks.includes(NIGHTSTEEL.id);
 
   const groups = useMemo(() => {
     const extra = look.modules.length ? ["Yours"] : [];
@@ -448,7 +451,7 @@ export function ThemesPage({ look }: { look: Look }) {
 
   const themes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const unlocked = UNLOCKABLES.filter((t) => nightsteelUnlocked && look.unlocks.includes(t.id));
+    const unlocked = UNLOCKABLES.filter((t) => basic || look.unlocks.includes(t.id));
     const list = [...CATALOG, ...unlocked, ...look.modules].filter((t) => {
       if (group === "Favourites") return look.favs.includes(t.id);
       if (group === "Recent") return look.recent.includes(t.id);
@@ -467,7 +470,7 @@ export function ThemesPage({ look }: { look: Look }) {
       return [...starred, ...rest, ...gated];
     }
     return list;
-  }, [group, look.favs, look.modules, look.recent, look.unlocks, query]);
+  }, [group, look.favs, look.modules, look.recent, look.unlocks, basic, query]);
 
   // Hover preview: the page tries a theme on after a short hover and drops it on leave. Off by default.
   const hoverTimer = useRef(0);
@@ -640,7 +643,11 @@ export function ThemesPage({ look }: { look: Look }) {
         <section className="vault-card" aria-label="Create a theme">
           <h3>Create</h3>
           <p className="hint">Build a look on this PC. It stays in Yours.</p>
-          {!making ? (
+          {!brand ? (
+            <p className="hint" role="status">
+              The brand-colour editor comes with the Silver tier and above, and with Creator access. Credits and weekly unlocks cannot open it. Log in with Patreon on the Support page.
+            </p>
+          ) : !making ? (
             <button type="button" className="pill-btn" onClick={startCreate}>
               New theme
             </button>
