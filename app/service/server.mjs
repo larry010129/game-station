@@ -27,10 +27,11 @@ export function createServer({ host, port, handlers, log, allowedOrigins = [] })
     // Browsers label every request. The dashboard itself is "cross-site" to the service (localhost:1420 or
     // tauri.localhost calling 127.0.0.1:8787), so an allowlisted Origin is authorised on its own. What this
     // catches is a cross-site request with NO Origin (a no-cors GET from a random page); non-browser clients send
-    // no header at all and are still welcome. The Spotify sign-in redirect is a cross-site navigation by nature;
-    // it is protected by the OAuth `state` check instead.
-    const isSpotifyCallback = req.method === "GET" && req.url?.split("?")[0] === "/api/spotify/callback";
-    if (req.headers["sec-fetch-site"] === "cross-site" && origin === undefined && !isSpotifyCallback) {
+    // no header at all and are still welcome. Browser redirects back to this service (Spotify OAuth) are
+    // cross-site navigations by nature; each handler verifies its own token/session.
+    const pathOnly = req.url?.split("?")[0] ?? "";
+    const isBrowserReturn = req.method === "GET" && pathOnly === "/api/spotify/callback";
+    if (req.headers["sec-fetch-site"] === "cross-site" && origin === undefined && !isBrowserReturn) {
       send(res, 403, { error: "Forbidden cross-site request" });
       return;
     }
@@ -79,9 +80,18 @@ export function createServer({ host, port, handlers, log, allowedOrigins = [] })
       }
       const result = await handler(body, url);
       if (result && typeof result.__html === "string") {
-        // Only the Spotify sign-in landing page answers with HTML.
+        // Browser return pages (Spotify OAuth) answer with HTML.
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store" });
         res.end(result.__html);
+        return;
+      }
+      if (result && result.__bytes instanceof Uint8Array) {
+        res.writeHead(200, {
+          "Content-Type": result.__type || "application/octet-stream",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": result.__cache || "public, max-age=86400",
+        });
+        res.end(Buffer.from(result.__bytes));
         return;
       }
       send(res, 200, result);

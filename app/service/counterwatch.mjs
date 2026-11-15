@@ -120,6 +120,13 @@ export function createCounterwatch(config, log, deps = {}) {
     return picks.map((p) => ({ ...p, top: fill(p.top), others: p.others.map(fill).filter((h) => h.name) }));
   }
 
+  /** Publish the in-progress scrape so cards/boot can use what we have while `busy` stays set. */
+  function publish(partial) {
+    data = partial;
+    error = null;
+    write(file, data);
+  }
+
   async function run() {
     const next = {
       fetchedAt: Date.now(),
@@ -131,12 +138,26 @@ export function createCounterwatch(config, log, deps = {}) {
     next.tiers = tier.tiers;
     next.patch = tier.patch;
     next.season = tier.season;
+    next.timeline = tier.timeline;
     next.maps = parseMaps(await getPage(`${BASE}/maps`));
     await wait(PAUSE_MS);
     next.picks = parsePicks(await getPage(`${BASE}/best-onetricks`));
     // The picks page names heroes only by id; the tier list knows their display names and portraits.
     const known5 = new Map(next.tiers.flatMap((t) => t.heroes).map((h) => [h.id, h]));
     next.picks = fillPicks(next.picks, known5);
+    // 5v5 is enough for the default cards. Publish now so boot/cards are not held for 6v6.
+    publish({
+      ...next,
+      modes: {
+        "5v5": { tiers: next.tiers, maps: next.maps, picks: next.picks },
+        "6v6": data?.modes?.["6v6"] ?? { tiers: [], maps: [], picks: [] },
+      },
+      heroes: data?.heroes ?? {},
+      mapPages: data?.mapPages ?? {},
+      ranks: data?.ranks ?? {},
+      artifact: data?.artifact ?? null,
+    });
+    log(`counterwatch: 5v5 ready (${next.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes, ${next.maps.length} maps); fetching 6v6…`);
     await wait(PAUSE_MS);
     const tier6 = parseTierList(await getPage(`${BASE}/tier-list/6v6`));
     await wait(PAUSE_MS);
@@ -173,9 +194,7 @@ export function createCounterwatch(config, log, deps = {}) {
     next.mapPages = data?.mapPages ?? {};
     next.ranks = data?.ranks ?? {};
     next.artifact = data?.artifact ?? null;
-    data = next;
-    error = null;
-    write(file, data);
+    publish(next);
     log(
       `counterwatch: updated 5v5 (${next.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes, ${next.maps.length} maps) · 6v6 (${tier6.tiers.reduce((n, t) => n + t.heroes.length, 0)} heroes, ${maps6.length} maps)`,
     );
@@ -224,6 +243,7 @@ export function createCounterwatch(config, log, deps = {}) {
       url: rest.url ?? BASE,
       patch: rest.patch ?? null,
       season: rest.season ?? null,
+      timeline: rest.timeline ?? [],
       mode: pack.mode,
       tiers: pack.tiers ?? [],
       maps: pack.maps ?? [],

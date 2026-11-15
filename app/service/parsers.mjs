@@ -8,6 +8,51 @@ export function decodeEntities(s) {
     .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, n) => ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " })[n]);
 }
 
+/** A headline that talks about a leak, datamine or rumour. */
+export const LEAKY = /\b(leak(?:s|ed|er|ers)?|datamin\w*|rumou?r\w*)\b/i;
+
+/** Names Overwatch (including #OW / #OW2 hashtags common on short image posts). */
+export const OVERWATCHY = /overwatch|\bOW2?\b|#OW\b/i;
+
+/**
+ * Another live-service game a multi-game leaker might post about. Used only to drop
+ * posts that name that game and never mention Overwatch.
+ */
+const OTHER_GAME_FOR_OW =
+  /\b(fortnite|valorant|apex\s*legends?|league\s*of\s*legends|genshin|marvel\s*rivals|call\s*of\s*duty|\bcod\b|warzone|destiny(?:\s*2)?|diablo|hearthstone|\bwow\b|world\s*of\s*warcraft|counter[\s-]*strike|\bcs2\b|rocket\s*league|pubg|teamfight\s*tactics|\btft\b)\b/i;
+
+/** Names Apex Legends (including short #Apex tags). */
+export const APEXY = /apex\s*legends?|\bapex\b|#apex\b/i;
+
+const OTHER_GAME_FOR_APEX =
+  /\b(fortnite|valorant|overwatch|\bOW2?\b|league\s*of\s*legends|genshin|marvel\s*rivals|call\s*of\s*duty|\bcod\b|warzone|destiny(?:\s*2)?|diablo|hearthstone|\bwow\b|world\s*of\s*warcraft|counter[\s-]*strike|\bcs2\b|rocket\s*league|pubg|teamfight\s*tactics|\btft\b)\b/i;
+
+/**
+ * Keep Overwatch posts (and short image posts that only say #OW2). Drop posts that
+ * clearly name another game and never mention Overwatch. Ambiguous text (no game named)
+ * is kept so a dedicated OW account is not emptied.
+ */
+export function isOverwatchPost(text) {
+  const t = String(text ?? "");
+  if (OVERWATCHY.test(t)) return true;
+  if (OTHER_GAME_FOR_OW.test(t)) return false;
+  return true;
+}
+
+/** Same idea as isOverwatchPost, for Apex-dedicated and multi-game channels. */
+export function isApexPost(text) {
+  const t = String(text ?? "");
+  if (APEXY.test(t)) return true;
+  if (OTHER_GAME_FOR_APEX.test(t)) return false;
+  return true;
+}
+
+/** The channel id (UC...) from a YouTube channel page, or from a youtube.com/channel/UC... link. */
+export function parseYouTubeChannelId(text) {
+  const m = /"channelId":"(UC[\w-]{20,})"/.exec(text) ?? /youtube\.com\/channel\/(UC[\w-]{20,})/.exec(text) ?? /<meta itemprop="identifier" content="(UC[\w-]{20,})"/.exec(text);
+  return m ? m[1] : null;
+}
+
 export function stripTags(s) {
   return decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
@@ -136,7 +181,8 @@ export function parseRedditAtom(xml, subreddit, kind) {
     out.push({
       id: `reddit-${idm ? idm[1] : link[1]}`,
       platform: "reddit",
-      kind,
+      // A community sub has no leak section any more: a post that talks about a leak or datamine counts as one.
+      kind: kind === "community" && LEAKY.test(title[1]) ? "leak" : kind,
       title: stripTags(title[1]),
       source: `r/${subreddit}`,
       publishedAt: Date.parse(when[1]),
@@ -147,8 +193,73 @@ export function parseRedditAtom(xml, subreddit, kind) {
   return out;
 }
 
+/**
+ * An X/Twitter account's RSS (from a Nitter or RSSHub bridge: x.com has no public feed). Posts link
+ * back to x.com, not the bridge. Retweets and replies are skipped: they are not the account's own news.
+ */
+export function parseXRss(xml, handle, kind = "leak") {
+  const out = [];
+  for (const e of xml.split(/<item[ >]/).slice(1)) {
+    const title = /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/.exec(e);
+    const link = /<link>(?:<!\[CDATA\[)?\s*([^<\]\s]+)/.exec(e);
+    const when = /<pubDate>([^<]+)<\/pubDate>/.exec(e);
+    if (!title || !link || !when) continue;
+    const text = stripTags(title[1]);
+    if (/^(RT\b|R to\b)/.test(text)) continue;
+    const id = /status\/(\d+)/.exec(link[1]);
+    const publishedAt = Date.parse(when[1]);
+    if (!id || !Number.isFinite(publishedAt)) continue;
+    out.push({
+      id: `x-${id[1]}`,
+      platform: "x",
+      kind,
+      title: text.length > 200 ? `${text.slice(0, 197)}…` : text,
+      source: `@${handle}`,
+      publishedAt,
+      summary: "",
+      url: `https://x.com/${handle}/status/${id[1]}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * Google News search RSS: one keyword search over many sites, no key or login. Titles come as
+ * "Headline - Publisher"; the publisher becomes the source. Links go through news.google.com.
+ */
+export function parseGoogleNewsRss(xml, kind = "leak") {
+  const out = [];
+  for (const e of xml.split(/<item[ >]/).slice(1)) {
+    const title = /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/.exec(e);
+    const link = /<link>(?:<!\[CDATA\[)?\s*([^<\]\s]+)/.exec(e);
+    const when = /<pubDate>([^<]+)<\/pubDate>/.exec(e);
+    const pub = /<source[^>]*>([\s\S]*?)<\/source>/.exec(e);
+    // The story link goes through news.google.com; the publisher's own address is what a "trusted website" must match.
+    const pubUrl = /<source[^>]*\burl="([^"]+)"/.exec(e);
+    if (!title || !link || !when) continue;
+    const publishedAt = Date.parse(when[1]);
+    if (!Number.isFinite(publishedAt)) continue;
+    const source = pub ? stripTags(pub[1]) : "News";
+    let text = stripTags(title[1]);
+    const suffix = ` - ${source}`;
+    if (text.endsWith(suffix)) text = text.slice(0, -suffix.length);
+    out.push({
+      id: `gn-${decodeEntities(link[1])}`,
+      platform: "news",
+      kind,
+      title: text.length > 200 ? `${text.slice(0, 197)}…` : text,
+      source,
+      publishedAt,
+      summary: "",
+      url: decodeEntities(link[1]),
+      ...(pubUrl ? { sourceUrl: decodeEntities(pubUrl[1]) } : {}),
+    });
+  }
+  return out;
+}
+
 /** A YouTube channel's public Atom feed (videos and Shorts). Each link goes to that exact video. */
-export function parseYouTubeAtom(xml, channelName = "YouTube") {
+export function parseYouTubeAtom(xml, channelName = "YouTube", channelKind = "video") {
   const out = [];
   for (const e of xml.split("<entry>").slice(1)) {
     const vid = /<yt:videoId>([^<]+)<\/yt:videoId>/.exec(e);
@@ -159,7 +270,7 @@ export function parseYouTubeAtom(xml, channelName = "YouTube") {
     out.push({
       id: `yt-${vid[1]}`,
       platform: "youtube",
-      kind: "video",
+      kind: channelKind === "leak" || LEAKY.test(title[1]) ? "leak" : "video",
       title: stripTags(title[1]),
       source: channelName,
       publishedAt: Date.parse(when[1]),

@@ -25,9 +25,9 @@
       "csp": {
         "default-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' asset: http://asset.localhost blob: data: https://efnrodzdhzvdgmctpjdx.supabase.co https://i.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com https://cdn.discordapp.com",
+        "img-src": "'self' asset: http://asset.localhost blob: data: http://127.0.0.1:8787 https://trackercdn.com https://*.trackercdn.com https://efnrodzdhzvdgmctpjdx.supabase.co https://i.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://image-cdn-fa.spotifycdn.com https://cdn.discordapp.com",
         "font-src": "'self' data:",
-        "connect-src": "'self' http://127.0.0.1:8787 ipc: http://ipc.localhost"
+        "connect-src": "'self' http://127.0.0.1:8787 ipc: http://ipc.localhost https://trackercdn.com https://*.trackercdn.com"
       }
     }
   },

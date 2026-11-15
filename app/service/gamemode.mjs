@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import * as realSystem from "./system.mjs";
 import { JOURNAL_FILE, readJsonStrict, writeJson } from "./paths.mjs";
 import { STEP_IDS } from "./settings.mjs";
@@ -51,6 +52,10 @@ const attempt = (fn, fallback) => Promise.resolve().then(fn).catch(() => fallbac
  *               (default: readJsonStrict); a throw means "journal unreadable", see below.
  *   keepBad     (file) => void, keeps an unreadable journal as <file>.bad
  *   launch      (overwatch) => void, starts the game
+ *   trim        () => Promise<{ freedMb }>, frees this app's own memory (default: does nothing)
+ *   cleanMemory () => Promise<{ freedMb }>, frees system memory; may ask for permission (default: does nothing)
+ *   sleep       (ms) => Promise, the wait between checks for the game to start
+ *   priorityTries  how many checks the priority step makes before giving up on the game starting
  *   newId       () => string, entry id generator
  *   now         () => number
  */
@@ -65,6 +70,10 @@ export function createGameMode(config, sensors, log, deps = {}) {
     });
   const write = deps.writeJson ?? writeJson;
   const launch = deps.launch ?? ((ow) => defaultLaunch(ow, log));
+  const trimApp = deps.trim ?? (async () => ({}));
+  const cleanSystemMemory = deps.cleanMemory ?? (async () => ({}));
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const priorityTries = deps.priorityTries ?? 30;
   const newId = deps.newId ?? randomUUID;
   const now = deps.now ?? Date.now;
 
@@ -132,6 +141,14 @@ export function createGameMode(config, sensors, log, deps = {}) {
       case "poll":
         sensors.setSlow(false);
         break;
+      case "priority":
+        // Priority resets itself when the game exits, so only put it back while the game is still running.
+        if (u.name && !u.unchanged && u.previous !== "High" && (await sys.isRunning(u.name))) await sys.setProcessPriority(u.name, u.previous ?? "Normal");
+        break;
+      case "trim":
+      case "memory":
+        // Freed memory cannot be given back, and does not need to be.
+        break;
       case "close":
       case "launch":
       case "obs":
@@ -187,11 +204,12 @@ export function createGameMode(config, sensors, log, deps = {}) {
 
   async function describeProfiles() {
     const ow = await ensureOverwatch();
-    const [overlay, gpu, closing, running] = await Promise.all([
+    const [overlay, gpu, closing, running, priority] = await Promise.all([
       sys.getPowerOverlay().catch(() => null),
       ow ? sys.getGpuPreference(ow.exe).catch(() => null) : null,
       attempt(() => sys.findProcesses(config.closeApps), []),
       ow ? attempt(() => sys.isRunning("Overwatch.exe"), false) : false,
+      ow ? attempt(() => sys.getProcessPriority(path.basename(ow.exe)), null) : null,
     ]);
     const overlayName = OVERLAYS[overlay] ?? (overlay ? overlay.slice(0, 8) : "Unknown");
 
@@ -212,6 +230,18 @@ export function createGameMode(config, sensors, log, deps = {}) {
           after: "Closed",
         },
         {
+          id: "trim",
+          label: "Free this app's own memory",
+          before: "In use",
+          after: "Trimmed",
+        },
+        {
+          id: "memory",
+          label: "Clean system memory (may ask permission)",
+          before: "In use",
+          after: "Cleaned",
+        },
+        {
           id: "gpu",
           label: "Run Overwatch on the high-performance GPU",
           before: sys.gpuWord(gpu),
@@ -229,17 +259,20 @@ export function createGameMode(config, sensors, log, deps = {}) {
           before: running ? "Running" : ow ? "Not running" : "Not installed",
           after: "Running",
         },
+        {
+          id: "priority",
+          label: "Raise Overwatch priority to High",
+          before: priority ?? (ow ? "Not running" : "Not installed"),
+          after: "High",
+        },
       ],
     };
+    const pick = (...ids) => ids.map((id) => ranked.steps.find((s) => s.id === id));
 
     const streaming = {
       id: "streaming",
       name: "Streaming",
-      steps: [
-        ranked.steps[0],
-        ranked.steps[1],
-        ranked.steps[3],
-      ],
+      steps: pick("power", "close", "trim", "poll"),
     };
 
     const off = new Set(config.disabledSteps ?? []);
@@ -262,6 +295,16 @@ export function createGameMode(config, sensors, log, deps = {}) {
       }
       case "poll":
         return { kind: "poll" };
+      case "trim":
+        return { kind: "trim" };
+      case "memory":
+        return { kind: "memory" };
+      case "priority": {
+        const ow = await ensureOverwatch();
+        if (!ow) throw new Error("Overwatch was not found on this PC.");
+        const name = path.basename(ow.exe);
+        return { kind: "priority", name, previous: (await sys.getProcessPriority(name)) ?? "Normal" };
+      }
       case "launch":
         return { kind: "launch" };
       case "obs":
@@ -344,6 +387,38 @@ export function createGameMode(config, sensors, log, deps = {}) {
       case "poll":
         sensors.setSlow(true);
         break;
+      // These two are nice to have: a refusal or a failure is logged, and game mode carries on.
+      case "trim":
+        try {
+          u.freedMb = (await trimApp())?.freedMb ?? 0;
+        } catch (e) {
+          u.unchanged = true;
+          log(`game mode: could not free this app's memory: ${e?.message ?? e}`);
+        }
+        break;
+      case "memory":
+        try {
+          u.freedMb = (await cleanSystemMemory())?.freedMb ?? 0;
+        } catch (e) {
+          u.unchanged = true;
+          log(`game mode: system memory was not cleaned: ${e?.message ?? e}`);
+        }
+        break;
+      case "priority": {
+        // The game may still be starting: wait for it, then raise it. If it never appears, leave it alone.
+        let up = await sys.isRunning(u.name);
+        for (let i = 0; !up && i < priorityTries; i++) {
+          await sleep(2000);
+          up = await sys.isRunning(u.name);
+        }
+        if (!up) {
+          u.unchanged = true;
+          log(`game mode: ${u.name} did not start, so its priority was left as it is`);
+          break;
+        }
+        await sys.setProcessPriority(u.name, "High");
+        break;
+      }
       case "launch": {
         const ow = await ensureOverwatch();
         if (!ow) throw new Error("Overwatch was not found on this PC.");

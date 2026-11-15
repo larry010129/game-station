@@ -158,6 +158,24 @@ export async function closePolitely(name) {
   }
 }
 
+const PRIORITIES = ["Idle", "BelowNormal", "Normal", "AboveNormal", "High"];
+
+/** The Windows priority class of a running program (the first copy), or null when it is not running. */
+export async function getProcessPriority(imageName) {
+  if (!validProcessName(imageName)) return null;
+  const name = imageName.replace(/\.exe$/i, "");
+  const out = await powershell(`$p=Get-Process -Name '${name}' -ErrorAction SilentlyContinue | Select-Object -First 1; if($p){$p.PriorityClass.ToString()}`);
+  const v = out.trim();
+  return PRIORITIES.includes(v) ? v : null;
+}
+
+/** Sets a running program's priority class. Only the listed classes are allowed; Realtime never is. */
+export async function setProcessPriority(imageName, level) {
+  if (!validProcessName(imageName) || !PRIORITIES.includes(level)) throw new Error("Invalid priority request");
+  const name = imageName.replace(/\.exe$/i, "");
+  await powershell(`Get-Process -Name '${name}' -ErrorAction Stop | ForEach-Object { $_.PriorityClass = '${level}' }`);
+}
+
 export async function isRunning(imageName) {
   try {
     const out = await run("tasklist", ["/FI", `IMAGENAME eq ${imageName}`, "/FO", "CSV", "/NH"]);

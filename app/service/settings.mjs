@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import { CONFIG_FILE, readJson, writeJson } from "./paths.mjs";
 import { isProtected, validProcessName } from "./system.mjs";
+import { DEFAULTS } from "./config.mjs";
+import { applyTracked, MAX_TRACKED, normalizeTrackedList } from "./tracked.mjs";
 
-export const STEP_IDS = ["power", "close", "gpu", "poll", "launch", "obs"];
+export const STEP_IDS = ["power", "close", "trim", "memory", "gpu", "poll", "launch", "priority", "obs"];
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
@@ -43,6 +45,20 @@ export function createSettings(config, log, deps = {}) {
     games: [...config.games],
     disabledSteps: [...(config.disabledSteps ?? [])],
     steps: STEP_IDS,
+    // Sources the user tracks (X, YouTube, Reddit, websites), built-in roles, and always-trusted names.
+    tracked: [...(config.feed?.tracked ?? [])],
+    builtin: DEFAULTS.feed.trusted.map((t) => ({ ...t })),
+    builtinX: DEFAULTS.feed.x.map((x) => {
+      const trust = DEFAULTS.feed.trusted.find((t) => t.name.toLowerCase() === x.handle.toLowerCase());
+      return { handle: x.handle, kind: x.kind, ...(trust ? { trusted: true, note: trust.note } : {}) };
+    }),
+    builtinYoutube: DEFAULTS.feed.youtube.map((y) => {
+      const kind = y.kind === "leak" ? "leak" : "video";
+      const trust = DEFAULTS.feed.trusted.find((t) => t.name.toLowerCase() === String(y.name).toLowerCase());
+      const match = [y.name, y.handle, y.channelId].filter(Boolean).map((s) => String(s).replace(/^@/, "").toLowerCase());
+      return { name: y.name, kind, match, ...(trust ? { trusted: true, note: trust.note } : {}) };
+    }),
+    builtinReddit: DEFAULTS.feed.reddit.map((r) => ({ sub: r.sub, kind: r.kind ?? "community" })),
   });
 
   return {
@@ -62,6 +78,13 @@ export function createSettings(config, log, deps = {}) {
         if (!Array.isArray(body.disabledSteps) || !body.disabledSteps.every((s) => STEP_IDS.includes(s))) throw bad("Unknown game-mode step");
         next.disabledSteps = [...new Set(body.disabledSteps)];
       }
+      let tracked;
+      if (body.tracked !== undefined) {
+        if (!Array.isArray(body.tracked) || body.tracked.length > MAX_TRACKED) throw bad(`Tracked sources must be a list of at most ${MAX_TRACKED}`);
+        const errors = [];
+        tracked = normalizeTrackedList(body.tracked, errors);
+        if (errors.length) throw bad(errors[0]);
+      }
       // The file may have been damaged after startup (a hand edit, a sync conflict). Look at the raw
       // text: readJson turns a parse failure into {}, and writing that back would erase the file.
       const raw = readText(file);
@@ -75,8 +98,20 @@ export function createSettings(config, log, deps = {}) {
       }
       // Merge into the file as it is on disk, so keys the dashboard does not know about are kept.
       const onDisk = read(file, {});
-      write(file, { ...(onDisk && typeof onDisk === "object" && !Array.isArray(onDisk) ? onDisk : {}), ...next });
+      const disk = onDisk && typeof onDisk === "object" && !Array.isArray(onDisk) ? onDisk : {};
+      const toWrite = { ...disk, ...next };
+      if (tracked) {
+        // Only feed.tracked changes; the rest of the user's feed block is kept as it is.
+        toWrite.feed = { ...(disk.feed && typeof disk.feed === "object" && !Array.isArray(disk.feed) ? disk.feed : {}), tracked };
+      }
+      write(file, toWrite);
       Object.assign(config, next);
+      if (tracked) {
+        config.feed ??= {};
+        config.feed.tracked = tracked;
+        applyTracked(config.feed); // live: the feed and the AI search read these lists on their next run
+        next.tracked = tracked;
+      }
       log(`settings saved: ${Object.keys(next).join(", ") || "nothing"}`);
       return view();
     },

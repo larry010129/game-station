@@ -7,6 +7,9 @@ import { killTree, spawnSafe } from "./spawn.mjs";
 /**
  * Reads this PC. Each source is optional: when one is missing its value stays
  * null and `notes` says why, so the dashboard never shows an invented number.
+ *
+ * nvidia-smi and typeperf sample once a second while the dashboard is live. Game
+ * mode or a hidden window slows them to every 3 s; the kill switch stops them.
  */
 export function createSensors(config, log, deps = {}) {
   // `deps` (tests only) swaps the child-process spawner and the system probes for fakes.
@@ -24,7 +27,12 @@ export function createSensors(config, log, deps = {}) {
     game: null,
     gateway: null,
     gpuName: null,
+    /** Game mode asked for a slower pace. */
     slow: false,
+    /** The window is hidden; same slower stream interval as game mode. */
+    clientSlow: false,
+    /** Kill switch: streams and polls stop until cleared. */
+    paused: false,
     // Per-source health: "pending" | "live" | "unavailable". `detail` is a user-facing hint.
     sources: {
       nvidia: { state: "pending", detail: "" },
@@ -35,17 +43,33 @@ export function createSensors(config, log, deps = {}) {
   let gpuNameReady = Promise.resolve();
   const timers = new Set();
   let stopping = false;
+  /** Controllers that restart nvidia-smi / typeperf when the sample interval changes. */
+  const streams = [];
+
+  function quiet() {
+    return s.slow || s.clientSlow || s.paused;
+  }
+
+  function streamSec() {
+    if (s.paused) return 0;
+    return quiet() ? 3 : 1;
+  }
+
+  function applyStreams() {
+    const sec = streamSec();
+    for (const ctl of streams) ctl.setSampleSec(sec);
+  }
 
   function every(fn, normalMs, slowMs = normalMs) {
-    const pick = (ms) => (typeof ms === "function" ? ms() : ms);
+    const pick = () => (s.paused ? Math.max(slowMs, 15_000) : quiet() ? slowMs : normalMs);
     let handle;
     const loop = async () => {
       try {
-        await fn();
+        if (!s.paused) await fn();
       } catch (e) {
         log(`sensor poll failed: ${e.message}`);
       }
-      if (!stopping) handle = setTimeout(loop, pick(s.slow ? slowMs : normalMs));
+      if (!stopping) handle = setTimeout(loop, pick());
     };
     handle = setTimeout(loop, 0);
     timers.add({ clear: () => clearTimeout(handle) });
@@ -56,37 +80,56 @@ export function createSensors(config, log, deps = {}) {
    * restarted with exponential backoff (5s .. 5min, reset after a healthy run).
    * A missing executable is reported once through `onMissing` and retried only
    * at the slowest backoff, so a PC without the tool never spams the log.
+   * `buildArgs(sec)` builds the argv for the current sample interval; `sec` of 0 pauses.
    */
-  function stream(name, file, args, onLine, { restart = true, onMissing, onExit } = {}) {
+  function stream(name, file, buildArgs, onLine, { restart = true, onMissing, onExit } = {}) {
     let delay = 5000;
     const MAX_DELAY = 5 * 60 * 1000;
     let missingReported = false;
+    let sampleSec = 1;
+    let child = null;
+    /** Bumped on pace change so a late close from the old child cannot schedule a duplicate. */
+    let generation = 0;
+    let restartEntry = null;
+
+    const clearRestart = () => {
+      if (!restartEntry) return;
+      restartEntry.clear();
+      timers.delete(restartEntry);
+      restartEntry = null;
+    };
+
     const schedule = () => {
-      if (!restart || stopping) return;
-      // Drop the entry when it fires, or every restart would leave a dead handle in the set for the life of the service.
+      if (!restart || stopping || sampleSec === 0) return;
+      clearRestart();
       const entry = { clear: () => clearTimeout(t) };
       const t = setTimeout(() => {
         timers.delete(entry);
-        start();
+        restartEntry = null;
+        startChild();
       }, delay);
+      restartEntry = entry;
       timers.add(entry);
       delay = Math.min(delay * 2, MAX_DELAY);
     };
-    const start = () => {
-      if (stopping) return null;
+
+    const startChild = () => {
+      if (stopping || sampleSec === 0) return null;
+      const myGen = generation;
       const startedAt = Date.now();
       // spawnSafe keeps a start failure from becoming an uncaught exception. Its own logging is silenced
       // because the "error" handler below owns the message (a missing tool is reported only once).
-      const child = spawn(file, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }, () => {}, name);
-      if (!child) {
+      const next = spawn(file, buildArgs(sampleSec), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }, () => {}, name);
+      if (!next) {
         log(`${name} could not start`);
         schedule();
         return null;
       }
-      children.add(child);
+      child = next;
+      children.add(next);
       let buf = "";
       let failed = false;
-      child.stdout.on("data", (d) => {
+      next.stdout.on("data", (d) => {
         buf += d.toString();
         let i;
         while ((i = buf.indexOf("\n")) >= 0) {
@@ -94,8 +137,8 @@ export function createSensors(config, log, deps = {}) {
           buf = buf.slice(i + 1);
         }
       });
-      child.stderr.on("data", () => {});
-      child.on("error", (e) => {
+      next.stderr.on("data", () => {});
+      next.on("error", (e) => {
         failed = true;
         if (e.code === "ENOENT") {
           if (!missingReported) {
@@ -108,26 +151,45 @@ export function createSensors(config, log, deps = {}) {
           log(`${name} could not start: ${e.message}`);
         }
       });
-      child.on("close", () => {
-        children.delete(child);
-        onExit?.(child);
+      next.on("close", () => {
+        children.delete(next);
+        if (child === next) child = null;
+        onExit?.(next);
+        if (myGen !== generation) return;
         if (!failed && Date.now() - startedAt > 30000) delay = 5000;
         schedule();
       });
-      return child;
+      return next;
     };
-    return start();
+
+    const setSampleSec = (sec) => {
+      if (sec === sampleSec) return;
+      sampleSec = sec;
+      generation += 1;
+      clearRestart();
+      if (child) {
+        killTree(child);
+        child = null;
+      }
+      delay = 5000;
+      if (sec > 0 && !stopping) startChild();
+    };
+
+    startChild();
+    const ctl = { setSampleSec };
+    streams.push(ctl);
+    return ctl;
   }
 
   function start() {
-    // GPU: NVIDIA's own driver tool, one reading a second.
+    // GPU: NVIDIA's own driver tool.
     gpuNameReady = run("nvidia-smi", ["--query-gpu=name", "--format=csv,noheader"])
       .then((n) => (s.gpuName = n.trim()))
       .catch(() => {});
     stream(
       "nvidia-smi",
       "nvidia-smi",
-      ["--query-gpu=temperature.gpu,utilization.gpu,clocks.gr,power.draw", "--format=csv,noheader,nounits", "-l", "1"],
+      (sec) => ["--query-gpu=temperature.gpu,utilization.gpu,clocks.gr,power.draw", "--format=csv,noheader,nounits", "-l", String(sec)],
       (line) => {
         const g = parseNvidiaLine(line);
         if (g) {
@@ -144,7 +206,7 @@ export function createSensors(config, log, deps = {}) {
     stream(
       "typeperf",
       "typeperf",
-      ["\\Processor Information(_Total)\\% Processor Utility", "\\Processor Information(_Total)\\% Processor Performance", "-si", "1"],
+      (sec) => ["\\Processor Information(_Total)\\% Processor Utility", "\\Processor Information(_Total)\\% Processor Performance", "-si", String(sec)],
       (line) => {
         const c = parseTypeperfLine(line);
         if (c) {
@@ -223,7 +285,8 @@ export function createSensors(config, log, deps = {}) {
 
   function sample() {
     const now = Date.now();
-    const fresh = (at, ms = 5000) => now - at < ms;
+    const windowMs = quiet() ? 10_000 : 5000;
+    const fresh = (at, ms = windowMs) => now - at < ms;
     const cpuOk = fresh(s.cpu.at);
     const fallbackLoad = cpuOk ? null : cpuLoadFallback();
     if (cpuOk) s.cpuTimes = os.cpus().map((c) => c.times);
@@ -250,7 +313,24 @@ export function createSensors(config, log, deps = {}) {
     start,
     stop,
     sample,
-    setSlow: (v) => (s.slow = v),
+    setSlow: (v) => {
+      const next = !!v;
+      if (s.slow === next) return;
+      s.slow = next;
+      applyStreams();
+    },
+    setClientSlow: (v) => {
+      const next = !!v;
+      if (s.clientSlow === next) return;
+      s.clientSlow = next;
+      applyStreams();
+    },
+    setPaused: (v) => {
+      const next = !!v;
+      if (s.paused === next) return;
+      s.paused = next;
+      applyStreams();
+    },
     state: s,
     /** Pending restart/poll timers (for tests). */
     timerCount: () => timers.size,

@@ -1,5 +1,7 @@
-import { parseNews, parsePatchNotes, parseRedditAtom, parseYouTubeAtom } from "./parsers.mjs";
+import { APEXY, LEAKY, OVERWATCHY, isApexPost, isOverwatchPost, parseGoogleNewsRss, parseNews, parsePatchNotes, parseRedditAtom, parseXRss, parseYouTubeAtom, parseYouTubeChannelId } from "./parsers.mjs";
+import { trustedMatch, trustNote } from "./trusted.mjs";
 import { FEED_CACHE_FILE, readJson, writeJson } from "./paths.mjs";
+import { normalizeGame } from "./games.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -7,6 +9,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function sourceKey(item) {
   if (!item) return "";
   if (item.platform === "youtube" || String(item.id ?? "").startsWith("yt-")) return `youtube:${item.source}`;
+  if (item.platform === "news") return "news:search";
   if (item.kind === "patch") return "blizzard:patch";
   if (item.source === "Blizzard") return "blizzard:news";
   if (String(item.source ?? "").startsWith("r/")) return `reddit:${item.source.slice(2)}`;
@@ -14,18 +17,44 @@ function sourceKey(item) {
 }
 
 /**
- * Pulls Blizzard news/patch notes and Reddit feeds. Reddit is paced so we
+ * Pulls official news/patch notes and Reddit feeds for one game. Reddit is paced so we
  * do not trip their rate limit; the last good list is kept on disk.
+ * `opts.game` selects Overwatch vs Apex filters; `opts.cacheFile` / `opts.feedCfg` override defaults.
  */
-export function createFeed(config, log) {
-  const cfg = config.feed;
-  let cache = readJson(FEED_CACHE_FILE, { items: [], fetchedAt: 0, seen: {} });
+export function createFeed(config, log, opts = {}) {
+  const game = normalizeGame(opts.game ?? "overwatch");
+  const aboutGame = game === "apex" ? isApexPost : isOverwatchPost;
+  const gameTitle = game === "apex" ? APEXY : OVERWATCHY;
+  const cfg = opts.feedCfg ?? config.feed;
+  const cacheFile = opts.cacheFile ?? FEED_CACHE_FILE;
+  let cache = readJson(cacheFile, { items: [], fetchedAt: 0, seen: {} });
   let timer = null;
   /** Shared in-flight pull so refresh/start share one network job (GET never awaits this). */
   let job = null;
 
+  /** Items with a `trusted` note when their source is on the user's trusted list (read live, so a config edit shows at once). */
   function items() {
-    return cache.items ?? [];
+    const list = cfg.trusted ?? [];
+    return (cache.items ?? []).map((i) => {
+      const t = trustedMatch(i, list);
+      return t ? { ...i, trusted: trustNote(t) } : i;
+    });
+  }
+
+  /** A YouTube channel's id from its id, link or @handle. Handles are looked up once and remembered until restart. */
+  const youtubeIds = new Map();
+  async function resolveYouTube(y) {
+    if (y.channelId) return y.channelId;
+    const fromUrl = y.url ? parseYouTubeChannelId(y.url) : null;
+    if (fromUrl) return fromUrl;
+    const handle = y.handle ?? /youtube\.com\/(@[\w.-]+)/.exec(y.url ?? "")?.[1];
+    if (!handle) throw new Error("no channel id, @handle or channel link");
+    const at = handle.startsWith("@") ? handle : `@${handle}`;
+    if (youtubeIds.has(at)) return youtubeIds.get(at);
+    const id = parseYouTubeChannelId(await fetchText(`https://www.youtube.com/${at}`));
+    if (!id) throw new Error(`channel ${at} not found`);
+    youtubeIds.set(at, id);
+    return id;
   }
 
   async function fetchText(url) {
@@ -78,11 +107,44 @@ export function createFeed(config, log) {
 
       for (const y of cfg.youtube ?? []) {
         try {
-          const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(y.channelId)}`);
-          collected.push(...parseYouTubeAtom(xml, y.name));
+          const channelId = await resolveYouTube(y);
+          const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`);
+          // Multi-game channels: keep this game's titles; drop pure other-game uploads.
+          collected.push(...parseYouTubeAtom(xml, y.name, y.kind).filter((i) => aboutGame(i.title)));
           succeeded.add(`youtube:${y.name}`);
         } catch (e) {
           errors.push(`youtube ${y.name}: ${e.message}`);
+        }
+      }
+
+      let newsOk = false;
+      for (const q of cfg.newsSearch ?? []) {
+        try {
+          const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:30d`)}&hl=en-US&gl=US&ceid=US:en`;
+          // Google matches loosely: keep only recent headlines that name the game AND talk about a leak/datamine/rumour
+          // (or an Apex collection / special event for the Apex feed).
+          const recent = Date.now() - 30 * 24 * 3600_000;
+          const eventy = game === "apex" && /\b(collection\s*event|special\s*event|limited\s*time|ltm|heirlooms?)\b/i.test(String(q));
+          const about = parseGoogleNewsRss(await fetchText(url), "leak").filter(
+            (i) => gameTitle.test(i.title) && (LEAKY.test(i.title) || eventy) && i.publishedAt > recent,
+          );
+          collected.push(...about);
+          newsOk = true;
+        } catch (e) {
+          errors.push(`news "${q}": ${e.message}`);
+        }
+      }
+      if (newsOk) succeeded.add("news:search");
+
+      if (cfg.xRssUrl) {
+        for (const x of cfg.x ?? []) {
+          try {
+            const xml = await fetchText(cfg.xRssUrl.replaceAll("{handle}", encodeURIComponent(x.handle)));
+            collected.push(...parseXRss(xml, x.handle, x.kind).filter((i) => aboutGame(i.title)));
+            succeeded.add(`x:@${x.handle}`);
+          } catch (e) {
+            errors.push(`x @${x.handle}: ${e.message}`);
+          }
         }
       }
 
@@ -137,16 +199,27 @@ export function createFeed(config, log) {
         for (const [id, at] of Object.entries(nextSeen)) {
           if (now - at > 30 * 24 * 3600_000) delete nextSeen[id];
         }
+        // Every kind of source gets its own room, newest first. Without this, a busy subreddit fills the whole
+        // list and pushes out the leaks, Blizzard's posts and the videos.
+        const room = { leak: 20, reddit: 15, youtube: 10, blizzard: 10 };
+        const used = {};
+        const kept = [...byId.values()]
+          .sort((a, b) => b.publishedAt - a.publishedAt)
+          .filter((i) => {
+            const group = i.kind === "leak" ? "leak" : (i.platform ?? "blizzard");
+            used[group] = (used[group] ?? 0) + 1;
+            return used[group] <= (room[group] ?? 10);
+          });
         cache = {
           lastError: errors.length ? errors.join("; ") : null,
-          items: [...byId.values()].sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 40),
+          items: kept,
           fetchedAt: now,
           seen: nextSeen,
         };
-        writeJson(FEED_CACHE_FILE, cache);
+        writeJson(cacheFile, cache);
       }
 
-      if (errors.length) log(`feed partial: ${errors.join("; ")}`);
+      if (errors.length) log(`feed(${game}) partial: ${errors.join("; ")}`);
     } finally {
       // The shared job is cleared by refresh(); this keeps the try legal.
     }
@@ -154,9 +227,9 @@ export function createFeed(config, log) {
   }
 
   function start() {
-    refresh().catch((e) => log(`feed start failed: ${e.message}`));
+    refresh().catch((e) => log(`feed(${game}) start failed: ${e.message}`));
     timer = setInterval(() => {
-      refresh().catch((e) => log(`feed refresh failed: ${e.message}`));
+      refresh().catch((e) => log(`feed(${game}) refresh failed: ${e.message}`));
     }, cfg.refreshMs);
   }
 

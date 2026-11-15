@@ -8,6 +8,9 @@ export const PORT = 8787;
 /** Overwatch 2 on Steam. The one place this id lives. */
 export const OVERWATCH_APP_ID = 2357570;
 
+/** Apex Legends on Steam. */
+export const APEX_APP_ID = 1172470;
+
 /** The app version, from package.json. A bundled service has no package.json beside it, so it falls back. */
 export const VERSION = (() => {
   try {

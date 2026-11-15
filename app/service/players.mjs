@@ -1,13 +1,12 @@
-import path from "node:path";
 import { OVERWATCH_APP_ID } from "./constants.mjs";
-import { DATA_DIR, readJson, writeJson } from "./paths.mjs";
+import { normalizeGame, playersFileFor, playersSourceFor, steamAppIdFor } from "./games.mjs";
+import { readJson, writeJson } from "./paths.mjs";
 
-const FILE = path.join(DATA_DIR, "players.json");
 const HOUR = 3600_000;
 const KEEP_HOURS = 24 * 7;
 const POLL_MS = 10 * 60_000;
 
-// Overwatch publishes no player counts by country. These are fixed typical
+// Overwatch / Apex publish no player counts by country. These are fixed typical
 // shares of the global player base, used only to split the real total into
 // regions on the map. The dashboard labels them "estimated".
 export const REGION_SHARES = [
@@ -20,71 +19,91 @@ export const REGION_SHARES = [
 ];
 
 /**
- * Hourly count of players online, from Steam's public player-count endpoint
- * (Overwatch 2 on Steam, so Battle.net-only players are not included).
- * Polls every 10 minutes, keeps the hourly average, stores it on disk.
+ * Hourly count of players online, from Steam's public player-count endpoint.
+ * One tracker per game (separate cache files). Polls every 10 minutes.
  */
 export function createPlayers(config, log) {
-  const appId = config.steamAppId ?? OVERWATCH_APP_ID;
-  let hours = readJson(FILE, { hours: [] }).hours ?? [];
-  let latest = null;
-  let error = null;
-  let timer = null;
-  /** Shared in-flight poll so start/interval do not stack concurrent Steam calls. */
-  let pending = null;
+  const trackers = new Map();
 
-  function poll() {
-    if (pending) return pending;
-    pending = read().finally(() => {
-      pending = null;
-    });
-    return pending;
+  function ensure(game) {
+    const g = normalizeGame(game);
+    let t = trackers.get(g);
+    if (t) return t;
+    const file = playersFileFor(g);
+    const appId = steamAppIdFor(config, g) || OVERWATCH_APP_ID;
+    t = {
+      game: g,
+      appId,
+      file,
+      hours: readJson(file, { hours: [] }).hours ?? [],
+      latest: null,
+      error: null,
+      timer: null,
+      pending: null,
+    };
+    trackers.set(g, t);
+    return t;
   }
 
-  async function read() {
+  function poll(game) {
+    const t = ensure(game);
+    if (t.pending) return t.pending;
+    t.pending = read(t).finally(() => {
+      t.pending = null;
+    });
+    return t.pending;
+  }
+
+  async function read(t) {
     try {
       const res = await fetch(
-        `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${appId}`,
+        `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${t.appId}`,
         { signal: AbortSignal.timeout(8000) },
       );
       if (!res.ok) throw new Error(`Steam answered ${res.status}`);
       const count = (await res.json())?.response?.player_count;
       if (!Number.isFinite(count)) throw new Error("Steam sent no player count");
       const now = Date.now();
-      const t = Math.floor(now / HOUR) * HOUR;
-      let h = hours.find((x) => x.t === t);
+      const hour = Math.floor(now / HOUR) * HOUR;
+      let h = t.hours.find((x) => x.t === hour);
       if (!h) {
-        h = { t, sum: 0, n: 0 };
-        hours.push(h);
+        h = { t: hour, sum: 0, n: 0 };
+        t.hours.push(h);
       }
       h.sum += count;
       h.n += 1;
-      hours = hours.filter((x) => x.t > now - KEEP_HOURS * HOUR);
-      latest = { t: now, count };
-      error = null;
-      writeJson(FILE, { hours });
+      t.hours = t.hours.filter((x) => x.t > now - KEEP_HOURS * HOUR);
+      t.latest = { t: now, count };
+      t.error = null;
+      writeJson(t.file, { hours: t.hours });
     } catch (e) {
-      if (!error) log(`player count unavailable: ${e.message}`);
-      error = e.message;
+      if (!t.error) log(`player count (${t.game}) unavailable: ${e.message}`);
+      t.error = e.message;
     }
   }
 
   return {
     start() {
-      poll();
-      timer = setInterval(poll, POLL_MS);
-      timer.unref?.();
+      for (const g of ["overwatch", "apex"]) {
+        poll(g);
+        const t = ensure(g);
+        t.timer = setInterval(() => poll(g), POLL_MS);
+        t.timer.unref?.();
+      }
     },
     stop() {
-      if (timer) clearInterval(timer);
+      for (const t of trackers.values()) {
+        if (t.timer) clearInterval(t.timer);
+      }
     },
     // Disk/memory only — never wait on the Steam poll (start() already runs it).
-    snapshot() {
+    snapshot(game = "overwatch") {
+      const t = ensure(game);
       return {
-        source: "Steam (Overwatch 2 players on Steam)",
-        latest,
-        error,
-        hours: hours.map((h) => ({ t: h.t, count: Math.round(h.sum / h.n) })),
+        source: playersSourceFor(game),
+        latest: t.latest,
+        error: t.error,
+        hours: t.hours.map((h) => ({ t: h.t, count: Math.round(h.sum / h.n) })),
         regions: REGION_SHARES,
         regionsEstimated: true,
       };

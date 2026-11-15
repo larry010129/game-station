@@ -1,49 +1,85 @@
-// Overwatch 2 on Steam: recent Steam news, from Steam's public news endpoint (no key).
-// (Steam's review-score endpoint does not answer for this app, so reviews are not shown.)
-import { OVERWATCH_APP_ID as APP } from "./constants.mjs";
+// Steam news for a game app id (Overwatch 2 or Apex Legends), from Steam's public news endpoint (no key).
+import { OVERWATCH_APP_ID } from "./constants.mjs";
+import { normalizeGame, steamAppIdFor, steamLabelFor } from "./games.mjs";
 
 const TTL = 10 * 60_000;
 
-export function parseNews(json) {
-  return (json?.appnews?.newsitems ?? []).slice(0, 8).map((n) => ({
-    id: String(n.gid),
-    title: n.title,
-    url: n.url,
-    date: (n.date ?? 0) * 1000,
-    source: n.feedlabel ?? "Steam",
-  }));
+/** Official Steam posts only — skips external aggregators (e.g. PlayGround.ru). */
+function newsUrlFor(appId) {
+  return `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appId}&count=8&maxlength=0&format=json&feeds=steam_community_announcements`;
 }
 
-export function createSteam(log) {
-  let cache = { news: [], at: 0, error: null };
-  let refreshing = null;
+/** Drop .ru sources/hosts (PlayGround.ru and similar). */
+function isRuSource(n) {
+  const blob = `${n.feedname ?? ""} ${n.feedlabel ?? ""} ${n.url ?? ""}`;
+  if (/\.ru\b/i.test(blob)) return true;
+  try {
+    const host = new URL(String(n.url)).hostname.toLowerCase();
+    return host === "ru" || host.endsWith(".ru");
+  } catch {
+    return Boolean(n.url);
+  }
+}
 
-  function refresh() {
-    if (refreshing) return refreshing;
-    refreshing = (async () => {
+function storeNewsUrl(appId, gid) {
+  return `https://store.steampowered.com/news/app/${appId}/view/${gid}`;
+}
+
+export function parseNews(json, appId = OVERWATCH_APP_ID) {
+  return (json?.appnews?.newsitems ?? [])
+    .filter((n) => n?.gid != null && !isRuSource(n))
+    .slice(0, 8)
+    .map((n) => ({
+      id: String(n.gid),
+      title: n.title,
+      url: storeNewsUrl(appId, n.gid),
+      date: (n.date ?? 0) * 1000,
+      source: n.feedlabel ?? "Steam",
+    }));
+}
+
+/** One Steam news cache per game. `createSteam(log)` returns a multi-game facade. */
+export function createSteam(log, config = {}) {
+  const caches = new Map();
+
+  function ensure(game) {
+    const g = normalizeGame(game);
+    let entry = caches.get(g);
+    if (entry) return entry;
+    const appId = steamAppIdFor(config, g);
+    entry = { game: g, appId, cache: { news: [], at: 0, error: null }, refreshing: null };
+    caches.set(g, entry);
+    return entry;
+  }
+
+  function refresh(game) {
+    const entry = ensure(game);
+    if (entry.refreshing) return entry.refreshing;
+    entry.refreshing = (async () => {
       try {
-        const res = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${APP}&count=8&maxlength=0&format=json`, {
+        const res = await fetch(newsUrlFor(entry.appId), {
           signal: AbortSignal.timeout(10000),
         });
         if (!res.ok) throw new Error(`Steam answered ${res.status}`);
-        cache = { news: parseNews(await res.json()), at: Date.now(), error: null };
+        entry.cache = { news: parseNews(await res.json(), entry.appId), at: Date.now(), error: null };
       } catch (e) {
-        log(`steam: ${e.message}`);
-        cache = { ...cache, at: Date.now(), error: e.message };
+        log(`steam(${entry.game}): ${e.message}`);
+        entry.cache = { ...entry.cache, at: Date.now(), error: e.message };
       } finally {
-        refreshing = null;
+        entry.refreshing = null;
       }
     })();
-    return refreshing;
+    return entry.refreshing;
   }
 
   return {
-    async snapshot() {
-      if (Date.now() - cache.at > TTL) {
-        const p = refresh();
-        if (!cache.at) await p;
+    async snapshot(game = "overwatch") {
+      const entry = ensure(game);
+      if (Date.now() - entry.cache.at > TTL) {
+        const p = refresh(game);
+        if (!entry.cache.at) await p;
       }
-      return cache;
+      return { ...entry.cache, label: steamLabelFor(game) };
     },
   };
 }

@@ -1,9 +1,15 @@
+import { loadEnv } from "./loadEnv.mjs";
 import { cleanMemory } from "./memclean.mjs";
+import { createTrim } from "./trim.mjs";
+import { createWaveLink } from "./wavelink.mjs";
 import { loadConfig } from "./config.mjs";
 import { PORT, VERSION } from "./constants.mjs";
 import { createAi } from "./ai.mjs";
+import { createApexMeta } from "./apex-meta.mjs";
+import { WEAPON_ALS_ICONS } from "./apex-meta-parse.mjs";
 import { createCounterwatch } from "./counterwatch.mjs";
 import { createFeed } from "./feed.mjs";
+import { feedCacheFileFor, feedConfigFor, normalizeGame } from "./games.mjs";
 import { cleanStep, createGameMode } from "./gamemode.mjs";
 import { createMedia } from "./media.mjs";
 import { createSpotify } from "./spotify.mjs";
@@ -21,6 +27,8 @@ import { createSensors } from "./sensors.mjs";
 import { createServer } from "./server.mjs";
 import { createLifecycle, shortStack } from "./lifecycle.mjs";
 
+loadEnv();
+
 const config = loadConfig();
 const log = (msg) => console.log(`[station] ${msg}`);
 // A failed child process or a stray rejected promise must not take the whole service (and game mode's undo) down.
@@ -36,20 +44,35 @@ for (const problem of config.problems ?? []) log(`config: ${problem}`);
 if (config.corrupt) log("config: using built-in defaults; your config.json was left untouched, fix or delete it");
 
 const sensors = createSensors(config, log);
-const gameMode = createGameMode(config, sensors, log);
-const feed = createFeed(config, log);
+const trim = createTrim({ log });
+const gameMode = createGameMode(config, sensors, log, { trim: () => trim.run(), cleanMemory });
+const feedOw = createFeed(config, log, { game: "overwatch", feedCfg: feedConfigFor(config, "overwatch"), cacheFile: feedCacheFileFor("overwatch") });
+const feedApex = createFeed(config, log, { game: "apex", feedCfg: feedConfigFor(config, "apex"), cacheFile: feedCacheFileFor("apex") });
+const feedOf = (game) => (normalizeGame(game) === "apex" ? feedApex : feedOw);
 const players = createPlayers(config, log);
-const meta = createCounterwatch(config, log);
-const ai = createAi(log, () => Boolean(sensors.state.game));
+const metaOw = createCounterwatch(config, log);
+const metaApex = createApexMeta(log);
+const metaOf = (game) => (normalizeGame(game) === "apex" ? metaApex : metaOw);
+const ai = createAi(log, () => Boolean(sensors.state.game), {}, {
+  xHandles: () => (config.feed.x ?? []).map((x) => x.handle),
+  trusted: () => config.feed.trusted ?? [],
+  // Leak headlines the feed already has (Reddit, news search): shown to the AI, and added as extra sources to a matching leak.
+  leakFeed: () =>
+    feedOw
+      .items()
+      .filter((i) => i.kind === "leak" && Date.now() - i.publishedAt < 14 * 24 * 3600_000)
+      .map((i) => ({ title: i.title, source: i.source, url: i.url ?? "", date: new Date(i.publishedAt).toISOString().slice(0, 10) })),
+});
 const media = createMedia(log);
 const spotify = createSpotify(log, () => server.port());
 const netStats = createNetStats(config, log);
 const sysStats = createSysStats(log);
-const steam = createSteam(log);
-const toasts = createToasts(log);
+const steam = createSteam(log, config);
+const toasts = createToasts(log, { read: (force) => media.toasts(force) });
 const sessions = createSessions(sensors, log);
 const cpuTemp = createCpuTemp(config, log);
 const cost = createCost(log);
+const waveLink = createWaveLink({ log });
 const library = createLibrary(log);
 const settings = createSettings(config, log);
 const discord = createDiscord(log);
@@ -68,6 +91,47 @@ async function runStep(kind, body, action) {
     sessions.recordStep(kind, step, false, e.message);
     throw e;
   }
+}
+
+const IMG_SLUG = /^[a-z0-9][a-z0-9_-]{0,40}$/i;
+const imgCache = new Map();
+
+/** Tracker Network portraits for Apex legends/weapons. Fixed host + slug allowlist — not an open proxy.
+ *  A few weapons have no Tracker CDN PNG; those slugs map to ALS DGS SVG icons instead. */
+async function proxyApexImg(kind, slug) {
+  const k = kind === "weapon" ? "weapon" : kind === "legend" ? "legend" : null;
+  if (!k || !IMG_SLUG.test(String(slug ?? ""))) {
+    const err = new Error("Bad image request");
+    err.status = 400;
+    throw err;
+  }
+  const key = `${k}:${slug}`;
+  const hit = imgCache.get(key);
+  if (hit) return hit;
+  const alsIcon = k === "weapon" ? WEAPON_ALS_ICONS[String(slug).toLowerCase()] : null;
+  const upstream = alsIcon
+    ? `https://apexlegendsstatus.com/dgs/assets/icons/${alsIcon}`
+    : k === "legend"
+      ? `https://trackercdn.com/cdn/apex.tracker.gg/legends/${slug}-tile.png`
+      : `https://trackercdn.com/cdn/apex.tracker.gg/weapons/${slug}.png`;
+  const res = await fetch(upstream, {
+    headers: { "User-Agent": "CommandStation/0.2 (personal dashboard; Windows)", Accept: "image/*" },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) {
+    const err = new Error(`Image unavailable (${res.status})`);
+    err.status = 404;
+    throw err;
+  }
+  const buf = new Uint8Array(await res.arrayBuffer());
+  const out = {
+    __bytes: buf,
+    __type: res.headers.get("content-type") || (alsIcon ? "image/svg+xml" : "image/png"),
+    __cache: "public, max-age=86400",
+  };
+  if (imgCache.size > 200) imgCache.clear();
+  imgCache.set(key, out);
+  return out;
 }
 
 const server = createServer({
@@ -104,27 +168,61 @@ const server = createServer({
     },
     "GET /api/machine": async () => machine,
     "GET /api/sample": async () => sensors.sample(),
+    /** Dashboard tells the service to pause (kill switch) or slow (window hidden) the sensor helpers. */
+    "POST /api/pace": async (body) => {
+      if (body && typeof body.paused === "boolean") sensors.setPaused(body.paused);
+      if (body && typeof body.slow === "boolean") sensors.setClientSlow(body.slow);
+      return {
+        ok: true,
+        paused: sensors.state.paused,
+        slow: sensors.state.slow || sensors.state.clientSlow,
+      };
+    },
     // Cache only — never wait on the slow network pull (that runs in the background).
-    "GET /api/feed": async () => feed.items(),
-    "POST /api/feed/refresh": async () => feed.refresh(),
-    "GET /api/players": async () => players.snapshot(),
+    // `?game=overwatch|apex` swaps sources; default remains Overwatch.
+    "GET /api/feed": async (_body, url) => feedOf(url.searchParams.get("game")).items(),
+    "POST /api/feed/refresh": async (_body, url) => feedOf(url.searchParams.get("game")).refresh(),
+    "GET /api/players": async (_body, url) => players.snapshot(url.searchParams.get("game")),
+    /** Apex legend/weapon portraits from Tracker CDN, proxied so the Tauri CSP can show them. */
+    "GET /api/img": async (_body, url) => proxyApexImg(url.searchParams.get("kind"), url.searchParams.get("slug")),
     // Always the last good copy at once; `updating` tells the card a scrape is still running.
-    "GET /api/meta": async (_body, url) => meta.snapshot(url.searchParams.get("mode")),
+    "GET /api/meta": async (_body, url) => metaOf(url.searchParams.get("game")).snapshot(url.searchParams.get("mode")),
     "GET /api/meta/hero": async (_body, url) =>
-      meta.heroDetail(url.searchParams.get("slug"), { force: url.searchParams.get("force") === "1", mode: url.searchParams.get("mode") }),
+      metaOf(url.searchParams.get("game")).heroDetail(url.searchParams.get("slug"), {
+        force: url.searchParams.get("force") === "1",
+        mode: url.searchParams.get("mode"),
+      }),
     "GET /api/meta/map": async (_body, url) =>
-      meta.mapHeroes(url.searchParams.get("slug"), { force: url.searchParams.get("force") === "1", mode: url.searchParams.get("mode") }),
+      metaOf(url.searchParams.get("game")).mapHeroes(url.searchParams.get("slug"), {
+        force: url.searchParams.get("force") === "1",
+        mode: url.searchParams.get("mode"),
+      }),
     "GET /api/meta/rank": async (_body, url) =>
-      meta.rank(url.searchParams.get("rank"), { force: url.searchParams.get("force") === "1", mode: url.searchParams.get("mode") }),
+      metaOf(url.searchParams.get("game")).rank(url.searchParams.get("rank"), {
+        force: url.searchParams.get("force") === "1",
+        mode: url.searchParams.get("mode"),
+      }),
     "GET /api/ai": async () => ai.status(),
     "POST /api/ai/ask": async (body) => ai.start(body ?? {}),
     "POST /api/ai/auto": async (body) => ai.setAuto(body ?? {}),
-    "POST /api/meta/refresh": async () => meta.refresh(),
+    // Kick off the scrape; return the cache immediately (same as GET). Cards poll while `updating`.
+    "POST /api/meta/refresh": async (_body, url) => {
+      const meta = metaOf(url.searchParams.get("game"));
+      void meta.refresh();
+      return meta.snapshot(url.searchParams.get("mode"));
+    },
     "GET /api/net": async () => netStats.snapshot(),
     "GET /api/system": async () => sysStats.snapshot(),
-    "GET /api/steam": async () => steam.snapshot(),
+    "GET /api/steam": async (_body, url) => steam.snapshot(url.searchParams.get("game")),
     "GET /api/cputemp": async () => cpuTemp.snapshot(),
     "GET /api/cost": async () => cost.snapshot(),
+    "GET /api/wavelink": async () => waveLink.snapshot(),
+    "POST /api/wavelink/set": async (body) => waveLink.set(body ?? {}),
+    "POST /api/cost/trim": async () => {
+      const r = await trim.run();
+      cost.invalidate();
+      return r;
+    },
     "GET /api/library": async () => library.snapshot(),
     "POST /api/library/launch": async (body) => library.launch(String(body?.id ?? "")),
     "GET /api/settings": async () => settings.view(),
@@ -164,7 +262,7 @@ const server = createServer({
 
 // Modules with a stop() because they own a timer, socket or child process. spotify, library and steam hold
 // neither (one-shot requests only): add them here if that changes. Shutdown and the port-in-use exit stop this list.
-const stoppable = { sensors, feed, players, ai, meta, netStats, sessions, media, toasts, discord };
+const stoppable = { sensors, feedOw, feedApex, players, ai, metaOw, metaApex, netStats, sessions, media, toasts, discord };
 function stopAll() {
   for (const [name, mod] of Object.entries(stoppable)) {
     try {
@@ -185,10 +283,12 @@ async function main() {
   // journal (see journalFailed on /api/health) and is retried at the next start.
   gameMode.recoverIfNeeded().catch((e) => log(`game-mode recovery failed: ${e?.message ?? e}`));
   sensors.start();
-  feed.start();
+  feedOw.start();
+  feedApex.start();
   players.start();
   ai.startAuto();
-  meta.start();
+  metaOw.start();
+  metaApex.start();
   netStats.start();
   sessions.start();
   toasts.start();

@@ -23,8 +23,78 @@ $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
 function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $t.Wait(-1) | Out-Null; $t.Result }
 $mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
 $lastKey = ''
+
+# Windows Action Center toasts (Discord, LINE and any other app) are read on this same helper, so the app runs one
+# PowerShell instead of two (each costs about 75 MB). The list is only built and sent when it has changed.
+$toastReady = $false
+$granted = $false
+$toastSig = ''
+function Clip([string]$s) {
+  if (-not $s) { return '' }
+  $s = ($s -replace '[\r\n\t]+', ' ').Trim()
+  if ($s.Length -gt 180) { return $s.Substring(0, 180) }
+  return $s
+}
+function ToastJson($access, $items, $err) {
+  $parts = foreach ($item in @($items)) { $item | ConvertTo-Json -Compress -Depth 4 }
+  $e = if ($err) { $err | ConvertTo-Json -Compress } else { 'null' }
+  return '{"toasts":true,"access":' + ($access | ConvertTo-Json -Compress) + ',"items":[' + ($parts -join ',') + '],"error":' + $e + '}'
+}
+function Toasts($force) {
+  if (-not $script:toastReady) {
+    $null = [Windows.UI.Notifications.Management.UserNotificationListener, Windows.UI.Notifications, ContentType=WindowsRuntime]
+    $null = [Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus, Windows.UI.Notifications, ContentType=WindowsRuntime]
+    $null = [Windows.UI.Notifications.NotificationKinds, Windows.UI.Notifications, ContentType=WindowsRuntime]
+    $null = [Windows.UI.Notifications.KnownNotificationBindings, Windows.UI.Notifications, ContentType=WindowsRuntime]
+    $script:listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
+    $script:listType = [System.Collections.Generic.IReadOnlyList[Windows.UI.Notifications.UserNotification]]
+    $script:toastReady = $true
+  }
+  if (-not $script:granted) {
+    $access = Await ($script:listener.RequestAccessAsync()) ([Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus])
+    $name = $access.ToString().ToLower()
+    $script:granted = ($name -eq 'allowed')
+  } else { $name = 'allowed' }
+  if ($name -ne 'allowed') {
+    if (-not $force -and $name -eq $script:toastSig) { return '{"toasts":true,"unchanged":true}' }
+    $script:toastSig = $name
+    return (ToastJson $name @() $null)
+  }
+  $list = @(Await ($script:listener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast)) $script:listType)
+  $sig = 'allowed:' + ((@($list | ForEach-Object { [string]$_.Id })) -join ',')
+  if (-not $force -and $sig -eq $script:toastSig) { return '{"toasts":true,"unchanged":true}' }
+  $script:toastSig = $sig
+  $items = foreach ($n in $list) {
+    $app = ''
+    try { $app = [string]$n.AppInfo.DisplayInfo.DisplayName } catch {}
+    if (-not $app) { try { $app = [string]$n.AppInfo.AppUserModelId } catch {} }
+    $texts = @()
+    try {
+      $binding = $n.Notification.Visual.GetBinding([Windows.UI.Notifications.KnownNotificationBindings]::ToastGeneric)
+      if ($binding) { $texts = @($binding.GetTextElements() | ForEach-Object { Clip $_.Text } | Where-Object { $_ }) }
+    } catch {}
+    $title = if ($texts.Count -gt 0) { $texts[0] } else { '' }
+    $body = if ($texts.Count -gt 1) { ($texts | Select-Object -Skip 1) -join ' ' } else { '' }
+    if (-not $app -and -not $title -and -not $body) { continue }
+    $ms = 0
+    try { $ms = [int64]([DateTimeOffset]$n.CreationTime).ToUnixTimeMilliseconds() } catch { $ms = 0 }
+    [pscustomobject]@{ id = ((Clip $app) + ':' + [string]$n.Id + ':' + $ms); app = (Clip $app); title = $title; body = $body; t = $ms }
+  }
+  $items = @($items | Sort-Object t -Descending | Select-Object -First 40)
+  return (ToastJson 'allowed' $items $null)
+}
+
 while (($line = [Console]::In.ReadLine()) -ne $null) {
   $cmd = $line.Trim()
+  if ($cmd -eq 'toasts' -or $cmd -eq 'toasts:force') {
+    try { Write-Output (Toasts ($cmd -eq 'toasts:force')) }
+    catch {
+      $granted = $false
+      $toastSig = ''
+      Write-Output (ToastJson 'error' @() (Clip $_.Exception.Message))
+    }
+    continue
+  }
   try {
     $s = $mgr.GetCurrentSession()
     if (-not $s) { Write-Output '{"available":false}'; continue }
@@ -203,12 +273,30 @@ export function createMedia(log, deps = {}) {
       d.artId = d.key === artKey && artData ? artVersion : 0;
       d.playing = d.status === 4;
       delete d.key;
+    } else {
+      // Drop album art when nothing is playing so the helper is not holding a large base64 string.
+      artKey = "";
+      artData = null;
     }
     return d;
   }
 
+  /** One command whose answer is a plain JSON object (not a media reading), or null when there is no usable answer. */
+  async function raw(cmd) {
+    const out = await send(cmd);
+    if (!out) return null;
+    try {
+      const d = JSON.parse(out);
+      return d && typeof d === "object" && !Array.isArray(d) ? d : null;
+    } catch {
+      return null;
+    }
+  }
+
   return {
     status: () => command("status"),
+    /** The Action Center toasts, read on this helper. `force` asks for the full list even if nothing changed. */
+    toasts: (force = false) => raw(force ? "toasts:force" : "toasts"),
     art: () => ({ art: artData }),
     control(action, ms) {
       if (action === "seek") {

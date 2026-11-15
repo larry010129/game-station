@@ -69,7 +69,25 @@ export function parseTierList(text) {
     })),
     patch: current && { name: current.name, since: current.startsOn },
     season: season && { name: season.name, number: season.seasonNumber, since: season.startsOn, until: season.endsOn || null },
+    timeline: parseTimeline(windows),
   };
+}
+
+/** Every patch and season window the page lists, newest first, for the calendar. Dates stay yyyy-mm-dd. */
+export function parseTimeline(windows) {
+  if (!Array.isArray(windows)) return [];
+  const day = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
+  return windows
+    .filter((w) => w && (w.kind === "patch" || w.kind === "season") && day(w.startsOn) && typeof w.name === "string")
+    .map((w) => ({
+      kind: w.kind,
+      name: w.name.slice(0, 80),
+      number: Number.isFinite(Number(w.seasonNumber)) && w.seasonNumber != null ? Number(w.seasonNumber) : null,
+      startsOn: day(w.startsOn),
+      endsOn: day(w.endsOn),
+    }))
+    .sort((a, b) => b.startsOn.localeCompare(a.startsOn))
+    .slice(0, 80);
 }
 
 export function parseMaps(text) {
