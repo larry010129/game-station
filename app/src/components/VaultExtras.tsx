@@ -314,6 +314,8 @@ export function BackupSettings({ provider }: { provider: Provider }) {
         if (v != null) snapshot.set(k, v);
       }
       const oldWallpaperRef = readString(IMG_REF_KEY);
+      // The picture itself lives in IndexedDB, so keep a copy too: a failed restore puts back the picture, not just its marker.
+      const oldPicture = oldWallpaperRef != null ? await loadPicture(BG_ID).catch(() => null) : null;
       setRestoring(true);
       for (const k of storedKeys()) {
         if (k !== IMG_REF_KEY && !keepOnRestore(k)) restoreRemove(k);
@@ -351,7 +353,10 @@ export function BackupSettings({ provider }: { provider: Provider }) {
         restoreRemove(IMG_REF_KEY);
         await deletePicture(BG_ID).catch(() => {});
       }
-      if (failed.length && oldWallpaperRef != null) restoreWrite(IMG_REF_KEY, oldWallpaperRef);
+      if (failed.length && oldWallpaperRef != null) {
+        restoreWrite(IMG_REF_KEY, oldWallpaperRef);
+        if (oldPicture) await savePicture(BG_ID, oldPicture).catch(() => {});
+      }
       let serviceFailed: string | null = null;
       if (data.service) {
         try {
