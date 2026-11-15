@@ -10,9 +10,19 @@ use tauri::{Manager, RunEvent};
 
 struct Sidecar(Mutex<Option<Child>>);
 
+/// Asks the service to shut down by closing its stdin (it then stops its helper processes and exits),
+/// and only kills it if it has not exited within a few seconds. A bare kill is TerminateProcess:
+/// the service never runs its cleanup and nvidia-smi, typeperf and other children are orphaned.
 fn kill_sidecar(app: &tauri::AppHandle) {
     if let Some(state) = app.try_state::<Sidecar>() {
         if let Some(mut child) = state.0.lock().unwrap().take() {
+            drop(child.stdin.take());
+            for _ in 0..25 {
+                if matches!(child.try_wait(), Ok(Some(_))) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
             let _ = child.kill();
         }
     }
@@ -63,7 +73,8 @@ fn start_service(app: &tauri::AppHandle) -> Result<Child, String> {
     let mut cmd = Command::new(node);
     cmd.arg(service.join("index.mjs"))
         .current_dir(&service)
-        .stdin(Stdio::null())
+        .env("COMMAND_STATION_STDIN_SHUTDOWN", "1")
+        .stdin(Stdio::piped())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(err));
     #[cfg(windows)]

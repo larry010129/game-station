@@ -6,7 +6,7 @@ import { loadConfig } from "./config.mjs";
 import { PORT, VERSION } from "./constants.mjs";
 import { createAi } from "./ai.mjs";
 import { createApexMeta } from "./apex-meta.mjs";
-import { WEAPON_ALS_ICONS } from "./apex-meta-parse.mjs";
+import { proxyApexImg } from "./apex-img.mjs";
 import { createCounterwatch } from "./counterwatch.mjs";
 import { createFeed } from "./feed.mjs";
 import { feedCacheFileFor, feedConfigFor, normalizeGame } from "./games.mjs";
@@ -39,6 +39,13 @@ const lifecycle = createLifecycle({ stopAll, closeServer: () => server.close(), 
 process.on("uncaughtException", (e) => lifecycle.onUncaught(e));
 process.on("SIGINT", () => lifecycle.shutdown());
 process.on("SIGTERM", () => lifecycle.shutdown());
+// The desktop shell keeps our stdin open and closes it to ask for a clean shutdown (a hard kill would skip cleanup
+// and orphan the helper processes). Only when it says so: a terminal or test harness may close stdin for other reasons.
+if (process.env.COMMAND_STATION_STDIN_SHUTDOWN === "1") {
+  process.stdin.on("end", () => lifecycle.shutdown());
+  process.stdin.on("close", () => lifecycle.shutdown());
+  process.stdin.resume();
+}
 process.on("unhandledRejection", (e) => log(`unhandled rejection: ${shortStack(e)}`));
 for (const problem of config.problems ?? []) log(`config: ${problem}`);
 if (config.corrupt) log("config: using built-in defaults; your config.json was left untouched, fix or delete it");
@@ -91,47 +98,6 @@ async function runStep(kind, body, action) {
     sessions.recordStep(kind, step, false, e.message);
     throw e;
   }
-}
-
-const IMG_SLUG = /^[a-z0-9][a-z0-9_-]{0,40}$/i;
-const imgCache = new Map();
-
-/** Tracker Network portraits for Apex legends/weapons. Fixed host + slug allowlist — not an open proxy.
- *  A few weapons have no Tracker CDN PNG; those slugs map to ALS DGS SVG icons instead. */
-async function proxyApexImg(kind, slug) {
-  const k = kind === "weapon" ? "weapon" : kind === "legend" ? "legend" : null;
-  if (!k || !IMG_SLUG.test(String(slug ?? ""))) {
-    const err = new Error("Bad image request");
-    err.status = 400;
-    throw err;
-  }
-  const key = `${k}:${slug}`;
-  const hit = imgCache.get(key);
-  if (hit) return hit;
-  const alsIcon = k === "weapon" ? WEAPON_ALS_ICONS[String(slug).toLowerCase()] : null;
-  const upstream = alsIcon
-    ? `https://apexlegendsstatus.com/dgs/assets/icons/${alsIcon}`
-    : k === "legend"
-      ? `https://trackercdn.com/cdn/apex.tracker.gg/legends/${slug}-tile.png`
-      : `https://trackercdn.com/cdn/apex.tracker.gg/weapons/${slug}.png`;
-  const res = await fetch(upstream, {
-    headers: { "User-Agent": "CommandStation/0.2 (personal dashboard; Windows)", Accept: "image/*" },
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!res.ok) {
-    const err = new Error(`Image unavailable (${res.status})`);
-    err.status = 404;
-    throw err;
-  }
-  const buf = new Uint8Array(await res.arrayBuffer());
-  const out = {
-    __bytes: buf,
-    __type: res.headers.get("content-type") || (alsIcon ? "image/svg+xml" : "image/png"),
-    __cache: "public, max-age=86400",
-  };
-  if (imgCache.size > 200) imgCache.clear();
-  imgCache.set(key, out);
-  return out;
 }
 
 const server = createServer({
