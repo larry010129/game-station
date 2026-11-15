@@ -2,6 +2,13 @@
 
 Status after four review rounds: all approved findings applied; 130 service tests, `tsc` and `vite build` pass; nothing run in a real browser or the desktop shell; nothing committed. Review loop: 0 of 2 clean rounds (cap 5, round 5 remaining).
 
+## Progress, 15 November 2026
+
+- Phase 0.1 done: four commits, no secrets found (`.tmp-*`, `unlock-codes/` scratch scripts and `screenshot-cards.mjs` left untracked on purpose).
+- Phase 0.2 done: dashboard calls to `127.0.0.1:8787` return 200 in a real browser, console clean. 194 service tests, `tsc` and `vite build` pass.
+- Done in Phase 2: B15 (Spotify 429 backoff), V (`version.json` staged into the bundle), B10 partly (memclean runs a private temp copy; JSON-only POSTs already force a CORS preflight; an elevated child still cannot be killed from the service).
+- Design pass: detector clean, every button labelled; no UI changes needed. Not done: 0.3 theme click-through, 0.4 game mode, 0.5 installer build, Phase 1 decisions, R-wall, Z3/Z5/Z10.
+
 ## Phase 0: make it safe and prove it works (do first, about an hour)
 
 | # | Step | Why |
