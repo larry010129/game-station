@@ -637,7 +637,7 @@ html[data-scheme="light"] .pb i.now { background: color-mix(in srgb, var(--text)
 .kchip { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--edge-2); color: var(--dim); }
 .kchip.buff { color: var(--text); border-color: color-mix(in srgb, var(--text) 50%, transparent); }
 .kchip.nerf { color: var(--orange); border-color: rgba(240, 137, 58, 0.7); }
-.klink { background: none; border: 1px solid var(--edge-2); border-radius: 999px; padding: 2px 12px; font-size: 12px; color: var(--text); }
+.klink { background: none; border: 1px solid var(--edge-2); border-radius: 999px; padding: 3px 12px; min-height: 24px; font-size: 12px; color: var(--text); }
 a.klink { display: inline-block; white-space: nowrap; }
 .klink:hover { background: var(--glass-hi); }
 .th small a:hover { text-decoration: underline; text-underline-offset: 2px; }
