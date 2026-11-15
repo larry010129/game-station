@@ -14,11 +14,6 @@
 }
 html:has(.boot) { overflow: hidden; }
 
-.boot-page { position: relative; z-index: 3; max-width: 1680px; height: 0; margin: 0 auto; padding: 0 20px; pointer-events: none; }
-.boot-top { position: relative; display: flex; align-items: center; gap: 26px; height: 62px; }
-.boot-top .brand { opacity: 0; transition: opacity 0.35s var(--ease); }
-.boot.out .boot-top .brand { opacity: 1; }
-
 .boot-pct { flex: none; min-width: 52px; text-align: right; font-size: 22px; font-weight: 200; letter-spacing: -0.02em; transition: color 0.3s; }
 .boot-pct small { margin-left: 2px; font-size: 12px; font-weight: 300; color: var(--mute); }
 .boot.bad .boot-pct { color: var(--red); }
@@ -82,11 +77,6 @@ html[data-scheme="light"] .boot-work {
 html[data-scheme="light"] .boot-work-veil {
   background:
     radial-gradient(ellipse at 50% 42%, rgba(10, 10, 11, 0.72) 0%, rgba(10, 10, 11, 0.86) 52%, rgba(10, 10, 11, 0.95) 100%);
-}
-/* Ghost frames stay readable under the work veil so the station assembling underneath is felt. */
-.boot:not(.out) .boot-frame {
-  border-color: color-mix(in srgb, var(--text) 16%, transparent);
-  background: rgba(28, 28, 30, 0.22);
 }
 .boot-work-stage {
   position: relative;
@@ -249,55 +239,15 @@ html[data-scheme="light"] .boot-work-veil {
 .boot-systems li.failed .boot-sys-mark { background: var(--red); box-shadow: none; }
 .boot-systems li.failed .boot-sys-status { color: #ff8b8f; }
 
-/* ---------- the layout: one empty frame per card, exactly where the card will be ---------- */
-.boot-frames { position: absolute; inset: 0; z-index: 1; }
-.boot-frame {
-  position: absolute;
-  border: 1px dashed color-mix(in srgb, var(--text) 10%, transparent);
-  border-radius: var(--r);
-  padding: 14px 16px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  overflow: hidden;
-  color: var(--mute);
-  transition: color 0.4s var(--ease), border-color 0.4s var(--ease), background-color 0.6s var(--ease), left 0.5s var(--ease), top 0.5s var(--ease), width 0.5s var(--ease), height 0.5s var(--ease);
-  animation: boot-fade 0.5s backwards;
-}
-.boot-frame-text { min-width: 0; display: grid; gap: 1px; }
-.boot-frame-text small { font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.boot-frame.tight small { display: none; }
-.boot-frame-name { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.55; transition: opacity 0.4s var(--ease); }
-.boot-frame-mark { flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1px currentColor; transition: background-color 0.4s var(--ease), box-shadow 0.4s var(--ease); }
-.boot-frame.linking {
-  border: 1px solid var(--edge-2);
-  color: var(--text);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 75%, transparent), transparent) -100% 0 / 50% 1px no-repeat, rgba(28, 28, 30, 0.25);
-  animation: boot-fade 0.5s backwards, boot-trace 1.2s linear infinite;
-}
-.boot-frame.linking .boot-frame-name { opacity: 1; }
-.boot-frame.linking .boot-frame-mark { animation: boot-breathe 1s ease-in-out infinite; }
-.boot-frame.online { border: 1px solid var(--edge); background: rgba(28, 28, 30, 0.55); color: var(--dim); animation: boot-lock 0.5s var(--ease) backwards; }
-.boot-frame.online .boot-frame-name { opacity: 1; }
-.boot-frame.online .boot-frame-mark { background: var(--text); box-shadow: 0 0 8px color-mix(in srgb, var(--text) 35%, transparent); }
-.boot-frame.offline, .boot-frame.deferred { border: 1px solid var(--edge); background: rgba(28, 28, 30, 0.4); color: var(--dim); }
-.boot-frame.offline .boot-frame-mark, .boot-frame.deferred .boot-frame-mark { box-shadow: inset 0 0 0 1px var(--accent); }
-.boot-frame.failed { border: 1px solid rgba(229, 72, 77, 0.5); color: var(--dim); }
-.boot-frame.failed .boot-frame-mark { background: var(--red); box-shadow: none; }
-
 /* ---------- warm restart ---------- */
 .boot.short .boot-work,
-.boot.short .boot-frame,
 .boot.short .boot-work-title { animation-duration: 0.22s; animation-delay: 0s; }
 
-/* ---------- handoff: work peels; brand seats; frame labels clear ---------- */
+/* ---------- handoff: the work panel peels away ---------- */
 .boot.out .boot-work {
   animation: boot-peel 0.7s var(--ease) forwards;
   pointer-events: none;
 }
-.boot.out .boot-frame-text,
-.boot.out .boot-frame-mark { animation: boot-clear 0.3s 0.5s ease-out forwards; }
 
 /* The dashboard under the cover: mounted and fetching, but unseen and untouchable. */
 .boot-under { opacity: 0; pointer-events: none; }

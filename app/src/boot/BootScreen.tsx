@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Backdrop } from "../components/Backdrop";
 import { StationAlert } from "../components/StationAlert";
-import { CARD_NAMES, type CardId } from "../layout/layouts";
-import { STEPS, TELEMETRY } from "./bootSteps";
 import type { BootState, BootStep, StepStatus } from "./types";
 import "../styles/boot.css";
 
@@ -59,15 +57,6 @@ export function BootScreen({ state, image, onExited }: { state: BootState; image
   return (
     <div className={cls} aria-busy={!leaving && !failed}>
       <Backdrop image={image} />
-      <Frames steps={state.steps} noSignal={noSignal} />
-
-      <div className="boot-page">
-        <header className="boot-top">
-          <div className="brand">
-            <b>Command</b> Station
-          </div>
-        </header>
-      </div>
 
       <div className="boot-work" aria-hidden={leaving || undefined}>
         <div className="boot-work-veil" />
@@ -159,84 +148,5 @@ function WorkMark({ failed }: { failed: boolean }) {
       <path className="boot-mark-cross" d="M50 28 V40 M50 60 V72 M28 50 H40 M60 50 H72" />
       <circle className="boot-mark-hub" cx="50" cy="50" r="5" />
     </svg>
-  );
-}
-
-interface Frame {
-  key: string;
-  type: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-/** Which startup system each card waits on. Cards with no source of their own come alive with the live reading. */
-const CARD_STEP = new Map<string, string>(STEPS.flatMap((d) => d.sources.flatMap((s) => (s.cards ?? []).map((c) => [c, d.id] as [string, string]))));
-
-/** Where the hidden dashboard's cards really sit, so the cover can draw their empty frames in place. */
-function useFrames(): Frame[] {
-  const [frames, setFrames] = useState<Frame[]>([]);
-  const seen = useRef("");
-  useEffect(() => {
-    const read = () => {
-      const out: Frame[] = [];
-      document.querySelectorAll<HTMLElement>(".boot-under .cell[data-card]").forEach((el, i) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 8 || r.height < 8 || r.top > innerHeight || r.bottom < 0) return;
-        out.push({ key: `${i}:${el.dataset.card}`, type: el.dataset.card ?? "", x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
-      });
-      const sig = JSON.stringify(out);
-      if (sig === seen.current) return;
-      seen.current = sig;
-      setFrames(out);
-    };
-    read();
-    let frame = 0;
-    const seenDom = new MutationObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(read);
-    });
-    seenDom.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
-    const id = window.setInterval(read, 300);
-    window.addEventListener("resize", read);
-    return () => {
-      seenDom.disconnect();
-      cancelAnimationFrame(frame);
-      window.clearInterval(id);
-      window.removeEventListener("resize", read);
-    };
-  }, []);
-  return frames;
-}
-
-/**
- * The dashboard's own layout, as empty frames exactly where the cards will be.
- * Each frame waits, links and locks in with the system that feeds its card.
- */
-function Frames({ steps, noSignal }: { steps: BootStep[]; noSignal: boolean }) {
-  const frames = useFrames();
-  const status = new Map(steps.map((s) => [s.id, s.status]));
-  const label = new Map(steps.map((s) => [s.id, s.label]));
-  const live = status.get(TELEMETRY) ?? "standby";
-  return (
-    <div className="boot-frames" aria-hidden="true">
-      {frames.map((f, i) => {
-        const stepId = CARD_STEP.get(f.type);
-        const id = stepId && status.has(stepId) ? stepId : TELEMETRY;
-        const name = CARD_NAMES[f.type as CardId] ?? f.type;
-        const sys = label.get(id) ?? "Live telemetry";
-        const st: StepStatus = noSignal ? "standby" : (status.get(id) ?? live);
-        return (
-          <div key={f.key} className={`boot-frame ${st}${f.h < 64 ? " tight" : ""}`} style={{ left: f.x, top: f.y, width: f.w, height: f.h, animationDelay: `${Math.min(i, 14) * 35}ms` }}>
-            <span className="boot-frame-text">
-              <span className="boot-frame-name">{name}</span>
-              {sys !== name && <small>{sys}</small>}
-            </span>
-            <span className="boot-frame-mark" />
-          </div>
-        );
-      })}
-    </div>
   );
 }
