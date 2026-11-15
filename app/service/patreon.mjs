@@ -9,11 +9,13 @@ import { spawnDetached } from "./spawn.mjs";
 // Discord, the design-request channel and beta access are Patreon benefits that the exe does not check.
 const FILE = path.join(DATA_DIR, "patreon.json");
 const APP_FILE = path.join(DATA_DIR, "patreon-app.json");
-const AUTH = "https://www.patreon.com/oauth2/authorize";
-const TOKEN = "https://www.patreon.com/api/oauth2/token";
-const IDENTITY =
-  "https://www.patreon.com/api/oauth2/v2/identity?include=memberships.currently_entitled_tiers,memberships.campaign" +
-  "&fields%5Bmember%5D=patron_status&fields%5Btier%5D=title,amount_cents";
+// PATREON_BASE_URL points the whole flow at another host. It exists so the sign-in can be tested end to end against a
+// stand-in Patreon (service/test/patreon-flow.test.mjs); a real build never sets it.
+const base = () => (process.env.PATREON_BASE_URL || "https://www.patreon.com").replace(/\/+$/, "");
+const AUTH = () => `${base()}/oauth2/authorize`;
+const TOKEN = () => `${base()}/api/oauth2/token`;
+const IDENTITY = () =>
+  `${base()}/api/oauth2/v2/identity?include=memberships.currently_entitled_tiers,memberships.campaign` + "&fields%5Bmember%5D=patron_status&fields%5Btier%5D=title,amount_cents";
 const SCOPES = "identity identity.memberships";
 /** How long the last good answer keeps counting when Patreon cannot be reached. */
 export const OFFLINE_GRACE_MS = 14 * 24 * 3600_000;
@@ -93,7 +95,7 @@ export function viewOf(saved, configured, now = Date.now()) {
   };
 }
 
-export function createPatreon(log, getPort) {
+export function createPatreon(log, getPort, { open } = {}) {
   // { access, expires, refresh, name, entitled, checkedAt, error }
   let saved = readJson(FILE, {});
   let pending = null; // { state, at }
@@ -124,7 +126,7 @@ export function createPatreon(log, getPort) {
 
   async function tokenRequest(params) {
     const a = app();
-    const res = await fetch(TOKEN, {
+    const res = await fetch(TOKEN(), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ client_id: a.clientId, client_secret: a.clientSecret, ...params }),
@@ -160,7 +162,7 @@ export function createPatreon(log, getPort) {
     busy = (async () => {
       try {
         const token = await accessToken();
-        const res = await fetch(IDENTITY, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
+        const res = await fetch(IDENTITY(), { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
         if (res.status === 401) {
           saved = { ...saved, access: null };
           throw new Error("Patreon asked to sign in again.");
@@ -186,6 +188,7 @@ export function createPatreon(log, getPort) {
   const view = () => viewOf(saved, configured());
 
   function openBrowser(url) {
+    if (open) return open(url);
     spawnDetached("rundll32.exe", ["url.dll,FileProtocolHandler", url], { windowsHide: true }, log, "patreon: open browser");
   }
 
@@ -200,7 +203,7 @@ export function createPatreon(log, getPort) {
     login() {
       if (!configured()) throw bad("Patreon sign-in is not set up in this build.", 501);
       pending = { state: b64url(crypto.randomBytes(16)), at: Date.now() };
-      const url = new URL(AUTH);
+      const url = new URL(AUTH());
       url.search = new URLSearchParams({ response_type: "code", client_id: app().clientId, redirect_uri: redirectUri(), scope: SCOPES, state: pending.state }).toString();
       openBrowser(url.toString());
       return { url: url.toString() };
