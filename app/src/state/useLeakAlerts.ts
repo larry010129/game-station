@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { FeedItem, Provider } from "../lib/types";
+import type { FeedItem } from "../lib/types";
 import { readString, writeString } from "../lib/storage";
+import { api } from "../lib/api";
 
 const KEY = "cs.leak.feedSeen";
 const POLL_MS = 5 * 60_000;
@@ -10,16 +11,15 @@ const POLL_MS = 5 * 60_000;
  * `onNew` gets it once. Ids already reported are remembered, so a restart does not repeat them.
  * The first look stays quiet. Never polls during a match.
  */
-export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items: FeedItem[]) => void, game = "overwatch") {
+export function useLeakAlerts(paused: boolean, onNew: (items: FeedItem[]) => void, game = "overwatch") {
   const onNewRef = useRef(onNew);
   onNewRef.current = onNew;
 
   useEffect(() => {
-    if (paused || provider.id !== "live") return;
+    if (paused) return;
     let alive = true;
     const check = () =>
-      provider
-        .api<FeedItem[]>(`/api/feed?game=${encodeURIComponent(game)}`)
+      api<FeedItem[]>(`/api/feed?game=${encodeURIComponent(game)}`)
         .then((items) => {
           if (!alive || !Array.isArray(items)) return;
           const leaks = items.filter((i) => i.kind === "leak" && i.id);
@@ -38,5 +38,5 @@ export function useLeakAlerts(provider: Provider, paused: boolean, onNew: (items
       alive = false;
       window.clearInterval(id);
     };
-  }, [provider, paused, game]);
+  }, [paused, game]);
 }

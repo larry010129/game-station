@@ -2,8 +2,9 @@ import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { WaveLinkData } from "../lib/types";
 import { Segmented } from "../components/Segmented";
 import { readString, writeString } from "../lib/storage";
-import { useApi, useStationCtx } from "../state/useApi";
+import { useApi } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
+import { api } from "../lib/api";
 
 /** What the user just changed, shown at once while the change travels to Wave Link. */
 type Local = Record<string, { level?: number; isMuted?: boolean }>;
@@ -65,7 +66,6 @@ function Fader({ name, level, muted, onLevel, onMute }: FaderProps) {
 
 /** Elgato Wave Link 3: microphone mutes, then one list of channel or mix faders, from the dashboard. */
 export const WaveLinkCard = memo(function WaveLinkCard() {
-  const { provider } = useStationCtx();
   const ms = useEvery(2000, 4000);
   const { data, reload } = useApi<WaveLinkData>("/api/wavelink", ms);
   const [local, setLocal] = useState<Local>({});
@@ -96,8 +96,7 @@ export const WaveLinkCard = memo(function WaveLinkCard() {
   const send = (key: string, body: Record<string, unknown>, delay: number) => {
     window.clearTimeout(timers.current[key]);
     timers.current[key] = window.setTimeout(() => {
-      provider
-        .api("/api/wavelink/set", body)
+      api("/api/wavelink/set", body)
         .then(() => {
           setErr(null);
           reload();

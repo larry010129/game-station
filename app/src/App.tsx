@@ -1,6 +1,5 @@
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BootScreen } from "./boot/BootScreen";
-import { signal } from "./boot/bootSignals";
 import { useBoot } from "./boot/useBoot";
 import { Dashboard } from "./layout/Dashboard";
 import { EditBar } from "./layout/EditBar";
@@ -40,8 +39,9 @@ import { useToasts } from "./state/useToasts";
 import { StationAlert } from "./components/StationAlert";
 import { useMonitor } from "./state/useMonitor";
 import { useWindowView } from "./state/useWindowView";
-import type { FeedItem, Provider } from "./lib/types";
+import type { FeedItem, StationInfo } from "./lib/types";
 import { GAME_IDS, GAMES } from "./lib/games";
+import { api } from "./lib/api";
 
 const MODE_LABEL: Record<Phase, string> = {
   off: "Standby",
@@ -50,42 +50,26 @@ const MODE_LABEL: Record<Phase, string> = {
   restoring: "Restoring",
 };
 
-/** Reports the first live sample (or failures) to the boot screen. */
-const withSampleSignal = (p: Provider): Provider => ({
-  ...p,
-  readSample: () =>
-    p.readSample().then(
-      (s) => {
-        signal("/api/sample", "ok");
-        return s;
-      },
-      (e: unknown) => {
-        signal("/api/sample", "error");
-        throw e;
-      },
-    ),
-});
-
 export function App() {
-  const [provider, setProvider] = useState<Provider | null>(null);
+  const [info, setInfo] = useState<StationInfo | null>(null);
   const [cards, setCards] = useState<CardId[] | null>(null);
   const [covered, setCovered] = useState(true);
   const look = useTheme();
   const windowView = useWindowView();
-  const onProvider = useCallback((p: Provider) => setProvider(withSampleSignal(p)), []);
-  const boot = useBoot({ cards, onProvider });
+  const onInfo = useCallback((p: StationInfo) => setInfo(p), []);
+  const boot = useBoot({ cards, onInfo });
 
-  // The dashboard mounts as soon as the provider exists and fills in under the cover.
+  // The dashboard mounts as soon as the start-up info exists and fills in under the cover.
   const under = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (under.current) under.current.inert = covered;
-  }, [covered, provider]);
+  }, [covered, info]);
 
   return (
     <>
-      {provider && (
+      {info && (
         <div ref={under} className={covered ? "boot-under" : "boot-reveal"} aria-hidden={covered || undefined}>
-          <StationApp provider={provider} look={look} windowView={windowView} onCards={setCards} />
+          <StationApp info={info} look={look} windowView={windowView} onCards={setCards} />
         </div>
       )}
       {covered && <BootScreen state={boot} image={look.image} onExited={() => setCovered(false)} />}
@@ -100,12 +84,12 @@ const FREE_KEY = "cs.freeMove";
 const MemoDashboard = memo(Dashboard);
 
 function StationApp({
-  provider,
+  info,
   look,
   windowView,
   onCards,
 }: {
-  provider: Provider;
+  info: StationInfo;
   look: ReturnType<typeof useTheme>;
   windowView: ReturnType<typeof useWindowView>;
   /** The card types on the current tab, for the boot checklist. */
@@ -117,28 +101,18 @@ function StationApp({
   const [calm, setCalm] = useStoredFlag("cs.reduceMotion", false);
   const [stopped, setStopped] = useState(false);
 
-  const seedEvents = useMemo<NewEvent[]>(() => {
-    const started = Date.now();
-    if (provider.id === "live") {
-      return [{ kind: "info", text: `Sensors linked (${provider.label.toLowerCase()}), sampling every 1 s`, t: started - 2_000 }];
-    }
-    return [
-      { kind: "info", text: `Sensors linked (${provider.label.toLowerCase()}), sampling every 1 s`, t: started - 58_000 },
-      { kind: "info", text: "New patch notes on file: November 5, 2026", t: started - 40_000 },
-    ];
-  }, [provider.id, provider.label]);
+  const seedEvents = useMemo<NewEvent[]>(() => [{ kind: "info", text: "Sensors linked (this pc), sampling every 1 s", t: Date.now() - 2_000 }], []);
   const { events, add } = useEvents(seedEvents);
-  const toasts = useToasts(provider);
-  const gm = useGameMode(provider, add);
+  const toasts = useToasts();
+  const gm = useGameMode(info, add);
 
   // Slower polling while a game is running, slowest while the window is hidden.
   const intervalMs = gate.hidden ? 5000 : gm.phase === "on" ? 3000 : 1000;
-  const store = useStation(provider, { stopped, intervalMs, onEvent: add });
+  const store = useStation({ stopped, intervalMs, onEvent: add });
   // Tell the service so nvidia-smi / typeperf match: pause on kill switch, slow when hidden.
   useEffect(() => {
-    if (provider.id !== "live") return;
-    void provider.api("/api/pace", { paused: stopped, slow: gate.hidden }).catch(() => {});
-  }, [provider, stopped, gate.hidden]);
+    void api("/api/pace", { paused: stopped, slow: gate.hidden }).catch(() => {});
+  }, [stopped, gate.hidden]);
   // Only the running game is read here; the rest of each reading is picked up by the cards that show it.
   const game = useSample(store, (s) => s.game);
   const activeGame = useActiveGame();
@@ -152,14 +126,14 @@ function StationApp({
     },
     [add, toast, activeGame.pack.label],
   );
-  const feed = useFeed(provider, gm.phase === "on" || gate.hidden, onNewStories, activeGame.game);
-  const players = usePlayers(provider, gm.phase === "on" || gate.hidden, activeGame.game);
-  useLeakAlerts(provider, gm.phase === "on" || gate.hidden, (fresh) => {
+  const feed = useFeed(gm.phase === "on" || gate.hidden, onNewStories, activeGame.game);
+  const players = usePlayers(gm.phase === "on" || gate.hidden, activeGame.game);
+  useLeakAlerts(gm.phase === "on" || gate.hidden, (fresh) => {
     for (const l of fresh.slice(0, 3)) add({ kind: "info", text: `New leak: ${l.title}`, ...(l.url ? { url: l.url } : {}) });
     toast(fresh.length === 1 ? "1 new leak found" : `${fresh.length} new leaks found`);
   }, activeGame.game);
 
-  useSmartAlerts(provider, store, stopped, (text) => {
+  useSmartAlerts(store, stopped, (text) => {
     add({ kind: "alert", text });
     toast(text, { alert: true });
   });
@@ -313,7 +287,7 @@ function StationApp({
   const trimMemory = useCallback(async () => {
     setTrimming(true);
     try {
-      const r = (await provider.api("/api/cost/trim", {})) as { beforeMb?: number; afterMb?: number; freedMb?: number } | undefined;
+      const r = (await api("/api/cost/trim", {})) as { beforeMb?: number; afterMb?: number; freedMb?: number } | undefined;
       const freed = r?.freedMb ?? 0;
       toast(freed > 0 ? `App memory cleaned: ${r?.beforeMb} MB down to ${r?.afterMb} MB.` : "App memory is already lean.");
     } catch (e) {
@@ -323,7 +297,7 @@ function StationApp({
     } finally {
       setTrimming(false);
     }
-  }, [provider, toast]);
+  }, [toast]);
 
   const openCalendar = useCallback(
     (date?: string) => {
@@ -355,7 +329,7 @@ function StationApp({
 
   const ctx = useMemo<CardCtx>(
     () => ({
-      provider,
+      info,
       store,
       players: { data: players.data, failed: players.failed },
       feed: { items: feed.items, error: feed.error, checking: feed.checking, checkNow: feed.checkNow },
@@ -366,17 +340,17 @@ function StationApp({
       onOpenCalendar: openCalendar,
       onLook: dash.setLook,
     }),
-    [provider, store, players.data, players.failed, feed.items, feed.error, feed.checking, feed.checkNow, events, gm.profiles, gm.profile, gm.setProfileId, gm.phase, gm.status, gm.start, gm.stop, stopped, toasts, openCalendar, dash.setLook],
+    [store, players.data, players.failed, feed.items, feed.error, feed.checking, feed.checkNow, events, gm.profiles, gm.profile, gm.setProfileId, gm.phase, gm.status, gm.start, gm.stop, stopped, toasts, openCalendar, dash.setLook],
   );
   // The grid gets a render function that never changes; each card reads `ctx` from context (see CardView).
   const renderCard = useCallback((inst: CardInstance): ReactNode => <CardView inst={inst} />, []);
 
-  const quiet = isQuiet(gate, game, provider.id === "live");
+  const quiet = isQuiet(gate, game);
   const splitting = split.panes.length > 1;
   const rootClass = ["page", quiet && "quiet", calm && "calm", splitting && "splitting"].filter(Boolean).join(" ");
   const stationValue = useMemo(
-    () => ({ provider, quiet: quiet || gm.phase === "on" || gate.hidden, game: activeGame.game, pack: activeGame.pack }),
-    [provider, quiet, gm.phase, gate.hidden, activeGame.game, activeGame.pack],
+    () => ({ info, quiet: quiet || gm.phase === "on" || gate.hidden, game: activeGame.game, pack: activeGame.pack }),
+    [quiet, gm.phase, gate.hidden, activeGame.game, activeGame.pack],
   );
 
   const renderPane = (p: Pane): ReactNode => (
@@ -403,7 +377,6 @@ function StationApp({
   const pages: Record<PageTabId, () => ReactNode> = {
     vault: () => (
       <VaultPage
-        provider={provider}
         onProfilesChanged={gm.refreshProfiles}
         look={look}
         windowView={windowView}
@@ -419,7 +392,7 @@ function StationApp({
     ),
     themes: () => <ThemesPage look={look} />,
     calendar: () => <CalendarPage />,
-    credits: () => <CreditsPage provider={provider} />,
+    credits: () => <CreditsPage />,
     "buy-credits": () => <BuyCreditsPage />,
   };
 

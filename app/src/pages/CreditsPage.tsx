@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { openLink } from "../lib/openLink";
-import type { Provider, SettingsData, TrackedSource } from "../lib/types";
+import { api } from "../lib/api";
+import type { SettingsData, TrackedSource } from "../lib/types";
 
 /**
  * Credits / thanks page — film end-credits crawl.
@@ -329,7 +330,7 @@ function CreditHalf({ sources, inert }: { sources: Source[]; inert?: boolean }) 
   );
 }
 
-export function CreditsPage({ provider }: { provider?: Provider }) {
+export function CreditsPage() {
   const [reduceMotion, setReduceMotion] = useState(() =>
     typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)").matches : false,
   );
@@ -338,14 +339,13 @@ export function CreditsPage({ provider }: { provider?: Provider }) {
   // Credit the sources the user chose to track, too. If the service does not answer, the fixed list still shows.
   useEffect(() => {
     let alive = true;
-    provider
-      ?.api<SettingsData>("/api/settings")
+    api<SettingsData>("/api/settings")
       .then((d) => alive && setTracked(d.tracked ?? []))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [provider]);
+  }, []);
 
   // The tracked group goes just before "Built with", so the tools stay last.
   const sources = useMemo(() => {

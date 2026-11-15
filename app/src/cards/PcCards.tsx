@@ -1,12 +1,12 @@
 import { memo, useState } from "react";
 import type { SystemData } from "../lib/types";
 import { useToast } from "../state/Toast";
-import { useApi, useStationCtx } from "../state/useApi";
+import { useApi } from "../state/useApi";
 import { StatMeter } from "../components/Tiles";
 import { Bar, Card, Empty, gb, useEvery } from "./ui";
+import { api } from "../lib/api";
 
-export const MemoryCard = memo(function MemoryCard() {
-  const { provider } = useStationCtx();
+export const MemoryCard = memo(function MemoryCard() {
   const toast = useToast();
   const ms = useEvery(5000, 30000);
   const { data } = useApi<SystemData>("/api/system", ms);
@@ -16,7 +16,7 @@ export const MemoryCard = memo(function MemoryCard() {
     if (busy) return;
     setBusy(true);
     try {
-      const r = (await provider.api("/api/memory/clean", {})) as { freedMb?: number } | undefined;
+      const r = (await api("/api/memory/clean", {})) as { freedMb?: number } | undefined;
       const freed = r?.freedMb ?? 0;
       toast(freed > 0 ? `Memory cleaned: ${freed >= 1024 ? `${gb(freed)} GB` : `${freed} MB`} freed.` : "Memory cleaned.");
     } catch (e) {

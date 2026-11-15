@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GameModeStep, Profile, Provider } from "../lib/types";
+import type { GameModeStep, Profile, StationInfo } from "../lib/types";
 import type { NewEvent } from "./useEvents";
+import { api, applyStep, restoreStep } from "../lib/api";
 
 export type Phase = "off" | "applying" | "on" | "restoring";
 export type StepStatus = "waiting" | "running" | "done" | "failed";
@@ -11,11 +12,10 @@ export type StepStatus = "waiting" | "running" | "done" | "failed";
  * Restoring a step the service does not know about is a harmless no-op.
  * On reload, the UI re-reads /api/gamemode/active so "on" survives a refresh.
  */
-export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) {
-  // The list of profiles lives here, so a settings change shows up in the game mode panel without touching the provider.
-  const [profiles, setProfiles] = useState<Profile[]>(provider.profiles);
-  useEffect(() => setProfiles(provider.profiles), [provider]);
-  const [profileId, setProfileId] = useState(provider.profiles[0]?.id ?? "");
+export function useGameMode(info: StationInfo, onEvent: (e: NewEvent) => void) {
+  // The list of profiles lives here, so a settings change shows up in the game mode panel without touching the start-up info.
+  const [profiles, setProfiles] = useState<Profile[]>(info.profiles);
+  const [profileId, setProfileId] = useState(info.profiles[0]?.id ?? "");
   const profile = profiles.find((p) => p.id === profileId) ?? profiles[0];
   const [phase, setPhase] = useState<Phase>("off");
   const [status, setStatus] = useState<Record<string, StepStatus>>({});
@@ -25,9 +25,9 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
 
   /** Reads the profiles again (after a settings change). Rejects when the service does not answer. */
   const refreshProfiles = useCallback(async () => {
-    const next = await provider.api<{ profiles: Profile[] }>("/api/profiles");
+    const next = await api<{ profiles: Profile[] }>("/api/profiles");
     if (Array.isArray(next.profiles)) setProfiles(next.profiles);
-  }, [provider]);
+  }, []);
 
   /** Undo steps newest first. Keeps going if one fails; returns how many failed. */
   const restoreAll = useCallback(
@@ -35,21 +35,19 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
       let failed = 0;
       for (const s of [...steps].reverse()) {
         try {
-          await provider.restoreStep(s);
+          await restoreStep(s);
         } catch {
           failed++;
         }
       }
       return failed;
     },
-    [provider],
+    [],
   );
 
   useEffect(() => {
-    if (provider.id !== "live") return;
     let alive = true;
-    provider
-      .api<{ active: boolean; steps: GameModeStep[] }>("/api/gamemode/active")
+    api<{ active: boolean; steps: GameModeStep[] }>("/api/gamemode/active")
       .then((state) => {
         if (!alive || !state.active || !state.steps?.length) return;
         activeSteps.current = state.steps;
@@ -66,7 +64,7 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
     return () => {
       alive = false;
     };
-  }, [provider]);
+  }, []);
 
   const start = useCallback(async () => {
     if (phase !== "off" || !profile) return;
@@ -76,7 +74,7 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
     for (const s of profile.steps) {
       setStatus((prev) => ({ ...prev, [s.id]: "running" }));
       try {
-        await provider.applyStep(s);
+        await applyStep(s);
       } catch {
         setStatus((prev) => ({ ...prev, [s.id]: "failed" }));
         // The failed step is included: the service may hold a pending entry for it.
@@ -101,19 +99,17 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
       text: `Game mode on, ${applied.length} of ${profile.steps.length} steps complete`,
       marker: "Game mode on",
     });
-  }, [phase, profile, provider, restoreAll, onEvent]);
+  }, [phase, profile, restoreAll, onEvent]);
 
   const stop = useCallback(async () => {
     if (phase !== "on" || !profile) return;
     setPhase("restoring");
     let steps = activeSteps.current.length ? activeSteps.current : profile.steps;
-    if (provider.id === "live") {
-      try {
-        const state = await provider.api<{ active: boolean; steps: GameModeStep[] }>("/api/gamemode/active");
-        if (state.steps?.length) steps = state.steps;
-      } catch {
-        // Fall back to the steps we remember from this session.
-      }
+    try {
+      const state = await api<{ active: boolean; steps: GameModeStep[] }>("/api/gamemode/active");
+      if (state.steps?.length) steps = state.steps;
+    } catch {
+      // Fall back to the steps we remember from this session.
     }
     const failed = await restoreAll(steps);
     activeSteps.current = [];
@@ -124,7 +120,7 @@ export function useGameMode(provider: Provider, onEvent: (e: NewEvent) => void) 
         ? { kind: "alert", text: `Game mode off, but ${failed} setting(s) could not be restored yet; the service will retry.` }
         : { kind: "info", text: "Game mode off, settings restored from the undo log", marker: "Restored" },
     );
-  }, [phase, profile, provider, restoreAll, onEvent]);
+  }, [phase, profile, restoreAll, onEvent]);
 
   return { profiles, refreshProfiles, profile, setProfileId, phase, status, start, stop };
 }

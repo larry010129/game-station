@@ -1,4 +1,4 @@
-import { isTauri } from "../providers";
+import { isTauri } from "./connect";
 
 /** Opens a story in the user's own browser: the system default in the desktop app, a new tab on the web. */
 export async function openLink(url: string): Promise<void> {

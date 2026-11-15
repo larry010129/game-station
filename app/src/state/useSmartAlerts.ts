@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { readEvents } from "../cards/CalendarPage";
-import type { Provider, SystemData } from "../lib/types";
+import type { SystemData } from "../lib/types";
 import type { StationStore } from "./useStation";
 import { readJson, writeJson } from "../lib/storage";
+import { api } from "../lib/api";
 
 export interface AlertRule {
   on: boolean;
@@ -55,7 +56,7 @@ type Notify = (text: string, rule: RuleId) => void;
  * so a PC that sits just over a limit does not nag. Rules are read from storage on every check,
  * so changes in the Vault apply straight away.
  */
-export function useSmartAlerts(provider: Provider, store: StationStore, paused: boolean, notify: Notify) {
+export function useSmartAlerts(store: StationStore, paused: boolean, notify: Notify) {
   const notifyRef = useRef(notify);
   notifyRef.current = notify;
   const lastFired = useRef<Partial<Record<RuleId, number>>>({});
@@ -91,14 +92,14 @@ export function useSmartAlerts(provider: Provider, store: StationStore, paused: 
 
   // A slower check that asks the service: memory.
   useEffect(() => {
-    if (paused || provider.id !== "live") return;
+    if (paused) return;
     let alive = true;
     const check = async () => {
       const rules = readRules();
       if (!rules.ram.on) return;
       if (rules.ram.on) {
         try {
-          const s = await provider.api<SystemData>("/api/system");
+          const s = await api<SystemData>("/api/system");
           const pct = (s.mem.usedMb / s.mem.totalMb) * 100;
           if (alive && pct >= rules.ram.limit) fire("ram", `Memory is ${Math.round(pct)}% full, over your ${rules.ram.limit}% limit`);
         } catch {
@@ -111,7 +112,7 @@ export function useSmartAlerts(provider: Provider, store: StationStore, paused: 
       alive = false;
       window.clearInterval(id);
     };
-  }, [provider, paused]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calendar events with a time, checked every 30 seconds.
   useEffect(() => {

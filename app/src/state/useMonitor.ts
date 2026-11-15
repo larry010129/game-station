@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isTauri } from "../providers";
+import { isTauri } from "../lib/connect";
 import { readString, writeJson } from "../lib/storage";
 
 /** Which screen Command Station opens on. Remembered on this PC. */

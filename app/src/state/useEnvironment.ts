@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { isTauri } from "../providers";
 import { readString, writeString } from "../lib/storage";
 
 /**
@@ -54,8 +53,7 @@ export function useStoredFlag(key: string, initial: boolean) {
  * Without the local service there is no game signal, so the desktop app falls
  * back to plain window focus; a browser tab only goes quiet when hidden.
  */
-export function isQuiet(gate: { hidden: boolean; blurred: boolean }, game: string | null | undefined, live: boolean) {
+export function isQuiet(gate: { hidden: boolean; blurred: boolean }, game: string | null | undefined) {
   if (gate.hidden) return true;
-  if (live) return gate.blurred && !!game;
-  return isTauri && gate.blurred;
+  return gate.blurred && !!game;
 }

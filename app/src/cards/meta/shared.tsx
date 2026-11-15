@@ -3,7 +3,7 @@ import { age } from "../../lib/format";
 import { withGame } from "../../lib/games";
 import { openLink } from "../../lib/openLink";
 import type { MetaData, MetaHero, MetaRank } from "../../lib/types";
-import { apiBase } from "../../providers/live";
+import { apiBase } from "../../lib/api";
 import { Segmented } from "../../components/Segmented";
 import { StationSelect } from "../../components/StationSelect";
 import { signal } from "../../boot/bootSignals";
@@ -11,6 +11,7 @@ import { useApi, useStationCtx } from "../../state/useApi";
 import { Empty, useEvery } from "../ui";
 import { readString, writeString } from "../../lib/storage";
 import { KEYS } from "../../lib/storageKeys";
+import { api } from "../../lib/api";
 
 const RANK_KEY = KEYS.metaRank;
 const MODE_KEY = KEYS.metaMode;
@@ -122,7 +123,7 @@ export function ModeSelect({ value, onChange }: { value: MetaModeId; onChange: (
 }
 
 export function useRankStats(rank: string, mode: MetaModeId) {
-  const { provider, game } = useStationCtx();
+  const { game } = useStationCtx();
   const [loaded, setLoaded] = useState<{ key: string; data: MetaRank | null; state: "idle" | "loading" | "error" }>({
     key: `${game}:5v5:All`,
     data: null,
@@ -137,8 +138,7 @@ export function useRankStats(rank: string, mode: MetaModeId) {
     }
     let alive = true;
     setLoaded({ key, data: null, state: "loading" });
-    provider
-      .api<MetaRank>(withGame("/api/meta/rank", game, { rank, mode }))
+    api<MetaRank>(withGame("/api/meta/rank", game, { rank, mode }))
       .then((d) => {
         if (!alive) return;
         setLoaded({ key, data: d, state: "idle" });
@@ -152,7 +152,7 @@ export function useRankStats(rank: string, mode: MetaModeId) {
     return () => {
       alive = false;
     };
-  }, [provider, rank, mode, key, game]);
+  }, [rank, mode, key, game]);
   if (loaded.key !== key) return { data: null, state: "loading" as const };
   return { data: loaded.data, state: loaded.state };
 }
@@ -175,18 +175,18 @@ export function metaUsable(meta: MetaData | null | undefined): boolean {
 
 /** Reads meta numbers for the shared mode + active game and can ask the service to fetch fresh ones. */
 export function useMeta(mode: MetaModeId) {
-  const { provider, game, pack } = useStationCtx();
+  const { game, pack } = useStationCtx();
   const path = withGame("/api/meta", game, { mode });
   const [fast, setFast] = useState(false);
   const ms = useEvery(fast ? 2_000 : 10 * 60_000, 0);
-  const api = useApi<MetaData>(path, ms);
-  const meta = api.data;
+  const metaApi = useApi<MetaData>(path, ms);
+  const meta = metaApi.data;
   const updating = meta?.updating === true;
   useEffect(() => {
     setFast(updating);
   }, [updating]);
   useEffect(() => {
-    if (api.error && !meta) {
+    if (metaApi.error && !meta) {
       signal("/api/meta", "error");
       return;
     }
@@ -195,15 +195,14 @@ export function useMeta(mode: MetaModeId) {
       return;
     }
     if (meta && !updating) signal("/api/meta", meta.error ? "error" : "ok");
-  }, [meta, api.error, updating]);
+  }, [meta, metaApi.error, updating]);
   const refresh = () => {
-    provider
-      .api<MetaData>(withGame("/api/meta/refresh", game, { mode }), {})
+    api<MetaData>(withGame("/api/meta/refresh", game, { mode }), {})
       .catch(() => {})
-      .then(() => api.reload());
+      .then(() => metaApi.reload());
   };
   const stale = meta?.fetchedAt != null && Date.now() - meta.fetchedAt > DAY * 1.5;
-  return { meta, error: api.error, refresh, updating, stale, mode, game, pack };
+  return { meta, error: metaApi.error, refresh, updating, stale, mode, game, pack };
 }
 
 export type Meta = ReturnType<typeof useMeta>;

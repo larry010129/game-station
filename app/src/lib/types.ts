@@ -76,26 +76,10 @@ export interface StationEvent {
   url?: string;
 }
 
-/**
- * Everything the dashboard reads or changes goes through a provider, so the
- * real Windows sensors reach it one way.
- */
-export interface Provider {
-  id: string;
-  label: string;
+/** What the service reported once at start-up: this PC's hardware and the saved game-mode profiles. */
+export interface StationInfo {
   machine: Machine;
-  seed(count: number, endT: number): Sample[];
-  readSample(): Promise<Sample>;
-  /** `game` selects Overwatch vs Apex sources on the local service. */
-  readFeed(game?: string): Promise<FeedItem[]>;
-  /** Asks the service to look for new stories right now. */
-  refreshFeed(game?: string): Promise<FeedItem[]>;
-  readPlayers(game?: string): Promise<PlayersData>;
-  /** Any other service endpoint (network, memory, media, sessions...). */
-  api<T>(path: string, body?: unknown): Promise<T>;
   profiles: Profile[];
-  applyStep(step: GameModeStep): Promise<void>;
-  restoreStep(step: GameModeStep): Promise<void>;
 }
 
 export interface MediaStatus {

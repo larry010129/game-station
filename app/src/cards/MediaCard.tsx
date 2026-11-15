@@ -1,8 +1,9 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { MediaStatus } from "../lib/types";
-import { useApi, useStationCtx } from "../state/useApi";
+import { useApi } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
 import { useInterval } from "../layout/onScreen";
+import { api } from "../lib/api";
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -41,8 +42,7 @@ const Pause = () => (
 );
 
 /** Now playing, with play, pause, skip and seek. Uses Windows' media session, so it works for Spotify and anything else that is playing. */
-export const MediaCard = memo(function MediaCard() {
-  const { provider } = useStationCtx();
+export const MediaCard = memo(function MediaCard() {
   const ms = useEvery(2000, 15000);
   const { data, reload } = useApi<MediaStatus>("/api/media", ms);
   const [art, setArt] = useState<string | null>(null);
@@ -58,14 +58,13 @@ export const MediaCard = memo(function MediaCard() {
       setArt(null);
       return;
     }
-    provider
-      .api<{ art: string | null }>("/api/media/art")
+    api<{ art: string | null }>("/api/media/art")
       .then((r) => alive && setArt(r.art))
       .catch(() => alive && setArt(null));
     return () => {
       alive = false;
     };
-  }, [artId, provider]);
+  }, [artId]);
 
   useEffect(() => {
     if (data?.available) base.current = { pos: data.positionMs ?? 0, at: Date.now() };
@@ -77,7 +76,7 @@ export const MediaCard = memo(function MediaCard() {
     if (busy) return;
     setBusy(true);
     try {
-      await provider.api("/api/media/control", { action, ...extra });
+      await api("/api/media/control", { action, ...extra });
       reload();
     } catch {
       // The next poll shows the real state.

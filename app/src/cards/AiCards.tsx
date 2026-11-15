@@ -10,6 +10,7 @@ import { withGame } from "../lib/games";
 import { useApi, useStationCtx } from "../state/useApi";
 import { Card, Empty } from "./ui";
 import { useInterval } from "../layout/onScreen";
+import { api } from "../lib/api";
 
 const HOUR = 60 * 60 * 1000;
 const HOURLY_KEY = "cs.leak.hourly";
@@ -114,17 +115,17 @@ function Items({ items }: { items: FeedItem[] }) {
  * which searches Google News RSS plus Reddit, YouTube and Blizzard. No paid AI.
  */
 export const AiResearchCard = memo(function AiResearchCard() {
-  const { provider, game, pack } = useStationCtx();
+  const { game, pack } = useStationCtx();
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [hourly, setHourly] = useState(() => readString(HOURLY_KEY) !== "0");
   const [nextAt, setNextAt] = useState(() => Date.now() + HOUR);
-  const api = useApi<FeedItem[]>(withGame("/api/feed", game), checking ? 2000 : 60_000);
+  const feedApi = useApi<FeedItem[]>(withGame("/api/feed", game), checking ? 2000 : 60_000);
   const metaApi = useApi<MetaData>(withGame("/api/meta", game), 10 * 60_000);
-  const data = api.data;
-  const reloadRef = useRef(api.reload);
-  reloadRef.current = api.reload;
+  const data = feedApi.data;
+  const reloadRef = useRef(feedApi.reload);
+  reloadRef.current = feedApi.reload;
   const busy = useRef(false);
 
   useInterval(() => setNow(Date.now()), 30_000);
@@ -135,15 +136,14 @@ export const AiResearchCard = memo(function AiResearchCard() {
     setError(null);
     setChecking(true);
     setNextAt(Date.now() + HOUR);
-    provider
-      .api<FeedItem[]>(withGame("/api/feed/refresh", game), {})
+    api<FeedItem[]>(withGame("/api/feed/refresh", game), {})
       .then(() => reloadRef.current())
       .catch((e: Error) => setError(e.message))
       .finally(() => {
         busy.current = false;
         setChecking(false);
       });
-  }, [provider, game]);
+  }, [game]);
 
   useEffect(() => {
     if (!hourly) return;
@@ -181,7 +181,7 @@ export const AiResearchCard = memo(function AiResearchCard() {
       }
       right={freshCount ? <span className="chip">{freshCount} new</span> : undefined}
     >
-      {api.error && !data ? (
+      {feedApi.error && !data ? (
         <Empty>The local service isn't answering, so leak headlines can't load.</Empty>
       ) : !data ? (
         <LeakFeedLoading />

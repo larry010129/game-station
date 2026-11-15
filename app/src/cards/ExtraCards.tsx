@@ -3,10 +3,11 @@ import { clockTime } from "../lib/format";
 import type { CostData, DiscordStatus, LibraryData } from "../lib/types";
 import type { AppToast } from "../state/useToasts";
 import { useToast } from "../state/Toast";
-import { useApi, useStationCtx } from "../state/useApi";
+import { useApi } from "../state/useApi";
 import { Bar, Card, Empty, span, useEvery, type Tone } from "./ui";
 import { readJson, writeJson } from "../lib/storage";
 import { KEYS } from "../lib/storageKeys";
+import { api } from "../lib/api";
 
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -73,7 +74,6 @@ const ago = (t: number) => {
 export const LibraryCard = memo(function LibraryCard() {
   const ms = useEvery(60000, 0);
   const { data, error } = useApi<LibraryData>("/api/library", ms);
-  const { provider } = useStationCtx();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -81,7 +81,7 @@ export const LibraryCard = memo(function LibraryCard() {
     if (busy) return;
     setBusy(id);
     try {
-      await provider.api("/api/library/launch", { id });
+      await api("/api/library/launch", { id });
       toast(`Starting ${name}…`);
     } catch (e) {
       toast(msg(e, `Couldn't start ${name}.`));
@@ -246,7 +246,6 @@ function DiscordNotes({ toasts }: { toasts?: DiscordToasts }) {
 export const DiscordCard = memo(function DiscordCard({ toasts }: { toasts?: DiscordToasts }) {
   const ms = useEvery(3000, 10000);
   const { data, error, reload } = useApi<DiscordStatus>("/api/discord", ms);
-  const { provider } = useStationCtx();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [id, setId] = useState("");
@@ -256,7 +255,7 @@ export const DiscordCard = memo(function DiscordCard({ toasts }: { toasts?: Disc
     if (busy) return;
     setBusy(true);
     try {
-      await provider.api(path, body);
+      await api(path, body);
       if (ok) toast(ok);
       reload();
     } catch (e) {

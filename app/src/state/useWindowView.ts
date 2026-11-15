@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isTauri } from "../providers";
+import { isTauri } from "../lib/connect";
 import { placeOnPreferredMonitor, preferredMonitorPosition } from "./useMonitor";
 import { readString, writeString } from "../lib/storage";
 

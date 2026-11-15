@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_SOURCE_KIND, SOURCE_KIND_LABEL, SOURCE_KIND_OPTIONS, type SourceKind } from "../lib/feedKind";
-import type { FeedPlatform, Provider, SettingsData, TrackedKind, TrackedPlatform, TrackedSource } from "../lib/types";
+import type { FeedPlatform, SettingsData, TrackedKind, TrackedPlatform, TrackedSource } from "../lib/types";
 import { useToast } from "../state/Toast";
 import { PlatformIcon } from "./PlatformIcon";
 import { Segmented } from "./Segmented";
+import { api } from "../lib/api";
 
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -127,7 +128,7 @@ function trackKey(platform: TrackedPlatform, value: string) {
 }
 
 /** Vault section: the accounts, channels, subreddits and sites the user trusts for leaks. */
-export function SourcesSettings({ provider }: { provider: Provider }) {
+export function SourcesSettings() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [failed, setFailed] = useState(false);
   const [platform, setPlatform] = useState<TrackedPlatform>("x");
@@ -140,14 +141,13 @@ export function SourcesSettings({ provider }: { provider: Provider }) {
 
   useEffect(() => {
     let alive = true;
-    provider
-      .api<SettingsData>("/api/settings")
+    api<SettingsData>("/api/settings")
       .then((d) => alive && setData(d))
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
     };
-  }, [provider]);
+  }, []);
 
   if (!data) {
     return (
@@ -165,7 +165,7 @@ export function SourcesSettings({ provider }: { provider: Provider }) {
   const save = async (next: TrackedSource[]) => {
     setBusy(true);
     try {
-      setData(await provider.api<SettingsData>("/api/settings", { tracked: next }));
+      setData(await api<SettingsData>("/api/settings", { tracked: next }));
     } finally {
       setBusy(false);
     }

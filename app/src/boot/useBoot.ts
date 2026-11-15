@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CardId } from "../layout/layouts";
-import type { Provider } from "../lib/types";
-import { connectProvider, liveAvailable, StageError } from "../providers";
+
+import { connectStation, liveAvailable, StageError } from "../lib/connect";
+import type { StationInfo } from "../lib/types";
 import { apiResultMatch, watchApi, type ApiResult } from "../state/useApi";
 import { failCount, onSignal, signalled } from "./bootSignals";
 import { CORE, HARDWARE, PROFILES, TELEMETRY, stepsFor, type StepDef, type StepSource } from "./bootSteps";
@@ -86,27 +87,27 @@ function optionalStatus(def: StepDef, started: boolean, late: boolean): StepStat
 interface Options {
   /** Card types on the current tab, or null until the dashboard has mounted. */
   cards: readonly CardId[] | null;
-  /** Called once with the provider, after the hardware and profiles have loaded. */
-  onProvider: (p: Provider) => void;
+  /** Called once with the start-up info, after the hardware and profiles have loaded. */
+  onInfo: (p: StationInfo) => void;
 }
 
 /**
- * Runs the startup: polls the service, builds the provider stage by stage, then
+ * Runs the startup: polls the service, loads the start-up info stage by stage, then
  * watches the dashboard's own first fetches (mounted hidden underneath) tick off.
  * Reports "ready" once the required steps are done, the minimum time has passed,
  * and the optional steps have finished or run out of time.
  */
-export function useBoot({ cards, onProvider }: Options): BootState {
-  const onProviderRef = useRef(onProvider);
-  onProviderRef.current = onProvider;
-  const provider = useRef<Provider | null>(null);
+export function useBoot({ cards, onInfo }: Options): BootState {
+  const onInfoRef = useRef(onInfo);
+  onInfoRef.current = onInfo;
+  const info = useRef<StationInfo | null>(null);
 
   const [attempt, setAttempt] = useState(0);
   const [health, setHealth] = useState(false);
   const [noSignal, setNoSignal] = useState(false);
   const [hw, setHw] = useState<Stage>("standby");
   const [prof, setProf] = useState<Stage>("standby");
-  const [hasProvider, setHasProvider] = useState(false);
+  const [hasInfo, setHasInfo] = useState(false);
   const [short, setShort] = useState(() => bootedBefore() && !replay());
   const firstChecked = useRef(false);
   const sampleBase = useRef(0);
@@ -119,7 +120,7 @@ export function useBoot({ cards, onProvider }: Options): BootState {
 
   // Service, then hardware, then profiles. Keeps trying; Retry restarts it at once.
   useEffect(() => {
-    if (provider.current) return;
+    if (info.current) return;
     let alive = true;
     setNoSignal(false);
     const noSig = window.setTimeout(() => alive && setNoSignal(true), NO_SIGNAL_MS);
@@ -145,7 +146,7 @@ export function useBoot({ cards, onProvider }: Options): BootState {
       for (;;) {
         setHw((s) => (s === "online" ? s : s === "failed" ? s : "linking"));
         try {
-          const p = await connectProvider((stage) => {
+          const p = await connectStation((stage) => {
             if (!alive) return;
             if (stage === "machine") {
               setHw("online");
@@ -153,9 +154,9 @@ export function useBoot({ cards, onProvider }: Options): BootState {
             } else setProf("online");
           });
           if (!alive) return;
-          provider.current = p;
-          setHasProvider(true);
-          onProviderRef.current(p);
+          info.current = p;
+          setHasInfo(true);
+          onInfoRef.current(p);
           return;
         } catch (e) {
           if (!alive) return;
@@ -196,7 +197,7 @@ export function useBoot({ cards, onProvider }: Options): BootState {
     [CORE]: core,
     [HARDWARE]: !health ? "standby" : hw,
     [PROFILES]: hw !== "online" ? "standby" : prof,
-    [TELEMETRY]: !hasProvider ? "standby" : sampleOk ? "online" : sampleFailed ? "failed" : "linking",
+    [TELEMETRY]: !hasInfo ? "standby" : sampleOk ? "online" : sampleFailed ? "failed" : "linking",
   };
   const requiredDone = defs.every((d) => !d.required || required[d.id] === "online");
 
@@ -207,7 +208,7 @@ export function useBoot({ cards, onProvider }: Options): BootState {
     label: d.label,
     detail: d.detail,
     required: d.required,
-    status: d.required ? required[d.id] : optionalStatus(d, hasProvider, late),
+    status: d.required ? required[d.id] : optionalStatus(d, hasInfo, late),
   }));
   const settled = steps.every((s) => s.required || (s.status !== "standby" && s.status !== "linking"));
   const minMs = short ? MIN_SHORT_MS : MIN_MS;

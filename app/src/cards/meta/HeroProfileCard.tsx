@@ -3,7 +3,6 @@ import type { MetaHeroDetail, MetaMatchup } from "../../lib/types";
 import { Segmented } from "../../components/Segmented";
 import { StationSelect } from "../../components/StationSelect";
 import { signal } from "../../boot/bootSignals";
-import { useStationCtx } from "../../state/useApi";
 import { Card, Empty } from "../ui";
 import { withGame } from "../../lib/games";
 import { openLink } from "../../lib/openLink";
@@ -11,6 +10,7 @@ import { pct, useGameMeta, RoleFilter, useMetaMode, ModeSelect, useMeta, Stamp, 
 import { ARCH_COLORS, STAT_ROWS, CombatRadar, ArchetypeRadar, CmpBar, Dots } from "./charts";
 import { readString, writeString } from "../../lib/storage";
 import { KEYS } from "../../lib/storageKeys";
+import { api } from "../../lib/api";
 
 const HERO_KEY = KEYS.metaHero;
 
@@ -172,7 +172,6 @@ export const HeroProfileCard = memo(function HeroProfileCard({ instanceId = "her
   const { mode, pick: pickMode } = useMetaMode();
   const { game, SITE, ROLES, MAP_MODES, cards, character, defaultHero } = useGameMeta();
   const m = useMeta(mode);
-  const { provider } = useStationCtx();
   const primary = instanceId === "heroprofile";
   const heroKey = `${HERO_KEY}.${game}.${instanceId}`;
   const [slug, setSlug] = useState(() => readString(heroKey) || (primary && game === "overwatch" ? readString(HERO_KEY) : null) || defaultHero);
@@ -244,8 +243,7 @@ export const HeroProfileCard = memo(function HeroProfileCard({ instanceId = "her
     setLoading(true);
     setErr(null);
     const q = withGame("/api/meta/hero", game, { slug, mode, force: force ? "1" : undefined });
-    provider
-      .api<MetaHeroDetail>(q)
+    api<MetaHeroDetail>(q)
       .then((d) => {
         if (!alive) return;
         setDetail(d);
@@ -264,7 +262,7 @@ export const HeroProfileCard = memo(function HeroProfileCard({ instanceId = "her
     return () => {
       alive = false;
     };
-  }, [provider, slug, mode, m.meta?.fetchedAt, game]);
+  }, [slug, mode, m.meta?.fetchedAt, game]);
 
   const pick = (next: string) => {
     setSlug(next);

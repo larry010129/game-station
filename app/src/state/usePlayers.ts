@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import type { PlayersData, Provider } from "../lib/types";
+import type { PlayersData } from "../lib/types";
 import { signal } from "../boot/bootSignals";
+import { readPlayers } from "../lib/api";
 
 const REFRESH_MS = 10 * 60 * 1000;
 /** After the first cache hit, re-read soon so a background Steam poll can paint. */
 const CATCH_UP_MS = [5_000, 15_000] as const;
 
 /** Loads the online-player count now and every 10 minutes, but never during a match. */
-export function usePlayers(provider: Provider, paused: boolean, game = "overwatch") {
+export function usePlayers(paused: boolean, game = "overwatch") {
   const [data, setData] = useState<PlayersData | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -20,8 +21,7 @@ export function usePlayers(provider: Provider, paused: boolean, game = "overwatc
     if (paused) return;
     let alive = true;
     const load = () =>
-      provider
-        .readPlayers(game)
+      readPlayers(game)
         .then((d) => {
           signal("/api/players", "ok");
           if (!alive) return;
@@ -40,7 +40,7 @@ export function usePlayers(provider: Provider, paused: boolean, game = "overwatc
       for (const t of catchUps) window.clearTimeout(t);
       window.clearInterval(id);
     };
-  }, [provider, paused, game]);
+  }, [paused, game]);
 
   return { data, failed };
 }

@@ -3,11 +3,11 @@ import type { MetaHero, MetaMap } from "../../lib/types";
 import { Segmented } from "../../components/Segmented";
 import { StationSelect } from "../../components/StationSelect";
 import { signal } from "../../boot/bootSignals";
-import { useStationCtx } from "../../state/useApi";
 import { Card, Empty } from "../ui";
 import { pct, hotWin, useGameMeta, RoleFilter, useMetaRank, useMetaMode, RankSelect, ModeSelect, useRankStats, rankStatus, useMeta, Stamp, Portrait, Waiting, Foot } from "./shared";
 import { readString, writeString } from "../../lib/storage";
 import { KEYS } from "../../lib/storageKeys";
+import { api } from "../../lib/api";
 
 function HeroRow({ hero, note }: { hero: MetaHero; note: string }) {
   const { game } = useGameMeta();
@@ -63,7 +63,6 @@ export const MapPicksCard = memo(function MapPicksCard() {
     setSlug(s);
     writeString(`${KEYS.metaMap}.${game}`, s);
   };
-  const { provider } = useStationCtx();
   const [roster, setRoster] = useState<{ slug: string; mode: string; heroes: MetaHero[] } | null>(null);
   const [rosterState, setRosterState] = useState<"idle" | "loading" | "error">("idle");
   useEffect(() => {
@@ -78,8 +77,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
     }
     let alive = true;
     setRosterState("loading");
-    provider
-      .api<{ heroes: MetaHero[] }>(`/api/meta/map?game=${encodeURIComponent(game)}&slug=${encodeURIComponent(map.slug)}&mode=${encodeURIComponent(queueMode)}`)
+    api<{ heroes: MetaHero[] }>(`/api/meta/map?game=${encodeURIComponent(game)}&slug=${encodeURIComponent(map.slug)}&mode=${encodeURIComponent(queueMode)}`)
       .then((d) => {
         if (!alive) return;
         setRoster({ slug: map.slug, mode: queueMode, heroes: d.heroes ?? [] });
@@ -94,7 +92,7 @@ export const MapPicksCard = memo(function MapPicksCard() {
     return () => {
       alive = false;
     };
-  }, [provider, map?.slug, meta, rank, queueMode, game]);
+  }, [map?.slug, meta, rank, queueMode, game]);
   const full = roster && map && roster.slug === map.slug && roster.mode === queueMode ? roster.heroes : null;
   const top = (list: MetaHero[], key: "winRate" | "pickRate") =>
     [...list].filter((h) => role === "All" || h.role === role).sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0)).slice(0, 5);

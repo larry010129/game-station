@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { Provider, Sample } from "../lib/types";
+import type { Sample } from "../lib/types";
 import type { NewEvent } from "./useEvents";
 import { useOnScreen } from "../layout/onScreen";
+import { emptySample, readSample } from "../lib/api";
+import { signal } from "../boot/bootSignals";
 
 /** The newest reading, and a way to hear about the next one without re-rendering everything. */
 export interface StationStore {
@@ -45,12 +47,12 @@ function createStore(first: Sample) {
 }
 
 /**
- * Samples the provider on an interval and publishes each reading to a store. Components pick
+ * Samples the service on an interval and publishes each reading to a store. Components pick
  * what they need with `useSample`, so one new reading re-renders only the cards that show it.
  * A read that is still in flight is not started again, and a failing read is reported once.
  */
-export function useStation(provider: Provider, { stopped, intervalMs, onEvent }: Options): StationStore {
-  const source = useMemo(() => createStore(provider.seed(1, Date.now())[0]), [provider]);
+export function useStation({ stopped, intervalMs, onEvent }: Options): StationStore {
+  const source = useMemo(() => createStore(emptySample(Date.now())), []);
   const failing = useRef(false);
   const misses = useRef(0);
 
@@ -68,7 +70,8 @@ export function useStation(provider: Provider, { stopped, intervalMs, onEvent }:
       if (busy) return;
       busy = true;
       try {
-        const s = await provider.readSample();
+        const s = await readSample();
+        signal("/api/sample", "ok");
         if (!alive) return;
         const recovered = failing.current;
         failing.current = false;
@@ -76,6 +79,7 @@ export function useStation(provider: Provider, { stopped, intervalMs, onEvent }:
         source.push(s);
         if (recovered) onEvent({ kind: "info", text: "Sensors restored" });
       } catch {
+        signal("/api/sample", "error");
         if (alive) {
           misses.current++;
           if (!failing.current) {
@@ -95,7 +99,7 @@ export function useStation(provider: Provider, { stopped, intervalMs, onEvent }:
       alive = false;
       window.clearInterval(id);
     };
-  }, [provider, source, stopped, intervalMs, onEvent]);
+  }, [source, stopped, intervalMs, onEvent]);
 
   return source.store;
 }

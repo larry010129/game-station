@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Provider } from "../lib/types";
+
+import { api } from "../lib/api";
 
 export interface AppToast {
   id: string;
@@ -15,7 +16,7 @@ interface ToastPayload {
 }
 
 /** Toasts other apps have sent to Windows, from the local service. */
-export function useToasts(provider: Provider) {
+export function useToasts() {
   const [access, setAccess] = useState("pending");
   const [items, setItems] = useState<AppToast[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
@@ -25,7 +26,7 @@ export function useToasts(provider: Provider) {
     let timer = 0;
     const tick = async () => {
       try {
-        const data = await provider.api<ToastPayload>("/api/toasts");
+        const data = await api<ToastPayload>("/api/toasts");
         if (!alive) return;
         setAccess(data.access || "error");
         const next = Array.isArray(data.items) ? data.items : [];
@@ -53,7 +54,7 @@ export function useToasts(provider: Provider) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [provider]);
+  }, []);
 
   const shown = useMemo(() => items.filter((item) => !hidden.has(item.id)), [items, hidden]);
 

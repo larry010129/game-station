@@ -18,7 +18,7 @@ export interface StepDef {
   sources: readonly StepSource[];
 }
 
-// The service, then the provider (machine, profiles), then the first sample.
+// The service, then the start-up info (machine, profiles), then the first sample.
 // Their sources are only for reference: useBoot drives these four itself.
 export const CORE = "core";
 export const HARDWARE = "hardware";

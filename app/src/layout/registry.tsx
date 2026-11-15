@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, type ReactNode } from "react";
-import type { FeedItem, PlayersData, Provider, StationEvent } from "../lib/types";
+import type { FeedItem, PlayersData, StationEvent, StationInfo } from "../lib/types";
 import { MediaCard } from "../cards/MediaCard";
 import { SpotifyCard } from "../cards/SpotifyCard";
 import { CalendarCard } from "../cards/CalendarCard";
@@ -25,7 +25,7 @@ import type { CardId, CardInstance } from "./layouts";
 
 /** What the cards need from the app around them. Each card picks out only what it shows. */
 export interface CardCtx {
-  provider: Provider;
+  info: StationInfo;
   store: StationStore;
   players: { data: PlayersData | null; failed: boolean };
   feed: { items: FeedItem[]; error: string | null; checking: boolean; checkNow: () => void };
@@ -107,7 +107,7 @@ const WifiCardM = memo(WifiCard);
 
 /** Every card's view, by id. A view is built only when its card is on the page being drawn. */
 export const CARD_VIEWS: Record<CardId, (c: CardCtx, inst: CardInstance) => ReactNode> = {
-  gpu: (c) => <GpuView store={c.store} model={c.provider.machine.gpu} />,
+  gpu: (c) => <GpuView store={c.store} model={c.info.machine.gpu} />,
   load: (c) => <LoadView store={c.store} />,
   uplink: (c) => <UplinkView store={c.store} />,
   chart: (c) => <PlayersMapM data={c.players.data} failed={c.players.failed} />,

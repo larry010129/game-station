@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { GameId, GamePack } from "../lib/games";
-import type { Provider } from "../lib/types";
-import { useOnScreen } from "../layout/onScreen";
+import type { StationInfo } from "../lib/types";
 
-/** What the cards need beyond their own props: the provider, quiet mode, and which game is selected. */
+import { useOnScreen } from "../layout/onScreen";
+import { api } from "../lib/api";
+
+/** What the cards need beyond their own props: the start-up info, quiet mode, and which game is selected. */
 export const StationContext = createContext<{
-  provider: Provider;
+  info: StationInfo;
   quiet: boolean;
   game: GameId;
   pack: GamePack;
@@ -72,12 +74,11 @@ export function watchApi(f: () => void): () => void {
  * endpoint share one request at the fastest interval any of them asks for.
  * `ms` of 0 pauses polling for that card (for example during a match).
  */
-export function useApi<T>(path: string, wanted: number): { data: T | null; error: boolean; reload: () => void } {
-  const { provider } = useStationCtx();
+export function useApi<T>(path: string, wanted: number): { data: T | null; error: boolean; reload: () => void } {
   // A card you have to scroll to stops polling until it is back in view.
   const ms = useOnScreen() ? wanted : 0;
   const [, tick] = useState(0);
-  const k = `${provider.id}:${path}`;
+  const k = path;
 
   useEffect(() => {
     let entry = entries.get(k);
@@ -98,8 +99,7 @@ export function useApi<T>(path: string, wanted: number): { data: T | null; error
     const notify = () => e.want.forEach((_, f) => f());
 
     const load = () =>
-      provider
-        .api<T>(path)
+      api<T>(path)
         .then((d) => {
           e.data = d;
           e.error = false;
@@ -146,15 +146,14 @@ export function useApi<T>(path: string, wanted: number): { data: T | null; error
         e.ms = 0;
       }
     };
-  }, [k, ms, provider, path]);
+  }, [k, ms, path]);
 
   const cur = entries.get(k);
   return {
     data: (cur?.data as T | null) ?? null,
     error: cur?.error ?? false,
     reload: () => {
-      provider
-        .api<T>(path)
+      api<T>(path)
         .then((d) => {
           const e = entries.get(k);
           if (e) {

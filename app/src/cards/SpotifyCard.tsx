@@ -1,8 +1,9 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { SpotifyPlaylist, SpotifyStatus } from "../lib/types";
-import { useApi, useStationCtx } from "../state/useApi";
+import { useApi } from "../state/useApi";
 import { Card, Empty, useEvery } from "./ui";
 import { useInterval } from "../layout/onScreen";
+import { api } from "../lib/api";
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -74,8 +75,7 @@ function PlaylistPane({ deviceId, busy, onPick }: { deviceId?: string; busy: boo
 }
 
 /** Spotify remote: any account, any device. Sign-in and setup happen inside the card. */
-export const SpotifyCard = memo(function SpotifyCard() {
-  const { provider } = useStationCtx();
+export const SpotifyCard = memo(function SpotifyCard() {
   const ms = useEvery(3000, 20000);
   const { data, reload } = useApi<SpotifyStatus>("/api/spotify", ms);
   const [busy, setBusy] = useState(false);
@@ -100,7 +100,7 @@ export const SpotifyCard = memo(function SpotifyCard() {
     setBusy(true);
     setErr("");
     try {
-      await provider.api(path, body ?? {});
+      await api(path, body ?? {});
       reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "That did not work.");
@@ -308,8 +308,7 @@ export const SpotifyCard = memo(function SpotifyCard() {
               setVol(v);
               window.clearTimeout(volTimer.current);
               volTimer.current = window.setTimeout(() => {
-                void provider
-                  .api("/api/spotify/control", { action: "volume", percent: v })
+                void api("/api/spotify/control", { action: "volume", percent: v })
                   .then(() => reload())
                   .catch((x) => setErr(x instanceof Error ? x.message : "Volume failed."))
                   .finally(() => setVol(null));

@@ -6,7 +6,7 @@ import { NavSettings, type NavTabsApi } from "../components/NavSettings";
 import { SourcesSettings } from "../components/SourcesSettings";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { AlertSettings, BackupSettings, GameModeSettings } from "../components/VaultExtras";
-import type { Provider } from "../lib/types";
+
 import type { useMonitor } from "../state/useMonitor";
 import type { useTheme } from "../state/useTheme";
 import type { useToasts } from "../state/useToasts";
@@ -45,7 +45,6 @@ function initialSection(): string {
 }
 
 interface Props {
-  provider: Provider;
   /** Reads the game mode profiles again after a settings change. */
   onProfilesChanged: () => Promise<void>;
   look: ReturnType<typeof useTheme>;
@@ -61,7 +60,7 @@ interface Props {
 }
 
 /** Settings for this PC. A section rail on the left, one flat panel on the right. */
-export function VaultPage({ provider, onProfilesChanged, look, windowView, monitor, displayName, onDisplayName, freeMove, onMoveMode, toasts, navTabs, onOpenThemes }: Props) {
+export function VaultPage({ onProfilesChanged, look, windowView, monitor, displayName, onDisplayName, freeMove, onMoveMode, toasts, navTabs, onOpenThemes }: Props) {
   const [section, setSection] = useState(initialSection);
   const choose = (id: string) => {
     setSection(id);
@@ -132,14 +131,14 @@ export function VaultPage({ provider, onProfilesChanged, look, windowView, monit
           </section>
         )}
         {current.id === "nav" && <NavSettings api={navTabs} />}
-        {current.id === "sources" && <SourcesSettings provider={provider} />}
+        {current.id === "sources" && <SourcesSettings />}
         {current.id === "alerts" && (
           <>
             <AlertSettings />
             <NotificationCenter items={toasts.items} access={toasts.access} onDismiss={toasts.dismiss} onClear={toasts.clear} />
           </>
         )}
-        {current.id === "game" && <GameModeSettings provider={provider} onSaved={onProfilesChanged} />}
+        {current.id === "game" && <GameModeSettings onSaved={onProfilesChanged} />}
         {current.id === "look" && (
           <section className="vault-card" aria-label="Appearance">
             <h3>Appearance</h3>
@@ -156,7 +155,7 @@ export function VaultPage({ provider, onProfilesChanged, look, windowView, monit
             </div>
           </section>
         )}
-        {current.id === "backup" && <BackupSettings provider={provider} />}
+        {current.id === "backup" && <BackupSettings />}
       </div>
     </section>
   );

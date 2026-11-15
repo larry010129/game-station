@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { Provider, SettingsData } from "../lib/types";
+import type { SettingsData } from "../lib/types";
 import { readString, restoreRemove, restoreWrite, setRestoring } from "../lib/storage";
 import { deletePicture, loadPicture, savePicture } from "../state/imageStore";
 import { useToast } from "../state/Toast";
 import { BG_ID, IMG_REF_KEY } from "../state/useTheme";
 import { DEFAULT_RULES, RULE_IDS, RULE_INFO, readRules, writeRules, type AlertRule, type RuleId } from "../state/useSmartAlerts";
+import { api } from "../lib/api";
 
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -134,25 +135,24 @@ function ProgramList({ label, hint, items, onChange }: { label: string; hint: st
   );
 }
 
-export function GameModeSettings({ provider, onSaved }: { provider: Provider; onSaved: () => Promise<void> }) {
+export function GameModeSettings({ onSaved }: { onSaved: () => Promise<void> }) {
   const [data, setData] = useState<SettingsData | null>(null);
   const [failed, setFailed] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
     let alive = true;
-    provider
-      .api<SettingsData>("/api/settings")
+    api<SettingsData>("/api/settings")
       .then((d) => alive && setData(d))
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
     };
-  }, [provider]);
+  }, []);
 
   /** Saves a change, then reloads the game-mode profiles so the panel shows the new steps straight away. */
   const save = async (patch: Partial<SettingsData>) => {
-    const next = await provider.api<SettingsData>("/api/settings", patch);
+    const next = await api<SettingsData>("/api/settings", patch);
     setData(next);
     try {
       await onSaved();
@@ -232,7 +232,7 @@ interface Backup {
   service: Partial<SettingsData> | null;
 }
 
-export function BackupSettings({ provider }: { provider: Provider }) {
+export function BackupSettings() {
   const toast = useToast();
   const file = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -260,7 +260,7 @@ export function BackupSettings({ provider }: { provider: Provider }) {
     }
     let service: Backup["service"] = null;
     try {
-      const s = await provider.api<SettingsData>("/api/settings");
+      const s = await api<SettingsData>("/api/settings");
       service = { closeApps: s.closeApps, games: s.games, disabledSteps: s.disabledSteps };
     } catch {
       // service not reachable: save the dashboard side only
@@ -360,7 +360,7 @@ export function BackupSettings({ provider }: { provider: Provider }) {
       let serviceFailed: string | null = null;
       if (data.service) {
         try {
-          await provider.api("/api/settings", data.service);
+          await api("/api/settings", data.service);
         } catch (e) {
           serviceFailed = msg(e, "Game-mode settings were not restored.");
         }
