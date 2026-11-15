@@ -13,6 +13,7 @@ import { readString, removeKey, writeString } from "./lib/storage";
 import { CalendarPage, calFocus } from "./cards/CalendarPage";
 // These three pages are opened rarely, so they load when first opened rather than at start-up.
 const CreditsPage = lazy(() => import("./pages/CreditsPage").then((m) => ({ default: m.CreditsPage })));
+const QuestsPage = lazy(() => import("./pages/QuestsPage").then((m) => ({ default: m.QuestsPage })));
 const BuyCreditsPage = lazy(() => import("./pages/BuyCreditsPage").then((m) => ({ default: m.BuyCreditsPage })));
 const ThemesPage = lazy(() => import("./pages/ThemesPage").then((m) => ({ default: m.ThemesPage })));
 const VaultPage = lazy(() => import("./pages/VaultPage").then((m) => ({ default: m.VaultPage })));
@@ -25,6 +26,7 @@ import { useNav } from "./layout/useNav";
 import { Backdrop } from "./components/Backdrop";
 import { usePlayers } from "./state/usePlayers";
 import { TopBar } from "./components/TopBar";
+import { trackQuest, useQuestTracking } from "./state/useQuests";
 import { useToast } from "./state/Toast";
 import { isQuiet, usePerformanceGate, useStoredFlag } from "./state/useEnvironment";
 import { useEvents, type NewEvent } from "./state/useEvents";
@@ -115,6 +117,7 @@ function StationApp({
   }, [stopped, gate.hidden]);
   // Only the running game is read here; the rest of each reading is picked up by the cards that show it.
   const game = useSample(store, (s) => s.game);
+  useQuestTracking(game);
   const activeGame = useActiveGame();
   const onNewStories = useCallback(
     (fresh: FeedItem[]) => {
@@ -152,6 +155,11 @@ function StationApp({
   const known = useMemo(() => new Set([...TABS.map((t) => t.id), ...nav.custom.map((c) => c.id)]), [nav.custom]);
   const split = useSplit(known);
   const tab = split.activeTab;
+  // Opening Calendar or the Vault is a one-time starter quest.
+  useEffect(() => {
+    if (tab === "calendar") trackQuest.once("calendar");
+    if (tab === "vault") trackQuest.once("vault");
+  }, [tab]);
   const [freeMove, setFreeMove] = useState(() => readString(FREE_KEY) === "1");
   const chooseMove = useCallback((mode: "snap" | "free") => {
     setFreeMove(mode === "free");
@@ -394,6 +402,7 @@ function StationApp({
     calendar: () => <CalendarPage />,
     credits: () => <CreditsPage />,
     "buy-credits": () => <BuyCreditsPage />,
+    quests: () => <QuestsPage onOpenThemes={() => selectTab("themes")} />,
   };
 
   return (

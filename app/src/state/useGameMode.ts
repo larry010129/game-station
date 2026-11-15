@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameModeStep, Profile, StationInfo } from "../lib/types";
 import type { NewEvent } from "./useEvents";
 import { api, applyStep, restoreStep } from "../lib/api";
+import { trackQuest } from "./useQuests";
 
 export type Phase = "off" | "applying" | "on" | "restoring";
 export type StepStatus = "waiting" | "running" | "done" | "failed";
@@ -18,6 +19,10 @@ export function useGameMode(info: StationInfo, onEvent: (e: NewEvent) => void) {
   const [profileId, setProfileId] = useState(info.profiles[0]?.id ?? "");
   const profile = profiles.find((p) => p.id === profileId) ?? profiles[0];
   const [phase, setPhase] = useState<Phase>("off");
+  // A day with game mode on counts for the Arm game mode quests.
+  useEffect(() => {
+    if (phase === "on") trackQuest.armed();
+  }, [phase]);
   const [status, setStatus] = useState<Record<string, StepStatus>>({});
   const activeSteps = useRef<GameModeStep[]>([]);
   const onEventRef = useRef(onEvent);

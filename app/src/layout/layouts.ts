@@ -74,6 +74,7 @@ export const TABS = [
   { id: "overwatch", label: "Overwatch", kind: "cards" },
   { id: "gamemode", label: "Game mode", kind: "cards" },
   { id: "calendar", label: "Calendar", kind: "page", note: "The calendar is a page, not a card layout." },
+  { id: "quests", label: "Quests", kind: "page", note: "Quests is a page, not a card layout." },
   { id: "credits", label: "Credits", kind: "page", note: "Credits is a page, not a card layout." },
   { id: "buy-credits", label: "Support", kind: "page", note: "Support is a page, not a card layout." },
   { id: "themes", label: "Themes", kind: "page", note: "Themes is a page, not a card layout." },

@@ -4,6 +4,7 @@ import { deletePicture, loadPicture, savePicture } from "./imageStore";
 import { applyPalette, parseThemeModule, type Palette, type ThemeDef } from "./palette";
 import { applyTweaks, cleanTweaks, type Tweaks } from "./tweaks";
 import { CATALOG, CHARCOAL, UNLOCKABLES } from "./themeCatalog";
+import { trackQuest } from "./useQuests";
 
 const KEY = "cs.theme";
 /** Before the wallpaper moved to IndexedDB, the whole picture lived here. */
@@ -264,6 +265,7 @@ export function useTheme() {
     setPreviewId(null);
     setId(next);
     setRecent((list) => [next, ...list.filter((x) => x !== next)].slice(0, MAX_RECENT));
+    trackQuest.once("look");
   }, []);
 
   /** Marks a gated theme as unlocked for this install (persists in `cs.themeUnlocks`). */
@@ -280,7 +282,13 @@ export function useTheme() {
     });
   }, []);
   const clearTweaks = useCallback(() => setTweaks({}), []);
-  const toggleFav = useCallback((themeId: string) => setFavs((l) => (l.includes(themeId) ? l.filter((x) => x !== themeId) : [themeId, ...l])), []);
+  const toggleFav = useCallback(
+    (themeId: string) => {
+      if (!favs.includes(themeId)) trackQuest.once("star");
+      setFavs((l) => (l.includes(themeId) ? l.filter((x) => x !== themeId) : [themeId, ...l]));
+    },
+    [favs],
+  );
   const preview = useCallback((themeId: string | null) => setPreviewId(themeId), []);
   const setDim = useCallback((next: number) => setDimState(next), []);
 
