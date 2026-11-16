@@ -18,3 +18,9 @@ CommandStation-v0.2/
 !.env.example
 !**/.env.example
 .freebuff/
+# CMS local releases + signing secrets (see cms/data/.gitignore)
+cms/data/keys/*.pem
+cms/data/releases/by-number/
+cms/data/releases/blobs/
+cms/data/releases/current.json
+cms/data/assets/

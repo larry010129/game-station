@@ -1,5 +1,17 @@
-import { lockedIdsOf } from "./lookAccess";
-import type { FontKey, Palette, ThemeDef } from "./palette";
+import { lockedIdsOf } from "./lookAccess.ts";
+import { BRAND_TAGS, validTags } from "../content/brandTags.ts";
+import { isRainbowThemeId } from "./gachaContent.ts";
+import type { FontKey, Palette, ThemeDef, ThemeStatus } from "./palette.ts";
+
+export type { ThemeStatus };
+
+/**
+ * Local demo: the first two Brand looks, and two Taiwan Region looks (an East Asia week), are Available so the
+ * Brand and Region Packs can be exercised offline.
+ * Every other Brand look stays Hidden until a content release announces it.
+ * Engine agent: Brand themes are only drawable / prism-pickable from the Brand Pack — never Credits or weekly pick.
+ */
+export const DEMO_AVAILABLE_BRAND_IDS: readonly string[] = ["spotify-night", "twitch-purple", "asus-tw", "acer-tw"];
 
 /**
  * Looks taken from 21st.dev community themes (serafimcloud) and fitted onto this station:
@@ -64,6 +76,128 @@ const COMPANY: Record<string, string> = {
   "amazon-smile": "Amazon",
   "linkedin-navy": "LinkedIn",
   "airbnb-coral": "Airbnb",
+  "uber-black": "Uber",
+  "robinhood-green": "Robinhood",
+  "revolut-midnight": "Revolut",
+  "shopify-commerce": "Shopify",
+  "arc-violet": "Arc",
+  "vercel-void": "Vercel",
+  "linear-orbit": "Linear",
+  "hermes-orange": "Hermès",
+  "redbull-charge": "Red Bull",
+  "google-spectrum": "Google",
+  "tesla-circuit": "Tesla",
+  "nasa-mission": "NASA",
+  "ferrari-rosso": "Ferrari",
+  "reddit-orangered": "Reddit",
+  "epic-games-vault": "Epic Games",
+  "riot-red": "Riot Games",
+  "ubisoft-swirl": "Ubisoft",
+  "ea-pulse": "Electronic Arts",
+  "sega-blue": "Sega",
+  "roblox-studio": "Roblox",
+  "razer-chroma": "Razer",
+  "logitech-g": "Logitech",
+  "steelseries-arctic": "SteelSeries",
+  "corsair-sail": "Corsair",
+  "nvidia-green": "NVIDIA",
+  "amd-red": "AMD",
+  "intel-blue": "Intel",
+  "samsung-galaxy": "Samsung",
+  "crunchyroll-orange": "Crunchyroll",
+  "soundcloud-wave": "SoundCloud",
+  "duolingo-owl": "Duolingo",
+  "dropbox-blue": "Dropbox",
+  "paypal-blue": "PayPal",
+  "porsche-racing": "Porsche",
+  "telegram-sky": "Telegram",
+  "pinterest-pin": "Pinterest",
+  "snapchat-ghost": "Snapchat",
+  "coinbase-blue": "Coinbase",
+  "bmw-m": "BMW",
+  "square-enix-crystal": "Square Enix",
+  "asus-tw": "ASUS",
+  "acer-tw": "Acer",
+  "msi-tw": "MSI",
+  "htc-tw": "HTC",
+  "mediatek-tw": "MediaTek",
+  "sony-jp": "Sony",
+  "toyota-jp": "Toyota",
+  "honda-jp": "Honda",
+  "rakuten-jp": "Rakuten",
+  "line-jp": "LINE",
+  "uniqlo-jp": "Uniqlo",
+  "konami-jp": "Konami",
+  "niconico-jp": "niconico",
+  "lg-kr": "LG",
+  "kakaotalk-kr": "KakaoTalk",
+  "naver-kr": "Naver",
+  "hyundai-kr": "Hyundai",
+  "kia-kr": "Kia",
+  "nexon-kr": "Nexon",
+  "bilibili-cn": "Bilibili",
+  "xiaomi-cn": "Xiaomi",
+  "huawei-cn": "Huawei",
+  "oneplus-cn": "OnePlus",
+  "lenovo-cn": "Lenovo",
+  "dji-cn": "DJI",
+  "wechat-cn": "WeChat",
+  "grab-sg": "Grab",
+  "shopee-sg": "Shopee",
+  "gojek-id": "Gojek",
+  "airasia-my": "AirAsia",
+  "flipkart-in": "Flipkart",
+  "paytm-in": "Paytm",
+  "zomato-in": "Zomato",
+  "swiggy-in": "Swiggy",
+  "jio-in": "Jio",
+  "zoho-in": "Zoho",
+  "emirates-ae": "Emirates",
+  "qatarairways-qa": "Qatar Airways",
+  "turkishairlines-tr": "Turkish Airlines",
+  "etihadairways-ae": "Etihad Airways",
+  "renault-fr": "Renault",
+  "vodafone-gb": "Vodafone",
+  "klarna-se": "Klarna",
+  "ericsson-se": "Ericsson",
+  "nokia-fi": "Nokia",
+  "volvo-se": "Volvo",
+  "monzo-gb": "Monzo",
+  "mclaren-gb": "McLaren",
+  "siemens-de": "Siemens",
+  "sap-de": "SAP",
+  "bosch-de": "Bosch",
+  "volkswagen-de": "Volkswagen",
+  "audi-de": "Audi",
+  "mercedes-de": "Mercedes",
+  "puma-de": "Puma",
+  "dhl-de": "DHL",
+  "zalando-de": "Zalando",
+  "cdprojekt-pl": "CD Projekt",
+  "jetbrains-cz": "JetBrains",
+  "skoda-cz": "ŠKODA",
+  "kaspersky-ru": "Kaspersky",
+  "grammarly-ua": "Grammarly",
+  "bitdefender-ro": "Bitdefender",
+  "fiat-it": "Fiat",
+  "ducati-it": "Ducati",
+  "lamborghini-it": "Lamborghini",
+  "maserati-it": "Maserati",
+  "zara-es": "Zara",
+  "glovo-es": "Glovo",
+  "farfetch-pt": "FARFETCH",
+  "mercadopago-ar": "Mercado Pago",
+  "nubank-br": "Nubank",
+  "ifood-br": "iFood",
+  "picpay-br": "PicPay",
+  "avianca-co": "avianca",
+  "aeromexico-mx": "Aeroméxico",
+  "andela-ng": "Andela",
+  "ethiopianairlines-et": "Ethiopian Airlines",
+  "canva-au": "Canva",
+  "atlassian-au": "Atlassian",
+  "afterpay-au": "Afterpay",
+  "qantas-au": "Qantas",
 };
 
 /** Station UI palettes derived from well-known brand colour DNA (not official kits). */
@@ -107,6 +241,7 @@ export const NIGHTSTEEL: ThemeDef = {
   author: "Command Station",
   group: "Station",
   source: "station",
+  status: "Available",
   palette: {
     bg: "#0a0c10",
     card: "#151922",
@@ -342,13 +477,370 @@ const LOOKS: ThemeDef[] = [
   brand("amazon-smile", "Amazon Smile", "#131921", "#232f3e", "#ffffff", "#aab7c4", "#ff9900", "#f0b429", "#e5484d", "#37475a", "0.5rem"),
   brand("linkedin-navy", "LinkedIn Navy", "#0a1219", "#121c27", "#ffffff", "#8a9aab", "#0a66c2", "#70b5f9", "#e5484d", "#1e2d3d", "0.5rem"),
   brand("airbnb-coral", "Airbnb Coral", "#1a1212", "#261a1a", "#ffffff", "#a89898", "#ff5a5f", "#fc642d", "#e5484d", "#3d2a2a", "0.75rem"),
+  // Brand pool, second wave (40). Uber through Ferrari take their dark palettes from 21st.dev brand themes by
+  // ibrandify (21st.dev/community/themes/<name>); the rest derive bg/card/border from the brand colour, with
+  // the accent lifted until it reads on the dark station. All start Hidden; swap them into the 28 rotation slots in the CMS.
+  brand("uber-black", "Uber Black", "#000000", "#1a1a1a", "#ffffff", "#999999", "#ffffff", "#f0b429", "#ff0000", "#404040", "0rem"),
+  brand("robinhood-green", "Robinhood Green", "#000000", "#141414", "#ffffff", "#999999", "#00e600", "#ffbf00", "#ff0000", "#333333", "0.125rem"),
+  brand("revolut-midnight", "Revolut Midnight", "#0a0c0f", "#14181f", "#fafafa", "#9da3af", "#00aaff", "#ffbf00", "#e83030", "#29303d", "1rem"),
+  brand("shopify-commerce", "Shopify Commerce", "#171a1c", "#202527", "#f2f2f2", "#9da9af", "#00994d", "#e6ac00", "#e83030", "#394246", "0.5rem"),
+  brand("arc-violet", "Arc Violet", "#1c1c22", "#25252d", "#f2f2f2", "#9d9daf", "#c285e0", "#ebb447", "#eb4747", "#393946", "1rem"),
+  brand("vercel-void", "Vercel Void", "#000000", "#141414", "#ffffff", "#999999", "#ffffff", "#ffbf00", "#ff0000", "#333333", "0.25rem"),
+  brand("linear-orbit", "Linear Orbit", "#131315", "#1d1d20", "#f2f2f2", "#94949e", "#9956f5", "#ff9500", "#e83030", "#2c2c30", "0.375rem"),
+  brand("hermes-orange", "Hermès Orange", "#2b1f12", "#392918", "#ede7de", "#b8a994", "#f46a25", "#f0b429", "#e61919", "#634d36", "0.125rem"),
+  brand("redbull-charge", "Red Bull Charge", "#0f1a2e", "#14223d", "#f0f1f5", "#a3adc2", "#f20d0d", "#ffbf00", "#f53d3d", "#263759", "0.125rem"),
+  brand("google-spectrum", "Google Spectrum", "#1c1f22", "#25292d", "#e3e6e8", "#abb3ba", "#4387f4", "#ffc105", "#dc3848", "#3c4249", "1rem"),
+  brand("tesla-circuit", "Tesla Circuit", "#000000", "#141414", "#cccccc", "#808080", "#cc0000", "#f0b429", "#ff1a1a", "#333333", "0rem"),
+  brand("nasa-mission", "NASA Mission", "#000000", "#141414", "#ffffff", "#999999", "#dd3c57", "#5281e0", "#ff0000", "#404040", "0rem"),
+  brand("ferrari-rosso", "Ferrari Rosso", "#0f0f0f", "#1a1a1a", "#fafafa", "#a6a6a6", "#f20d0d", "#ffd400", "#f54747", "#383838", "0.125rem"),
+  brand("reddit-orangered", "Reddit Orangered", "#170f0c", "#231915", "#f4f1f0", "#b1a4a0", "#ff4500", "#f0b429", "#ff6b6b", "#3e2e28", "1rem"),
+  brand("epic-games-vault", "Epic Games Vault", "#0c1217", "#151c23", "#f0f2f4", "#a0a8b1", "#0078f2", "#f0b429", "#e5484d", "#28333e", "0.375rem"),
+  brand("riot-red", "Riot Red", "#170c0e", "#231517", "#f4f0f1", "#b1a0a3", "#eb0029", "#f0b429", "#ff6b6b", "#3e282c", "0.25rem"),
+  brand("ubisoft-swirl", "Ubisoft Swirl", "#0c1117", "#151b23", "#f0f2f4", "#a0a7b1", "#0070ff", "#f0b429", "#e5484d", "#28323e", "0.5rem"),
+  brand("ea-pulse", "EA Pulse", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ff4747", "#f0b429", "#ff6b6b", "#3e2828", "0.5rem"),
+  brand("sega-blue", "Sega Blue", "#0c1417", "#151e23", "#f0f3f4", "#a0abb1", "#0089cf", "#f0b429", "#e5484d", "#28373e", "0.5rem"),
+  brand("roblox-studio", "Roblox Studio", "#0c0f17", "#151823", "#f0f1f4", "#a0a3b1", "#335fff", "#f0b429", "#e5484d", "#282d3e", "0.75rem"),
+  brand("razer-chroma", "Razer Chroma", "#0e170c", "#172315", "#f1f4f0", "#a2b1a0", "#44d62c", "#f0b429", "#e5484d", "#2b3e28", "0.25rem"),
+  brand("logitech-g", "Logitech G", "#0c1417", "#151f23", "#f0f3f4", "#a0acb1", "#00b8fc", "#f0b429", "#e5484d", "#28383e", "0.5rem"),
+  brand("steelseries-arctic", "SteelSeries Arctic", "#17100c", "#231915", "#f4f2f0", "#b1a5a0", "#ff5200", "#f0b429", "#ff6b6b", "#3e2f28", "0.375rem"),
+  brand("corsair-sail", "Corsair Sail", "#17160c", "#232215", "#f4f4f0", "#b1afa0", "#f9e300", "#f0893a", "#e5484d", "#3e3c28", "0.25rem"),
+  brand("nvidia-green", "NVIDIA Green", "#13170c", "#1e2315", "#f3f4f0", "#abb1a0", "#76b900", "#f0b429", "#e5484d", "#363e28", "0.25rem"),
+  brand("amd-red", "AMD Red", "#170c0d", "#231515", "#f4f0f0", "#b1a0a0", "#ed1c24", "#f0b429", "#ff6b6b", "#3e2829", "0.25rem"),
+  brand("intel-blue", "Intel Blue", "#0c1317", "#151d23", "#f0f3f4", "#a0aab1", "#0071c5", "#f0b429", "#e5484d", "#28353e", "0.5rem"),
+  brand("samsung-galaxy", "Samsung Galaxy", "#0c0e17", "#151723", "#f0f1f4", "#a0a2b1", "#3952e6", "#f0b429", "#e5484d", "#282b3e", "1rem"),
+  brand("crunchyroll-orange", "Crunchyroll Orange", "#17110c", "#231b15", "#f4f2f0", "#b1a7a0", "#f47521", "#f0b429", "#ff6b6b", "#3e3128", "0.5rem"),
+  brand("soundcloud-wave", "SoundCloud Wave", "#17100c", "#231a15", "#f4f2f0", "#b1a5a0", "#ff5500", "#f0b429", "#ff6b6b", "#3e2f28", "0.375rem"),
+  brand("duolingo-owl", "Duolingo Owl", "#11170c", "#1b2315", "#f2f4f0", "#a7b1a0", "#58cc02", "#f0b429", "#e5484d", "#313e28", "1rem"),
+  brand("dropbox-blue", "Dropbox Blue", "#0c1117", "#151a23", "#f0f2f4", "#a0a6b1", "#0061ff", "#f0b429", "#e5484d", "#28303e", "0.5rem"),
+  brand("paypal-blue", "PayPal Blue", "#0c1017", "#151a23", "#f0f2f4", "#a0a6b1", "#0056f2", "#f0b429", "#e5484d", "#28303e", "0.75rem"),
+  brand("porsche-racing", "Porsche Racing", "#170c0e", "#231517", "#f4f0f1", "#b1a0a2", "#d5001c", "#f0b429", "#ff6b6b", "#3e282b", "0.25rem"),
+  brand("telegram-sky", "Telegram Sky", "#0c1417", "#151f23", "#f0f3f4", "#a0abb1", "#26a5e4", "#f0b429", "#e5484d", "#28373e", "0.75rem"),
+  brand("pinterest-pin", "Pinterest Pin", "#170c0e", "#231516", "#f4f0f1", "#b1a0a2", "#cc091e", "#f0b429", "#ff6b6b", "#3e282a", "1rem"),
+  brand("snapchat-ghost", "Snapchat Ghost", "#17170c", "#232315", "#f4f4f0", "#b1b1a0", "#fffc00", "#f0893a", "#e5484d", "#3e3e28", "1rem"),
+  brand("coinbase-blue", "Coinbase Blue", "#0c1017", "#151923", "#f0f2f4", "#a0a5b1", "#0052ff", "#f0b429", "#e5484d", "#282f3e", "0.75rem"),
+  brand("bmw-m", "BMW M", "#0c1317", "#151d23", "#f0f3f4", "#a0aab1", "#006fc0", "#f0b429", "#e5484d", "#28353e", "0.25rem"),
+  brand("square-enix-crystal", "Square Enix Crystal", "#0c1217", "#151c23", "#f0f2f4", "#a0a9b1", "#3aa0ff", "#f0b429", "#e5484d", "#28333e", "0.25rem"),
+  // Region Pack companies (82): regional brands tagged by country and region in content/brandTags.ts. Palettes derive from
+  // the brand colour like the second wave. With the 68 above, the company library is 150. All start Hidden.
+  brand("asus-tw", "ASUS Azure", "#0c1217", "#151d23", "#f0f2f4", "#a0a9b1", "#006cc9", "#f0b429", "#e5484d", "#28343e", "1rem"),
+  brand("acer-tw", "Acer Lime", "#14170c", "#1e2315", "#f3f4f0", "#abb1a0", "#83b81a", "#f0b429", "#e5484d", "#373e28", "1rem"),
+  brand("msi-tw", "MSI Crimson", "#170c0e", "#231516", "#f4f0f1", "#b1a0a2", "#e2001a", "#f0b429", "#ff6b6b", "#3e282a", "0.75rem"),
+  brand("htc-tw", "HTC Lime", "#14170c", "#1f2315", "#f3f4f0", "#abb1a0", "#a5cf4c", "#f0b429", "#e5484d", "#373e28", "0.75rem"),
+  brand("mediatek-tw", "MediaTek Ember", "#17120c", "#231d15", "#f4f2f0", "#b1a9a0", "#ec9430", "#f0893a", "#e5484d", "#3e3428", "0.75rem"),
+  brand("sony-jp", "Sony Azure", "#0c1217", "#151d23", "#f0f2f4", "#a0a9b1", "#0072ce", "#f0b429", "#e5484d", "#28343e", "1rem"),
+  brand("toyota-jp", "Toyota Crimson", "#170c0d", "#231516", "#f4f0f1", "#b1a0a1", "#eb0a1e", "#f0b429", "#ff6b6b", "#3e282a", "0.375rem"),
+  brand("honda-jp", "Honda Crimson", "#170c0e", "#231517", "#f4f0f1", "#b1a0a2", "#e40521", "#f0b429", "#ff6b6b", "#3e282b", "0.25rem"),
+  brand("rakuten-jp", "Rakuten Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ce0000", "#f0b429", "#ff6b6b", "#3e2828", "0.5rem"),
+  brand("line-jp", "LINE Jade", "#0c170c", "#152315", "#f0f4f0", "#a0b1a0", "#00c300", "#f0b429", "#e5484d", "#283e28", "1rem"),
+  brand("uniqlo-jp", "Uniqlo Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ff0000", "#f0b429", "#ff6b6b", "#3e2828", "0.375rem"),
+  brand("konami-jp", "Konami Crimson", "#170c0e", "#231516", "#f4f0f1", "#b1a0a2", "#d50017", "#f0b429", "#ff6b6b", "#3e282a", "0.375rem"),
+  brand("niconico-jp", "niconico Ember", "#17120c", "#231c15", "#f4f2f0", "#b1a8a0", "#ff7a00", "#f0b429", "#ff6b6b", "#3e3328", "0.75rem"),
+  brand("lg-kr", "LG Orchid", "#170c10", "#231519", "#f4f0f2", "#b1a0a5", "#d30042", "#f0b429", "#ff6b6b", "#3e282f", "0.5rem"),
+  brand("kakaotalk-kr", "KakaoTalk Amber", "#17150c", "#232015", "#f4f3f0", "#b1aea0", "#ffcd00", "#f0893a", "#e5484d", "#3e3a28", "1rem"),
+  brand("naver-kr", "Naver Jade", "#0c1711", "#15231b", "#f0f4f2", "#a0b1a7", "#03c75a", "#f0b429", "#e5484d", "#283e32", "0.25rem"),
+  brand("hyundai-kr", "Hyundai Cobalt", "#0c1217", "#151c23", "#f0f2f4", "#a0a8b1", "#0065d8", "#f0b429", "#e5484d", "#28323e", "0.5rem"),
+  brand("kia-kr", "Kia Crimson", "#170c0e", "#231517", "#f4f0f1", "#b1a0a2", "#c9182e", "#f0b429", "#ff6b6b", "#3e282b", "0.75rem"),
+  brand("nexon-kr", "Nexon Azure", "#0c1317", "#151e23", "#f0f3f4", "#a0aab1", "#0072bc", "#f0b429", "#e5484d", "#28353e", "0.25rem"),
+  brand("bilibili-cn", "Bilibili Azure", "#0c1517", "#152023", "#f0f3f4", "#a0adb1", "#00a1d6", "#f0b429", "#e5484d", "#28393e", "0.75rem"),
+  brand("xiaomi-cn", "Xiaomi Ember", "#17110c", "#231b15", "#f4f2f0", "#b1a7a0", "#ff6900", "#f0b429", "#ff6b6b", "#3e3128", "0.375rem"),
+  brand("huawei-cn", "Huawei Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ff0000", "#f0b429", "#ff6b6b", "#3e2828", "0.375rem"),
+  brand("oneplus-cn", "OnePlus Crimson", "#170c0d", "#231515", "#f4f0f1", "#b1a0a0", "#f5010c", "#f0b429", "#ff6b6b", "#3e2829", "0.5rem"),
+  brand("lenovo-cn", "Lenovo Crimson", "#170d0c", "#231515", "#f4f1f0", "#b1a0a0", "#e2231a", "#f0b429", "#ff6b6b", "#3e2928", "0.375rem"),
+  brand("dji-cn", "DJI Cobalt", "#0c1117", "#151b23", "#f0f2f4", "#a0a7b1", "#1b75e8", "#f0b429", "#e5484d", "#28323e", "0.75rem"),
+  brand("wechat-cn", "WeChat Jade", "#0c1712", "#15231c", "#f0f4f2", "#a0b1a8", "#07c160", "#f0b429", "#e5484d", "#283e33", "0.375rem"),
+  brand("grab-sg", "Grab Jade", "#0c1711", "#15231b", "#f0f4f2", "#a0b1a7", "#00b14f", "#f0b429", "#e5484d", "#283e32", "1rem"),
+  brand("shopee-sg", "Shopee Crimson", "#170e0c", "#231715", "#f4f1f0", "#b1a3a0", "#ee4d2d", "#f0b429", "#ff6b6b", "#3e2c28", "0.375rem"),
+  brand("gojek-id", "Gojek Jade", "#0c170e", "#152316", "#f0f4f1", "#a0b1a2", "#00aa13", "#f0b429", "#e5484d", "#283e2a", "0.25rem"),
+  brand("airasia-my", "AirAsia Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ff0000", "#f0b429", "#ff6b6b", "#3e2828", "0.5rem"),
+  brand("flipkart-in", "Flipkart Cobalt", "#0c1117", "#151a23", "#f0f2f4", "#a0a6b1", "#2874f0", "#f0b429", "#e5484d", "#28303e", "0.75rem"),
+  brand("paytm-in", "Paytm Cobalt", "#0c0f17", "#151823", "#f0f1f4", "#a0a4b1", "#4062c6", "#f0b429", "#e5484d", "#282d3e", "0.25rem"),
+  brand("zomato-in", "Zomato Crimson", "#170c0d", "#231516", "#f4f0f1", "#b1a0a1", "#e23744", "#f0b429", "#ff6b6b", "#3e2829", "0.375rem"),
+  brand("swiggy-in", "Swiggy Ember", "#17110c", "#231b15", "#f4f2f0", "#b1a7a0", "#fc8019", "#f0b429", "#ff6b6b", "#3e3228", "0.375rem"),
+  brand("jio-in", "Jio Cobalt", "#0c0f17", "#151823", "#f0f1f4", "#a0a4b1", "#2a5aef", "#f0b429", "#e5484d", "#282d3e", "0.75rem"),
+  brand("zoho-in", "Zoho Crimson", "#170c0d", "#231515", "#f4f0f0", "#b1a0a0", "#e42527", "#f0b429", "#ff6b6b", "#3e2828", "1rem"),
+  brand("emirates-ae", "Emirates Crimson", "#170c0d", "#231515", "#f4f0f0", "#b1a0a0", "#d71921", "#f0b429", "#ff6b6b", "#3e2829", "0.75rem"),
+  brand("qatarairways-qa", "Qatar Airways Orchid", "#170c12", "#23151c", "#f4f0f2", "#b1a0a8", "#c71c71", "#f0b429", "#ff6b6b", "#3e2833", "0.5rem"),
+  brand("turkishairlines-tr", "Turkish Airlines Crimson", "#170c0d", "#231515", "#f4f0f0", "#b1a0a0", "#d60b0d", "#f0b429", "#ff6b6b", "#3e2828", "0.25rem"),
+  brand("etihadairways-ae", "Etihad Airways Amber", "#17140c", "#231f15", "#f4f3f0", "#b1aca0", "#bd8b13", "#f0893a", "#e5484d", "#3e3828", "0.75rem"),
+  brand("renault-fr", "Renault Amber", "#17150c", "#232015", "#f4f3f0", "#b1ada0", "#ffcc33", "#f0893a", "#e5484d", "#3e3928", "0.5rem"),
+  brand("vodafone-gb", "Vodafone Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#e60000", "#f0b429", "#ff6b6b", "#3e2828", "0.75rem"),
+  brand("klarna-se", "Klarna Orchid", "#170c0f", "#231519", "#f4f0f1", "#b1a0a4", "#ffb3c7", "#f0b429", "#ff6b6b", "#3e282e", "0.375rem"),
+  brand("ericsson-se", "Ericsson Azure", "#0c1217", "#151d23", "#f0f2f4", "#a0a9b1", "#0082f0", "#f0b429", "#e5484d", "#28343e", "0.75rem"),
+  brand("nokia-fi", "Nokia Cobalt", "#0c1017", "#151a23", "#f0f2f4", "#a0a6b1", "#005aff", "#f0b429", "#e5484d", "#28303e", "0.25rem"),
+  brand("volvo-se", "Volvo Azure", "#0c1217", "#151d23", "#f0f2f4", "#a0a9b1", "#006bc2", "#f0b429", "#e5484d", "#28343e", "0.25rem"),
+  brand("monzo-gb", "Monzo Cobalt", "#0c1117", "#151a23", "#f0f2f4", "#a0a6b1", "#3a66af", "#f0b429", "#e5484d", "#28303e", "0.25rem"),
+  brand("mclaren-gb", "McLaren Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ff0000", "#f0b429", "#ff6b6b", "#3e2828", "0.5rem"),
+  brand("siemens-de", "Siemens Teal", "#0c1717", "#152323", "#f0f4f4", "#a0b1b1", "#009999", "#f0b429", "#e5484d", "#283e3e", "0.5rem"),
+  brand("sap-de", "SAP Azure", "#0c1317", "#151e23", "#f0f3f4", "#a0abb1", "#0faaff", "#f0b429", "#e5484d", "#28363e", "0.75rem"),
+  brand("bosch-de", "Bosch Crimson", "#170c0e", "#231516", "#f4f0f1", "#b1a0a1", "#ea0016", "#f0b429", "#ff6b6b", "#3e282a", "0.25rem"),
+  brand("volkswagen-de", "Volkswagen Cobalt", "#0c0e17", "#151723", "#f0f1f4", "#a0a2b1", "#4559d5", "#f0b429", "#e5484d", "#282b3e", "0.25rem"),
+  brand("audi-de", "Audi Crimson", "#170c0f", "#231518", "#f4f0f1", "#b1a0a3", "#ca0b34", "#f0b429", "#ff6b6b", "#3e282d", "1rem"),
+  brand("mercedes-de", "Mercedes Azure", "#0c1417", "#151f23", "#f0f3f4", "#a0acb1", "#00adef", "#f0b429", "#e5484d", "#28383e", "0.75rem"),
+  brand("puma-de", "Puma Crimson", "#170c0e", "#231516", "#f4f0f1", "#b1a0a2", "#e2001a", "#f0b429", "#ff6b6b", "#3e282a", "1rem"),
+  brand("dhl-de", "DHL Amber", "#17150c", "#232015", "#f4f3f0", "#b1aea0", "#ffcc00", "#f0893a", "#e5484d", "#3e3a28", "0.75rem"),
+  brand("zalando-de", "Zalando Ember", "#17110c", "#231b15", "#f4f2f0", "#b1a7a0", "#ff6900", "#f0b429", "#ff6b6b", "#3e3128", "0.5rem"),
+  brand("cdprojekt-pl", "CD Projekt Crimson", "#170c0d", "#231515", "#f4f0f0", "#b1a0a0", "#dc0d15", "#f0b429", "#ff6b6b", "#3e2829", "1rem"),
+  brand("jetbrains-cz", "JetBrains Ember", "#17110c", "#231b15", "#f4f2f0", "#b1a7a0", "#fc801d", "#f0b429", "#ff6b6b", "#3e3228", "1rem"),
+  brand("skoda-cz", "ŠKODA Teal", "#0c1715", "#152320", "#f0f4f3", "#a0b1ad", "#1d7861", "#f0b429", "#e5484d", "#283e39", "0.25rem"),
+  brand("kaspersky-ru", "Kaspersky Teal", "#0c1716", "#152321", "#f0f4f4", "#a0b1ae", "#007c69", "#f0b429", "#e5484d", "#283e3b", "1rem"),
+  brand("grammarly-ua", "Grammarly Teal", "#0c1716", "#152322", "#f0f4f4", "#a0b1af", "#027e6f", "#f0b429", "#e5484d", "#283e3c", "1rem"),
+  brand("bitdefender-ro", "Bitdefender Crimson", "#170c0d", "#231515", "#f4f0f0", "#b1a0a0", "#ed1c24", "#f0b429", "#ff6b6b", "#3e2829", "0.375rem"),
+  brand("fiat-it", "Fiat Crimson", "#170d0c", "#231515", "#f4f1f0", "#b1a0a0", "#cb2017", "#f0b429", "#ff6b6b", "#3e2928", "1rem"),
+  brand("ducati-it", "Ducati Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#cc0000", "#f0b429", "#ff6b6b", "#3e2828", "0.375rem"),
+  brand("lamborghini-it", "Lamborghini Amber", "#17150c", "#232015", "#f4f3f0", "#b1ada0", "#ddb321", "#f0893a", "#e5484d", "#3e3928", "0.375rem"),
+  brand("maserati-it", "Maserati Cobalt", "#0c1117", "#151b23", "#f0f2f4", "#a0a7b1", "#2469c1", "#f0b429", "#e5484d", "#28323e", "0.75rem"),
+  brand("zara-es", "Zara Amber", "#17140c", "#231f15", "#f4f3f0", "#b1aba0", "#c8a96a", "#f0893a", "#e5484d", "#3e3728", "1rem"),
+  brand("glovo-es", "Glovo Amber", "#17150c", "#232015", "#f4f3f0", "#b1ada0", "#f2cc38", "#f0893a", "#e5484d", "#3e3a28", "0.25rem"),
+  brand("farfetch-pt", "FARFETCH Graphite", "#121212", "#1c1c1c", "#f2f2f2", "#a8a8a8", "#a2a2a2", "#f0b429", "#e5484d", "#333333", "0.75rem"),
+  brand("mercadopago-ar", "Mercado Pago Azure", "#0c1517", "#152023", "#f0f3f4", "#a0adb1", "#00b1ea", "#f0b429", "#e5484d", "#28393e", "0.375rem"),
+  brand("nubank-br", "Nubank Violet", "#130c17", "#1e1523", "#f3f0f4", "#aaa0b1", "#940bee", "#f0b429", "#e5484d", "#35283e", "0.375rem"),
+  brand("ifood-br", "iFood Crimson", "#170c0d", "#231516", "#f4f0f1", "#b1a0a1", "#ea1d2c", "#f0b429", "#ff6b6b", "#3e2829", "0.25rem"),
+  brand("picpay-br", "PicPay Jade", "#0c1711", "#15231a", "#f0f4f2", "#a0b1a6", "#21c25e", "#f0b429", "#e5484d", "#283e30", "0.375rem"),
+  brand("avianca-co", "avianca Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#ff0000", "#f0b429", "#ff6b6b", "#3e2828", "0.5rem"),
+  brand("aeromexico-mx", "Aeroméxico Cobalt", "#0c1117", "#151b23", "#f0f2f4", "#a0a7b1", "#2168c6", "#f0b429", "#e5484d", "#28313e", "0.25rem"),
+  brand("andela-ng", "Andela Cobalt", "#0c0f17", "#151823", "#f0f1f4", "#a0a3b1", "#3359df", "#f0b429", "#e5484d", "#282d3e", "0.375rem"),
+  brand("ethiopianairlines-et", "Ethiopian Airlines Lime", "#14170c", "#1e2315", "#f3f4f0", "#abb1a0", "#648b1a", "#f0b429", "#e5484d", "#363e28", "0.5rem"),
+  brand("canva-au", "Canva Teal", "#0c1717", "#152323", "#f0f4f4", "#a0b0b1", "#00c4cc", "#f0b429", "#e5484d", "#283d3e", "0.25rem"),
+  brand("atlassian-au", "Atlassian Cobalt", "#0c1117", "#151b23", "#f0f2f4", "#a0a7b1", "#005eeb", "#f0b429", "#e5484d", "#28313e", "1rem"),
+  brand("afterpay-au", "Afterpay Teal", "#0c1714", "#15231f", "#f0f4f3", "#a0b1ab", "#b2fce4", "#f0b429", "#e5484d", "#283e37", "0.75rem"),
+  brand("qantas-au", "Qantas Crimson", "#170c0c", "#231515", "#f4f0f0", "#b1a0a0", "#e40000", "#f0b429", "#ff6b6b", "#3e2828", "0.375rem"),
 ];
 
-export const CATALOG: ThemeDef[] = LOOKS.map(withFont);
+/** Default: Brand → Hidden (except DEMO_AVAILABLE_BRAND_IDS); everything else → Available. */
+function withStatus(t: ThemeDef): ThemeDef {
+  if (t.status) return t;
+  if (t.group === "Brand") {
+    return { ...t, status: DEMO_AVAILABLE_BRAND_IDS.includes(t.id) ? "Available" : "Hidden" };
+  }
+  return { ...t, status: "Available" };
+}
+
+/** Company themes carry their pack / country / region tags from content/brandTags.ts. */
+function withTags(t: ThemeDef): ThemeDef {
+  if (t.tags || t.group !== "Brand") return t;
+  const tags = BRAND_TAGS[t.id];
+  return tags ? { ...t, tags } : t;
+}
+
+/** Bundled baseline (offline / no CMS themes in the applied release). */
+export const CATALOG: ThemeDef[] = LOOKS.map(withFont).map(withStatus).map(withTags);
+
+const BUNDLED_BY_ID = new Map(CATALOG.map((t) => [t.id, t]));
 
 /** Every locked preset (see lookAccess.ts): catalogue looks after the first 30, then the gated ones outside the catalogue. */
 export const LOCKED_IDS: ReadonlySet<string> = new Set(lockedIdsOf(CATALOG.map((t) => t.id), UNLOCKABLES.map((t) => t.id)));
 export const LOCKED_PRESETS: ThemeDef[] = [...CATALOG, ...UNLOCKABLES].filter((t, i, all) => LOCKED_IDS.has(t.id) && all.findIndex((x) => x.id === t.id) === i);
 export const FREE_COUNT = CATALOG.length - LOCKED_PRESETS.filter((t) => CATALOG.some((c) => c.id === t.id)).length;
 
-export const THEME_GROUPS =["All", ...Array.from(new Set(CATALOG.map((t) => t.group)))];
+const FONT_KEYS: ReadonlySet<string> = new Set(["inter", "grotesk", "jakarta", "serif", "mono", "system"]);
+const STATUS_KEYS: ReadonlySet<string> = new Set(["Hidden", "Available", "Archived"]);
+
+let liveCatalog: ThemeDef[] | null = null;
+let catalogVersion = 0;
+const catalogListeners = new Set<() => void>();
+
+function notifyCatalog(): void {
+  catalogVersion += 1;
+  for (const listener of catalogListeners) listener();
+}
+
+/** Subscribe to live catalog swaps (CMS release apply / hydrate / clear). */
+export function subscribeThemeCatalog(onStoreChange: () => void): () => void {
+  catalogListeners.add(onStoreChange);
+  return () => {
+    catalogListeners.delete(onStoreChange);
+  };
+}
+
+export function getThemeCatalogVersion(): number {
+  return catalogVersion;
+}
+
+function parsePalette(raw: unknown, fallback: Palette | null): Palette | null {
+  if (raw === null) return null;
+  if (!raw || typeof raw !== "object") return fallback;
+  const p = raw as Record<string, unknown>;
+  const str = (k: string) => (typeof p[k] === "string" ? (p[k] as string) : "");
+  const bg = str("bg");
+  const text = str("text");
+  const accent = str("accent");
+  if (!bg || !text || !accent) return fallback;
+  const font = typeof p.font === "string" && FONT_KEYS.has(p.font) ? (p.font as FontKey) : undefined;
+  return {
+    bg,
+    card: str("card") || bg,
+    text,
+    muted: str("muted") || text,
+    accent,
+    caution: str("caution") || "#f0893a",
+    alert: str("alert") || "#e5484d",
+    border: str("border") || accent,
+    radius: str("radius") || "0.5rem",
+    shadow: typeof p.shadow === "string" ? p.shadow : undefined,
+    font: font ?? (p.mono === true ? "mono" : undefined),
+    mono: p.mono === true,
+  };
+}
+
+/**
+ * CMS theme → ThemeDef. Keeps bundled author/url/colour-group when the id is known;
+ * Brand|Regular from the release decide Brand vs not.
+ */
+export function parseReleaseTheme(raw: unknown): ThemeDef | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as Record<string, unknown>;
+  if (typeof t.id !== "string" || !t.id.trim()) return null;
+  if (typeof t.name !== "string" || !t.name.trim()) return null;
+  const id = t.id.trim();
+  const base = BUNDLED_BY_ID.get(id) ?? UNLOCKABLES.find((u) => u.id === id);
+  const cmsGroup = typeof t.group === "string" ? t.group : "Regular";
+  const group =
+    cmsGroup === "Brand"
+      ? "Brand"
+      : base && base.group !== "Brand"
+        ? base.group
+        : cmsGroup === "Regular"
+          ? "Regular"
+          : cmsGroup;
+  const status =
+    typeof t.status === "string" && STATUS_KEYS.has(t.status) ? (t.status as ThemeStatus) : base?.status;
+  const palette = parsePalette(t.palette, base?.palette ?? null);
+  const def: ThemeDef = {
+    id,
+    name: t.name.trim().slice(0, 80),
+    author: base?.author ?? (group === "Brand" ? (COMPANY[id] ?? "Command Station") : "Command Station"),
+    group,
+    source: base?.source ?? "station",
+    url: base?.url,
+    palette,
+    status,
+    tags: group === "Brand" ? (validTags(t.tags) ? t.tags : base?.tags) : undefined,
+  };
+  return withTags(withFont(withStatus(def)));
+}
+
+/** Replace listed catalog from a non-empty release `themes` array; empty/missing keeps bundled. Owned unlocks stay in local storage. */
+export function setReleaseThemes(raw: unknown[] | null | undefined): void {
+  if (!raw?.length) {
+    if (liveCatalog != null) {
+      liveCatalog = null;
+      notifyCatalog();
+    }
+    return;
+  }
+  const next: ThemeDef[] = [];
+  const seen = new Set<string>();
+  for (const row of raw) {
+    const parsed = parseReleaseTheme(row);
+    if (!parsed || seen.has(parsed.id)) continue;
+    seen.add(parsed.id);
+    next.push(parsed);
+  }
+  if (!next.length) {
+    if (liveCatalog != null) {
+      liveCatalog = null;
+      notifyCatalog();
+    }
+    return;
+  }
+  liveCatalog = next;
+  notifyCatalog();
+}
+
+/** Tests / factory reset: drop CMS overlay. */
+export function clearReleaseThemes(): void {
+  if (liveCatalog == null) return;
+  liveCatalog = null;
+  notifyCatalog();
+}
+
+/** Live catalog (release overlay) or bundled CATALOG. */
+export function getCatalog(): ThemeDef[] {
+  return liveCatalog ?? CATALOG;
+}
+
+/** Unlockables not already present in the live catalog (e.g. Nightsteel when CMS lists it). */
+export function getExtraUnlockables(): ThemeDef[] {
+  const ids = new Set(getCatalog().map((t) => t.id));
+  return UNLOCKABLES.filter((u) => !ids.has(u.id));
+}
+
+/** Catalog + gated unlockables (deduped). */
+export function getListedPresets(): ThemeDef[] {
+  return [...getCatalog(), ...getExtraUnlockables()];
+}
+
+export function getLockedIds(): ReadonlySet<string> {
+  const catalog = getCatalog();
+  return new Set(lockedIdsOf(catalog.map((t) => t.id), getExtraUnlockables().map((t) => t.id)));
+}
+
+export function getLockedPresets(): ThemeDef[] {
+  const locked = getLockedIds();
+  return getListedPresets().filter((t) => locked.has(t.id));
+}
+
+export function getThemeGroups(): string[] {
+  const visible = Array.from(new Set(getCatalog().filter((t) => themeStatus(t) !== "Hidden").map((t) => t.group)));
+  return ["All", ...visible];
+}
+
+export function getFreeCount(): number {
+  const catalog = getCatalog();
+  const lockedInCatalog = getLockedPresets().filter((t) => catalog.some((c) => c.id === t.id)).length;
+  return catalog.length - lockedInCatalog;
+}
+
+/** Catalog themes already carry status via withStatus; fallback for modules / unlockables. */
+export function themeStatus(t: ThemeDef): ThemeStatus {
+  return t.status ?? "Available";
+}
+
+export function isBrandTheme(t: ThemeDef): boolean {
+  return t.group === "Brand";
+}
+
+/** Themes page / pickers: Hidden never appears unless already owned. */
+export function isListedTheme(t: ThemeDef, owned: boolean): boolean {
+  if (t.source === "yours") return true;
+  const s = themeStatus(t);
+  if (s === "Hidden") return owned;
+  return true;
+}
+
+/** Regular Pack + Brand Pack look rows: only Available locked presets. Brand Pack further restricts Brand to the fortnight feature set (engine). */
+export function isDrawableTheme(t: ThemeDef): boolean {
+  return themeStatus(t) === "Available" && getLockedIds().has(t.id);
+}
+
+/** Rainbow (5-star) Regular theme: draw-only, in the Regular Pack's rainbow row and a company pack's lost 50/50. */
+export function isRainbowTheme(t: ThemeDef): boolean {
+  return !isBrandTheme(t) && isRainbowThemeId(t.id);
+}
+
+/**
+ * Credits unlock, weekly pick and Regular crystal pick: Available, locked, not Brand and not rainbow. Brand looks come
+ * only from company packs, rainbow Regular themes only from draws.
+ */
+export function isCreditBuyableTheme(t: ThemeDef): boolean {
+  return isDrawableTheme(t) && !isBrandTheme(t) && !isRainbowTheme(t);
+}
+
+/** Drawable pool ids for the engine agent (Available locked only). Filter Brand vs Regular with isBrandTheme. */
+export function listDrawableThemes(): ThemeDef[] {
+  return getLockedPresets().filter(isDrawableTheme);
+}
+
+/** Bundled release notes stub when no CMS release has been applied yet. */
+export const CONTENT_CHANGELOG: readonly { id: string; title: string; body: string }[] = [
+  {
+    id: "bundled-availability",
+    title: "Theme availability",
+    body: "Looks can be Hidden, Available, or Archived. Past themes lists what left the shop; Brand looks stay Hidden until announced (Spotify Night and Twitch Purple are Available for local demo).",
+  },
+];
+
+const visibleGroups = Array.from(
+  new Set(CATALOG.filter((t) => themeStatus(t) !== "Hidden").map((t) => t.group)),
+);
+export const THEME_GROUPS = ["All", ...visibleGroups];

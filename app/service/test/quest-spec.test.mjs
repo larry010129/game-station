@@ -2,8 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  QUESTS, RANKS, addMinutes, canClaim, claim, cleanState, dayKey, emptyState, nextReset, progress, rankOf,
-  recordArmed, recordCheckin, recordOnce, recordSession, takeLookPick, visibleQuests, weekKey, monthKey,
+  QUESTS, RANKS, LOOKS_WAITING_CAP, addMinutes, canClaim, claim, cleanState, dayKey, emptyState, grantPick,
+  nextReset, progress, rankOf, recordArmed, recordCheckin, recordOnce, recordSession, takeLookPick,
+  visibleQuests, weekKey, monthKey,
 } from "../../src/state/questEngine.ts";
 
 const q = (id) => QUESTS.find((x) => x.id === id);
@@ -145,4 +146,16 @@ test("a saved value in the wrong shape starts fresh instead of throwing", () => 
     assert.equal(s.minutesTotal, 0);
     assert.deepEqual(s.days, {});
   }
+});
+
+test("grantPick adds one looksWaiting and refuses at the cap", () => {
+  assert.equal(LOOKS_WAITING_CAP, 5);
+  let s = emptyState();
+  for (let i = 0; i < LOOKS_WAITING_CAP; i++) {
+    const next = grantPick(s);
+    assert.ok(next);
+    s = next;
+  }
+  assert.equal(s.looksWaiting, LOOKS_WAITING_CAP);
+  assert.equal(grantPick(s), null);
 });

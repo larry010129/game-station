@@ -16,6 +16,7 @@ const CreditsPage = lazy(() => import("./pages/CreditsPage").then((m) => ({ defa
 const QuestsPage = lazy(() => import("./pages/QuestsPage").then((m) => ({ default: m.QuestsPage })));
 const BuyCreditsPage = lazy(() => import("./pages/BuyCreditsPage").then((m) => ({ default: m.BuyCreditsPage })));
 const ThemesPage = lazy(() => import("./pages/ThemesPage").then((m) => ({ default: m.ThemesPage })));
+const DrawPage = lazy(() => import("./pages/DrawPage").then((m) => ({ default: m.DrawPage })));
 const VaultPage = lazy(() => import("./pages/VaultPage").then((m) => ({ default: m.VaultPage })));
 import { useSmartAlerts } from "./state/useSmartAlerts";
 import { useDashboard } from "./layout/useDashboard";
@@ -247,7 +248,7 @@ function StationApp({
   /** Card tabs, the tabs the user added, then the page tabs. Game tab label follows the active game. */
   const tabs = useMemo(
     () =>
-      [...TABS.filter((t) => t.kind === "cards"), ...nav.custom, ...TABS.filter((t) => t.kind === "page" && t.id !== "themes" && t.id !== "vault" && t.id !== "buy-credits")].map(({ id, label }) => ({
+      [...TABS.filter((t) => t.kind === "cards"), ...nav.custom, ...TABS.filter((t) => t.kind === "page" && t.id !== "themes" && t.id !== "draw" && t.id !== "vault" && t.id !== "buy-credits")].map(({ id, label }) => ({
         id,
         label: id === "overwatch" ? activeGame.pack.tabLabel : label,
       })),
@@ -256,7 +257,7 @@ function StationApp({
   // A pane can show any page, including Themes, Vault, and Support, which the top bar reaches by control.
   const paneOptions = useMemo(
     () =>
-      [...tabs, ...TABS.filter((t) => t.id === "themes" || t.id === "vault" || t.id === "buy-credits").map(({ id, label }) => ({ id, label }))].map((t) => ({
+      [...tabs, ...TABS.filter((t) => t.id === "themes" || t.id === "draw" || t.id === "vault" || t.id === "buy-credits").map(({ id, label }) => ({ id, label }))].map((t) => ({
         value: t.id,
         label: t.label,
       })),
@@ -405,11 +406,12 @@ function StationApp({
         onOpenThemes={() => selectTab("themes")}
       />
     ),
-    themes: () => <ThemesPage look={look} />,
+    themes: () => <ThemesPage look={look} onOpenDraw={() => selectTab("draw")} />,
+    draw: () => <DrawPage owned={look.unlocks} onWin={(id) => look.unlock(id)} onBack={() => selectTab("themes")} />,
     calendar: () => <CalendarPage />,
     credits: () => <CreditsPage />,
     "buy-credits": () => <BuyCreditsPage />,
-    quests: () => <QuestsPage onOpenThemes={() => selectTab("themes")} />,
+    quests: () => <QuestsPage onOpenThemes={() => selectTab("themes")} onOpenDraw={() => selectTab("draw")} />,
   };
 
   return (

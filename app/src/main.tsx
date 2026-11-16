@@ -14,10 +14,16 @@ import "@fontsource-variable/jetbrains-mono/wght.css";
 import "./styles/app.css";
 import "./styles/meta.css";
 import "./styles/extras.css";
+import "./styles/station-ui.css";
+import "./styles/gacha-stage.css";
 import "./styles/calendar-tw.css";
 import { App } from "./App";
 import { AppBoundary, AppErrorScreen } from "./components/ErrorBoundary";
+import { hydrateContentFromStore } from "./content/updateContent.ts";
 import { ToastProvider } from "./state/Toast";
+
+// Restore the last applied CMS content (if any) before the first paint / draws.
+hydrateContentFromStore();
 
 // The boot screen preview is a design tool: it is only built into dev runs, never the shipped app.
 const BootDemo = import.meta.env.DEV ? lazy(() => import("./boot/BootDemo").then((m) => ({ default: m.BootDemo }))) : null;

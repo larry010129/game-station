@@ -47,3 +47,7 @@ The service binds to localhost, checks Origin and Host, and accepts only JSON PO
 | `app/src-tauri` | Tauri desktop shell |
 | `app/docs` | Setup, troubleshooting, this file |
 | `design/` | Design reference |
+
+## Content updates (CMS, Phase 3)
+
+Dev builds can pull signed releases from the local CMS at `http://localhost:1430/releases`. See [content-updates.md](content-updates.md). Production host and signing key are TBD.

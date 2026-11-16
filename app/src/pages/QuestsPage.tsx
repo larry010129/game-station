@@ -1,3 +1,4 @@
+import { CheckinBoard } from "../components/CheckinBoard";
 import { useToast } from "../state/Toast";
 import { formatCredits, useStationCredits } from "../state/stationCredits";
 import {
@@ -87,7 +88,7 @@ function Row({ q, state, now, onOpenThemes }: { q: QuestDef; state: QuestState; 
 }
 
 /** Quests: what each earns, how far along it is, and an explicit Claim. Progress resets on a schedule; a claim pays once. */
-export function QuestsPage({ onOpenThemes }: { onOpenThemes?: () => void }) {
+export function QuestsPage({ onOpenThemes, onOpenDraw }: { onOpenThemes?: () => void; onOpenDraw?: () => void }) {
   const { state, now } = useQuests();
   const balance = useStationCredits();
   const rank = rankOf(state);
@@ -115,6 +116,8 @@ export function QuestsPage({ onOpenThemes }: { onOpenThemes?: () => void }) {
           <p>Top rank reached.</p>
         )}
       </div>
+
+      <CheckinBoard now={now} onOpenDraw={onOpenDraw} />
 
       {SECTIONS.map(({ period, title }) => {
         const list = visibleQuests(state, period);

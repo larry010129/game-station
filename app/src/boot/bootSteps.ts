@@ -24,6 +24,17 @@ export const CORE = "core";
 export const HARDWARE = "hardware";
 export const PROFILES = "profiles";
 export const TELEMETRY = "telemetry";
+/** Dev-only content release check (driven by useBoot, not an /api source). */
+export const CONTENT = "content";
+
+export const CONTENT_STEP: StepDef = {
+  id: CONTENT,
+  label: "Updating content",
+  detail: "Checking for content updates…",
+  required: false,
+  weight: 1,
+  sources: [],
+};
 
 const field = (data: unknown, key: string): unknown => (data && typeof data === "object" ? (data as Record<string, unknown>)[key] : undefined);
 

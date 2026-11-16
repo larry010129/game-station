@@ -66,6 +66,21 @@ export function spendCredits(cost: number): number | null {
   return next;
 }
 
+/**
+ * Dev-server only, never in a shipped build (Vite removes this block): open the app with `?testCredits=10000`
+ * to add that many Credits for testing, or call `addTestCredits(n)` from the console. Credits cannot be bought.
+ */
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { addTestCredits: (n: number) => number }).addTestCredits = addCredits;
+  const n = Number(new URLSearchParams(window.location.search).get("testCredits"));
+  if (Number.isFinite(n) && n > 0) {
+    addCredits(Math.min(n, 1_000_000));
+    const url = new URL(window.location.href);
+    url.searchParams.delete("testCredits");
+    window.history.replaceState(null, "", url);
+  }
+}
+
 export function formatCredits(amount: number): string {
   return `${amount} ${CREDIT_NAME}`;
 }

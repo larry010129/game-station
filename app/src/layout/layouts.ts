@@ -78,6 +78,7 @@ export const TABS = [
   { id: "credits", label: "Credits", kind: "page", note: "Credits is a page, not a card layout." },
   { id: "buy-credits", label: "Support", kind: "page", note: "Support is a page, not a card layout." },
   { id: "themes", label: "Themes", kind: "page", note: "Themes is a page, not a card layout." },
+  { id: "draw", label: "Draw Theme", kind: "page", note: "Draw Theme is a page, not a card layout." },
   { id: "vault", label: "Vault", kind: "page", note: "Vault is settings, not a card layout." },
 ] as const;
 export type BuiltinTabId = (typeof TABS)[number]["id"];

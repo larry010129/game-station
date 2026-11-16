@@ -5,6 +5,7 @@ import { formatCredits, useStationCredits } from "../state/stationCredits";
 import { useClock } from "../state/useEnvironment";
 import type { TabId } from "../layout/layouts";
 import { Icon } from "./Icon";
+import { PatronMenu } from "./PatronMenu";
 import { Segmented } from "./Segmented";
 
 interface Props {
@@ -79,6 +80,7 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
           Support
         </button>
       </div>
+      <PatronMenu />
       <span className="meta">
         <span className={name ? undefined : "name-ph"}>{shown}</span> · <b>{modeLabel}</b>
       </span>

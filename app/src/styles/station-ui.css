@@ -1,0 +1,402 @@
+/* ---- Patron button + panel in the top bar ---- */
+.patron { position: relative; flex: none; }
+.patron-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 4px;
+  border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--edge));
+  background: color-mix(in srgb, var(--accent) 12%, var(--glass)); color: var(--text); font-size: 13px; cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.patron-btn:hover, .patron-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 22%, var(--glass)); border-color: var(--accent); }
+.patron-btn:focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+.patron-avatar {
+  width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-size: 13px; font-weight: 600;
+  background: var(--accent); color: var(--bg);
+}
+.patron[data-state="out"] .patron-avatar { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.patron-label { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.patron-btn .i.s { transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1); }
+.patron-btn[aria-expanded="true"] .i.s { transform: rotate(180deg); }
+.patron-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 70; width: min(300px, 86vw);
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  border-radius: var(--r); border: 1px solid var(--edge-2); background: var(--glass-solid); color: var(--text);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.6); animation: theme-unlock-rise 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.patron-title { font-size: 15px; }
+.patron-text { color: var(--dim); font-size: 12.5px; line-height: 1.45; }
+.patron-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.patron-primary { justify-content: center; background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.patron-primary:hover:not(:disabled) { color: var(--bg); filter: brightness(1.08); }
+@media (max-width: 900px) { .patron-label { display: none; } .patron-btn { padding-right: 8px; } }
+
+/* ---- Support page: the Buy Me a Coffee call to action ---- */
+.buy-credits-cta {
+  max-width: 40rem; padding: 24px; gap: 14px;
+  border-color: color-mix(in srgb, #ffdd00 55%, var(--edge));
+  background: linear-gradient(135deg, color-mix(in srgb, #ffdd00 16%, var(--glass)), var(--glass) 70%);
+}
+.buy-credits-cta h3 { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
+.buy-credits-cta > p { color: var(--text); opacity: 0.8; }
+.buy-credits-bmc { border-radius: 16px; transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1); }
+.buy-credits-bmc img { width: min(320px, 100%); filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35)); }
+.buy-credits-bmc:hover { transform: translateY(-2px) scale(1.02); }
+.buy-credits-bmc:hover img { filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.5)); }
+.buy-credits-bmc:active { transform: scale(0.99); }
+
+/* ---- Themes: search row, Unlocked / Locked sections ---- */
+.theme-search-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.theme-search-row input[type="search"] { flex: 1 1 220px; max-width: 320px; }
+/* Shimmer button (adapted from klyv-ui "Klyv Shimmer Button", MIT): sheen sweep plus a light that follows the pointer. */
+.shimmer-btn {
+  position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 20px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 70%, #fff);
+  background: var(--accent); color: var(--bg); font-size: 13.5px; font-weight: 600; line-height: 1; cursor: pointer; flex: none;
+  box-shadow: 0 6px 16px -8px var(--glow); transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.2s;
+}
+.shimmer-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -8px var(--glow); }
+.shimmer-btn:active { transform: scale(0.98); }
+.shimmer-btn:focus-visible { outline: 1.5px solid var(--text); outline-offset: 3px; }
+.shimmer-btn:disabled { opacity: 0.4; pointer-events: none; }
+.shimmer-label { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.shimmer-glow {
+  position: absolute; z-index: -1; width: 150px; height: 150px; border-radius: 999px; pointer-events: none; filter: blur(24px);
+  left: var(--glow-x, 50%); top: var(--glow-y, 50%); transform: translate(-50%, -50%); opacity: var(--glow-opacity, 0);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.6), transparent 70%); transition: opacity 0.3s;
+}
+.shimmer-sheen {
+  position: absolute; z-index: -1; top: 0; bottom: 0; left: 0; width: 34%; pointer-events: none; filter: blur(6px);
+  background: rgba(255, 255, 255, 0.55); animation: shimmer-sweep 3s ease-in-out infinite;
+}
+@keyframes shimmer-sweep { 0% { transform: translateX(-120%) skewX(-18deg); } 55%, 100% { transform: translateX(420%) skewX(-18deg); } }
+@media (prefers-reduced-motion: reduce) { .shimmer-sheen { animation: none; opacity: 0; } .shimmer-btn { transition: none; } }
+.theme-section { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.theme-section-title { font-size: 16px; font-weight: 500; display: flex; align-items: baseline; gap: 8px; }
+.theme-section-title span { font-size: 12.5px; font-weight: 400; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ---- Draw pop-up ---- */
+.gacha-root {
+  position: fixed; inset: 0; z-index: 85; display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--bg) 55%, rgba(0, 0, 0, 0.6)); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  animation: theme-unlock-fade 0.2s ease-out;
+}
+.gacha {
+  --gacha-gold: #c9a227;
+  position: relative; width: min(560px, 100%); max-height: min(88vh, 720px); overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 20px;
+  border-radius: var(--r); border: 1px solid var(--edge-2); background: var(--glass-solid); color: var(--text);
+  box-shadow: 0 28px 60px -20px rgba(0, 0, 0, 0.6); outline: none; animation: gacha-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.gacha[data-pack="brand"] { border-color: color-mix(in srgb, var(--gacha-gold) 35%, var(--edge-2)); }
+.gacha-head { display: flex; align-items: flex-start; gap: 12px; }
+.gacha-head > div { flex: 1; min-width: 0; }
+.gacha-head h2 { font-size: 22px; font-weight: 400; letter-spacing: -0.02em; }
+.gacha-head p { color: var(--dim); font-size: 12.5px; line-height: 1.45; margin-top: 4px; max-width: 46ch; }
+.gacha-banners { display: flex; flex-direction: column; gap: 8px; }
+.gacha-banner {
+  display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--accent) 10%, transparent); min-height: 64px;
+}
+.gacha-banner.pack-brand { background: color-mix(in srgb, var(--gacha-gold) 12%, transparent); border-color: color-mix(in srgb, var(--gacha-gold) 35%, var(--edge)); }
+.gacha-banner strong { font-size: 14px; font-weight: 500; }
+.gacha-banner span { font-size: 12.5px; color: var(--dim); }
+.gacha-banner small { font-size: 11px; color: var(--mute); margin-top: 4px; }
+.gacha-banner-dots { display: flex; justify-content: center; gap: 6px; }
+.gacha-banner-dots button {
+  width: 7px; height: 7px; padding: 0; border-radius: 50%; border: 0; background: color-mix(in srgb, var(--text) 22%, transparent); cursor: pointer;
+}
+.gacha-banner-dots button.on { background: var(--text); }
+.gacha-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.gacha-tab {
+  height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge-2); background: transparent;
+  color: var(--dim); font-size: 12.5px; cursor: pointer;
+}
+.gacha-tab[aria-selected="true"].accent { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.gacha-tab[aria-selected="true"].gold { background: var(--gacha-gold); color: #1a1608; border-color: var(--gacha-gold); }
+.gacha-tab[aria-selected="true"]:not(.accent):not(.gold) { color: var(--text); border-color: var(--text); }
+.gacha-pity { font-size: 12.5px; color: var(--dim); text-align: center; margin: 0; }
+.gacha-featured { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gacha-featured-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.gacha-feat-swatch {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--gacha-gold) 40%, var(--edge));
+}
+.gacha-feat-swatch i { width: 10px; height: 10px; border-radius: 50%; }
+.gacha-featured small { font-size: 11.5px; color: var(--dim); }
+.gacha-stage { position: relative; min-height: 320px; display: grid; place-items: center; padding: 20px 16px 16px; border-radius: 12px; border: 1px solid var(--edge); background: color-mix(in srgb, var(--text) 3%, transparent); }
+.gacha-stage[data-pack="brand"] { border-color: color-mix(in srgb, var(--gacha-gold) 30%, var(--edge)); }
+.gacha-line { min-height: 20px; margin: 0; font-size: 13px; color: var(--text); text-align: center; }
+.gacha-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.gacha-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 2px; }
+.gacha-actions .pill-btn { flex-direction: column; justify-content: center; align-items: center; gap: 2px; min-height: 54px; height: auto; padding: 8px 14px; white-space: normal; text-align: center; }
+.gacha-actions .pill-btn span { font-size: 14px; font-weight: 500; }
+.gacha-actions .pill-btn small { font-size: 11.5px; line-height: 1.3; opacity: 0.8; }
+.gacha-actions .gacha-again { grid-column: 1 / -1; min-height: 40px; flex-direction: row; }
+@media (max-width: 480px) { .gacha-actions { grid-template-columns: 1fr; } }
+.gacha-go:not(:disabled) { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.gacha-go.brand:not(:disabled) { background: var(--gacha-gold); color: #1a1608; border-color: var(--gacha-gold); }
+.gacha-disabled { text-align: center; font-size: 13px; color: var(--dim); margin: 0; padding: 10px; border: 1px dashed var(--edge-2); border-radius: 10px; }
+.gacha-odds { font-size: 12.5px; color: var(--dim); }
+.gacha-odds summary { cursor: pointer; text-align: center; }
+.gacha-odds table { width: 100%; margin-top: 8px; border-collapse: collapse; }
+.gacha-odds td { padding: 4px 0; border-bottom: 1px solid var(--edge); }
+.gacha-odds td:last-child { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+.gacha-crystals { display: flex; flex-direction: column; gap: 18px; padding: 8px 4px 4px; }
+.gacha-crystals h3 { font-size: 14px; font-weight: 500; margin: 0 0 6px; }
+.gacha-crystals p { font-size: 12.5px; color: var(--dim); margin: 6px 0 10px; }
+.gacha-meter { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.gacha-meter i { display: block; height: 100%; background: #5b8fd9; border-radius: inherit; }
+.gacha-meter.gold i { background: var(--gacha-gold); }
+.gacha-pick {
+  position: absolute; inset: 12px; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  border-radius: calc(var(--r) - 4px); border: 1px solid var(--edge-2); background: var(--glass-solid);
+}
+.gacha-pick header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gacha-pick h3 { font-size: 15px; font-weight: 500; margin: 0; }
+.gacha-pick ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; }
+.gacha-pick li button {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--edge); background: transparent; color: var(--text); font-size: 13px; cursor: pointer; text-align: left;
+}
+.gacha-pick li button:hover { border-color: var(--accent); }
+.gacha-pick li i { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.gacha-foot { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--dim); }
+.gacha-foot strong { font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; }
+.gacha-new {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px; margin-left: 2px; border-radius: 999px;
+  background: var(--accent); color: var(--bg); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase;
+}
+@keyframes gacha-pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .gacha-root, .gacha, .patron-panel, .buy-credits-bmc { animation: none !important; transition: none; }
+}
+
+.gacha-stage[data-collapsed="true"] { display: none; }
+.gacha-stage[data-phase="idle"] { min-height: 0; }
+
+/* The two featured Brand looks, as real cards. */
+.gacha-featured-row { display: grid; grid-template-columns: repeat(2, minmax(0, 200px)); justify-content: center; gap: 12px; }
+.gacha-preview-card { width: min(240px, 100%); margin: 4px auto; }
+.gacha-preview .hint { margin: 0; text-align: center; font-size: 12.5px; color: var(--dim); }
+.gacha-preview { inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(300px, calc(100% - 24px)); box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.55), 0 20px 50px rgb(0 0 0 / 0.6); }
+
+/* Draw page fills the viewport: rail, info, art, and the draw bar. */
+.draw-page-wrap { display: flex; flex-direction: column; min-height: 0; padding: 8px 0 0; }
+.gacha.gacha-page { width: 100%; max-width: none; max-height: none; overflow: visible; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; animation: none; }
+@media (min-width: 881px) {
+  .page:has(.draw-page-wrap) { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+  .page:has(.draw-page-wrap) .draw-page-wrap { flex: 1; overflow: hidden; }
+}
+.gacha-page .draw-back { font-size: 13px; }
+.gacha-page .gacha-actions { width: auto; max-width: none; margin: 0; }
+.gacha-page .gacha-pick { position: fixed; inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 90; width: min(920px, 92vw); max-height: min(78vh, 720px); overflow: auto; box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.55), 0 20px 50px rgb(0 0 0 / 0.6); }
+.gacha-page .gacha-pick ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; max-height: none; }
+.gacha-page .gacha-pick li button { min-height: 72px; }
+.gacha-page .gacha-preview { width: min(360px, 92vw); }
+
+/* Draw shell: banner rail, tagged info panel with a showcase fan, poster art with name tags, cost-segment draw pills. */
+.gacha.gacha-page.warp {
+  --warp-hi: var(--accent);
+  --warp-panel: color-mix(in srgb, var(--glass-solid) 90%, transparent);
+  flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px;
+}
+.gacha.gacha-page.warp[data-pack="brand"] { --warp-hi: var(--gacha-gold); }
+/* Region Pack: a cool azure, so it never reads as the gold Brand Pack. */
+.gacha.gacha-page.warp[data-pack="region"] { --warp-hi: #5aa9ff; }
+.warp-tab[data-kind="region"] { --warp-hi: #5aa9ff; }
+.warp-tab[data-kind="region"] .warp-flag.quiet { color: #8cc4ff; box-shadow: inset 0 0 0 1px rgb(90 169 255 / 0.5), 0 2px 6px rgb(0 0 0 / 0.35); }
+.warp-mark { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Top line: title left, wallet pills and close right. */
+.warp-top { display: flex; align-items: center; gap: 12px 16px; min-height: 52px; }
+.warp-title { display: flex; align-items: center; gap: 10px; margin: 0 auto 0 0; font-family: var(--ui); font-size: clamp(1.3rem, 1.8vw, 1.6rem); font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; }
+.warp-title-mark { width: 1.15em; height: 1.15em; color: var(--warp-hi); }
+.warp-wallet { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; }
+.warp-coin { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px 0 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 7%, transparent); font-size: 12.5px; color: var(--dim); white-space: nowrap; }
+.warp-coin .warp-mark { width: 16px; height: 16px; color: var(--accent); }
+.warp-coin[data-kind="crystal"] .warp-mark { color: color-mix(in srgb, #7fb0ff 70%, var(--text)); }
+.warp-coin[data-kind="prism"] .warp-mark { color: var(--gacha-gold); }
+.warp-coin b { font-family: var(--ui); font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.warp-close { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 0; border-radius: 999px; background: none; color: var(--text); cursor: pointer; transition: background-color 0.2s; }
+.warp-close svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.warp-close:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.warp-close:focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+
+.warp-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 18px; }
+
+/* Rail: one wide thumbnail per banner. The chosen one gets bracket corners and full colour. */
+.warp-rail { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
+.warp-tab { position: relative; display: grid; gap: 6px; padding: 6px; border: 0; border-radius: 12px; background: none; color: var(--dim); text-align: left; cursor: pointer; transition: color 0.2s; }
+.warp-tab::before, .warp-tab::after { content: ""; position: absolute; width: 14px; height: 14px; border: 0 solid var(--warp-hi); opacity: 0; transition: opacity 0.2s, inset 0.25s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+.warp-tab::before { top: 6px; left: 6px; border-top-width: 2px; border-left-width: 2px; border-top-left-radius: 8px; }
+.warp-tab::after { top: 6px; right: 6px; border-top-width: 2px; border-right-width: 2px; border-top-right-radius: 8px; }
+.warp-tab[aria-selected="true"] { color: var(--text); }
+.warp-tab[aria-selected="true"]::before { opacity: 1; top: 0; left: 0; }
+.warp-tab[aria-selected="true"]::after { opacity: 1; top: 0; right: 0; }
+.warp-tab[data-kind="brand"] { --warp-hi: var(--gacha-gold); }
+.warp-tab:focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+.warp-thumb { display: flex; height: 62px; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--text) 8%, var(--bg)); filter: saturate(0.45) brightness(0.8); transition: filter 0.25s; }
+.warp-thumb i { flex: 1; margin: 0 -7px; transform: skewX(-14deg); border-bottom: 3px solid; }
+.warp-thumb i:first-child { margin-left: -12px; }
+.warp-thumb i:last-child { margin-right: -12px; }
+.warp-thumb.exchange { display: grid; place-items: center; font-size: 30px; color: color-mix(in srgb, #7fb0ff 70%, var(--text)); background: radial-gradient(80% 120% at 50% 100%, color-mix(in srgb, #7fb0ff 30%, transparent), transparent 70%), color-mix(in srgb, var(--text) 6%, var(--bg)); }
+.warp-thumb.exchange .warp-mark { stroke-width: 1.1; }
+.warp-tab:hover .warp-thumb, .warp-tab[aria-selected="true"] .warp-thumb { filter: none; }
+.warp-tab-name { font-size: 13px; font-weight: 500; }
+.warp-flag { position: absolute; top: 12px; right: 12px; padding: 2px 8px; border-radius: 999px; background: var(--accent); color: var(--bg); font-size: 11px; font-style: normal; font-weight: 600; line-height: 16px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.35); }
+.warp-flag.quiet { background: var(--glass-solid); color: var(--gacha-gold); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gacha-gold) 50%, transparent), 0 2px 6px rgb(0 0 0 / 0.35); }
+
+/* Stage: info + art on top, their actions underneath. */
+.warp-stage { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 14px 18px; padding-top: 18px; }
+
+.warp-info { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: 30px 22px 18px; border-radius: 14px 28px 14px 14px; background: var(--warp-panel); box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.6); }
+.warp-chip { position: absolute; top: -12px; left: -8px; padding: 4px 12px 4px 10px; border-radius: 6px 999px 999px 6px; background: var(--warp-hi); color: var(--bg); font-size: 12px; font-weight: 600; line-height: 16px; box-shadow: 0 4px 10px -4px rgb(0 0 0 / 0.5); }
+.warp[data-pack="brand"] .warp-chip { color: #1a1608; }
+.warp[data-pack="region"] .warp-chip { color: #04203d; }
+.warp-info h3 { position: relative; margin: 0 0 2px; padding-left: 14px; font-size: clamp(1.7rem, 2.6vw, 2.35rem); font-weight: 500; letter-spacing: -0.03em; line-height: 1.05; text-wrap: balance; }
+.warp-info h3::before { content: ""; position: absolute; left: 0; top: 0.12em; bottom: 0.12em; width: 4px; border-radius: 2px; background: var(--warp-hi); }
+.warp-lede { margin: 0; font-size: 15px; line-height: 1.45; color: color-mix(in srgb, var(--text) 82%, var(--dim)); }
+.warp-lede em { font-style: normal; font-weight: 600; font-size: 1.1em; color: var(--warp-hi); font-variant-numeric: tabular-nums; }
+/* The 50/50 line of a company pack; it brightens once the next rainbow is guaranteed. */
+.warp-sub { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.45; }
+.warp-pips { display: grid; grid-template-columns: repeat(var(--n, 10), minmax(0, 1fr)); gap: 4px; max-width: 260px; }
+.warp-pips i { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 14%, transparent); }
+.warp-pips i[data-on="true"] { background: var(--warp-hi); }
+
+/* Showcase: three more looks fanned out, with a name plate across them. */
+.warp-show { position: relative; display: grid; justify-items: center; margin: auto 0 0; padding: 12px 0 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; border-radius: 12px; }
+.warp-show:focus-visible { outline: 1.5px solid var(--text); outline-offset: 4px; }
+.warp-show:hover .warp-show-cap { background: color-mix(in srgb, #000 82%, transparent); }
+.warp-fan { position: relative; display: block; width: 168px; height: 128px; }
+.warp-mini { position: absolute; bottom: 0; left: 50%; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; width: 84px; height: 116px; padding: 8px; border: 1px solid; border-radius: 8px; box-shadow: 0 10px 20px -8px rgb(0 0 0 / 0.55); transform-origin: 50% 100%; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.warp-mini i { flex: 1; border-radius: 4px; }
+.warp-mini b { order: -1; font-size: 20px; font-weight: 600; line-height: 1; }
+.warp-mini:nth-child(1) { transform: translateX(-92%) rotate(-12deg); }
+.warp-mini:nth-child(2) { transform: translateX(-50%) translateY(-8px); z-index: 1; }
+.warp-mini:nth-child(3) { transform: translateX(-8%) rotate(12deg); }
+.warp-show:hover .warp-mini:nth-child(1) { transform: translateX(-104%) rotate(-16deg); }
+.warp-show:hover .warp-mini:nth-child(3) { transform: translateX(4%) rotate(16deg); }
+.warp-show .warp-show-cap { position: relative; z-index: 2; display: grid; justify-items: center; gap: 2px; margin-top: -26px; padding: 7px 14px; border-radius: 8px; background: color-mix(in srgb, #000 72%, transparent); color: #fff; text-align: center; }
+.warp-show .warp-show-cap b { font-size: 14px; font-weight: 600; }
+.warp-show .warp-show-cap small { font-size: 11.5px; color: rgb(255 255 255 / 0.72); }
+
+/* Art: the pack's looks stand on the poster, staggered, each with a name tag. */
+.warp-art { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-items: stretch; gap: 18px; padding: 26px 26px 22px; border-radius: 14px 14px 28px 14px; overflow: hidden; background: radial-gradient(70% 90% at 72% 35%, color-mix(in srgb, var(--warp-hi) 30%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in srgb, var(--bg) 60%, #000), color-mix(in srgb, var(--bg) 85%, #000)); box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.6); }
+.warp-hero { position: relative; min-height: 0; display: flex; animation: warp-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.warp-hero:nth-child(2) { margin-top: 28px; margin-bottom: -10px; animation-delay: 60ms; }
+.warp-hero:nth-child(3) { margin-top: 8px; margin-bottom: 10px; animation-delay: 120ms; }
+.warp-hero .theme-pick-wrap { flex: 1; min-width: 0; }
+.warp-art .theme-pick-wrap, .warp-art .theme-pick { height: 100%; }
+.warp-art .theme-pick-card { flex: 1; min-height: 42%; }
+.warp-art .theme-pick-card b { font-size: clamp(40px, 4vw, 72px); }
+.warp-art .theme-pick-meta { display: none; }
+.warp-name { position: absolute; left: -8px; bottom: 18%; z-index: 1; display: flex; align-items: center; gap: 8px; max-width: calc(100% + 8px); padding: 6px 12px 6px 8px; border-radius: 6px; background: color-mix(in srgb, #000 74%, transparent); color: #fff; box-shadow: 0 6px 14px -6px rgb(0 0 0 / 0.6); }
+.warp-name > i { width: 10px; height: 10px; flex: none; border-radius: 3px; transform: rotate(45deg); }
+.warp-name > span { display: grid; min-width: 0; }
+.warp-name b { overflow: hidden; font-size: 13.5px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.warp-name small { font-size: 11px; color: rgb(255 255 255 / 0.7); }
+/* A company tag: country code, then region code. */
+.tag-pills { display: inline-flex; gap: 3px; margin-top: 2px; }
+.tag-pills i { padding: 1px 5px; border-radius: 4px; font-size: 10.5px; font-style: normal; font-weight: 600; letter-spacing: 0.04em; line-height: 14px; font-variant-numeric: tabular-nums; }
+.tag-pills i:first-child { background: rgb(255 255 255 / 0.9); color: #111; }
+.tag-pills i:last-child { background: rgb(255 255 255 / 0.16); color: #fff; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28); }
+.warp-art .gacha-stage:not([data-collapsed="true"]) { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; padding: 16px; background: color-mix(in srgb, var(--bg) 92%, #000); }
+@keyframes warp-rise { from { opacity: 0; transform: translateY(14px); } }
+
+/* Actions row. */
+.warp-side-act { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
+.warp-text { height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.2s; }
+.warp-text:hover { background: color-mix(in srgb, var(--text) 16%, transparent); }
+.warp-text:focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+.warp-bar { display: flex; align-items: center; justify-content: flex-end; min-height: 52px; min-width: 0; }
+.dp-act { min-width: 0; }
+.dp-act .gacha-actions { max-width: none; margin: 0; gap: 12px; }
+.gacha-stage { border-radius: 0; background: transparent; }
+
+/* Draw pill: cost segment, then the action. Built from the theme's text/background pair so light looks work too. */
+.warp-draws { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.warp-draw { display: inline-flex; align-items: stretch; min-height: 50px; padding: 4px; border: 0; border-radius: 999px; background: var(--text); color: var(--on-text, var(--bg)); cursor: pointer; box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.7); transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s; }
+.warp-draw:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.75); }
+.warp-draw:active:not(:disabled) { transform: translateY(0); }
+.warp-draw:focus-visible { outline: 2px solid var(--warp-hi); outline-offset: 3px; }
+.warp-draw:disabled { cursor: not-allowed; opacity: 0.45; }
+.warp-cost { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px 0 12px; border-radius: 999px; background: color-mix(in srgb, var(--on-text, var(--bg)) 10%, transparent); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.warp-cost .warp-mark { width: 15px; height: 15px; color: var(--warp-hi); stroke-width: 1.8; }
+.warp-draw-label { display: grid; align-content: center; justify-items: start; min-width: 104px; padding: 0 18px 0 14px; font-size: 16px; font-weight: 600; line-height: 1.1; text-align: left; }
+.warp-draw-label small { font-size: 11px; font-weight: 500; opacity: 0.7; }
+
+/* Exchange tab. */
+.warp-pass { min-width: 0; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 18px; padding-top: 18px; }
+.warp-pass section { display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px; border-radius: 14px; background: var(--warp-panel); box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.6); }
+.warp-pass h3 { margin: 0; font-size: 1.6rem; font-weight: 500; letter-spacing: -0.02em; }
+.warp-pass p { margin: 0; color: var(--dim); }
+.warp-pass .warp-pass-rates { font-size: 12px; line-height: 1.45; color: var(--mute); }
+.warp-pass .gacha-line, .warp-pass-foot { grid-column: 1 / -1; }
+.warp-pass .warp-pips { max-width: none; }
+.warp-pass .pill-btn { align-self: flex-start; justify-content: center; min-width: 140px; min-height: 42px; }
+
+/* Dialogs. */
+.warp-shade { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; background: rgb(0 0 0 / 0.55); }
+.warp-tip { width: min(440px, 92vw); display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 16px; border: 1px solid var(--edge-2); background: var(--glass-solid); }
+.warp-tip h3 { margin: 0; font-size: 1.25rem; font-weight: 500; text-align: center; }
+.warp-tip p { margin: 0; color: var(--dim); text-align: center; }
+.warp-tip .gacha-odds { width: 100%; font-size: 14px; }
+.warp-tip .pill-btn { align-self: center; min-width: 140px; }
+/* Everything in a pack: a scrollable list grouped by category, each row with its chance per draw. */
+.warp-pool { width: min(560px, 92vw); max-height: min(80vh, 760px); display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--edge-2); background: var(--glass-solid); overflow: hidden; }
+.warp-pool-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 18px 12px 22px; border-bottom: 1px solid var(--edge); }
+.warp-pool-head h3 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 500; }
+.warp-pool-head p { margin: 0; font-size: 13px; color: var(--dim); }
+.warp-pool-list { overflow-y: auto; overscroll-behavior: contain; padding: 0 10px 12px; scrollbar-width: thin; scrollbar-color: var(--edge-2) transparent; }
+.warp-pool-list section + section { margin-top: 4px; }
+.warp-pool-list h4 { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; gap: 12px; margin: 0; padding: 12px 12px 8px; background: linear-gradient(var(--glass-solid), var(--glass-solid)), var(--bg); box-shadow: 0 1px 0 var(--edge); font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; }
+.warp-pool-list h4 span:last-child { color: var(--dim); font-weight: 500; font-variant-numeric: tabular-nums; }
+.warp-pool-list ul { margin: 0; padding: 0; list-style: none; }
+.warp-pool-list li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 12px; border-radius: 8px; font-size: 13.5px; }
+.warp-pool-list li:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.warp-pool-swatch { display: grid; place-items: center; flex: none; width: 34px; height: 24px; border: 1px solid; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.warp-pool-swatch.item { border-color: color-mix(in srgb, var(--accent) 45%, var(--edge)); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.warp-pool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warp-pool-list li em { flex: none; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--dim); font-size: 11px; font-style: normal; }
+.warp-pool-list li b { flex: none; min-width: 58px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Draw again: the cost before and after, then Cancel / Draw. */
+.warp-again { gap: 12px; }
+.warp-again-cost { display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--ui); font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.warp-again-cost > span { display: inline-flex; align-items: center; gap: 6px; }
+.warp-again-cost .warp-mark { width: 18px; height: 18px; color: var(--accent); }
+.warp-again-cost > span[aria-hidden] { color: var(--dim); font-weight: 400; }
+.warp-again-cost > span[data-short="true"] { color: var(--alert, #e5484d); }
+.warp-again-short { color: var(--alert, #e5484d) !important; font-size: 13px; }
+.warp-again-act { display: flex; justify-content: center; gap: 10px; }
+.warp-again-act .warp-draw-label { min-width: 96px; justify-items: center; }
+.gs-foot-act .warp-text { height: 40px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .warp-hero { animation: none; }
+  .warp-mini, .warp-draw, .warp-tab::before, .warp-tab::after { transition: none; }
+}
+
+/* Sizes follow the Draw page's own width (set by DrawPage), so a split pane gets the compact layout too. */
+.warp:is([data-w="mid"], [data-w="narrow"]) .warp-body { grid-template-columns: 132px minmax(0, 1fr); }
+.warp:is([data-w="mid"], [data-w="narrow"]) .warp-stage { grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); }
+.warp:is([data-w="mid"], [data-w="narrow"]) .warp-hero:nth-child(3) { display: none; }
+
+.warp[data-w="narrow"] .warp-top { flex-wrap: wrap; }
+.warp[data-w="narrow"] .warp-wallet { order: 3; width: 100%; justify-content: flex-start; }
+.warp[data-w="narrow"] .warp-body { grid-template-columns: 1fr; }
+.warp[data-w="narrow"] .warp-rail { flex-direction: row; gap: 10px; padding-top: 8px; overflow-x: auto; }
+.warp[data-w="narrow"] .warp-tab { flex: 1 0 96px; }
+.warp[data-w="narrow"] .warp-thumb { height: 52px; }
+.warp[data-w="narrow"] .warp-stage, .warp[data-w="narrow"] .warp-pass { grid-template-columns: 1fr; grid-template-rows: auto; }
+.warp[data-w="narrow"] .warp-art { min-height: 42vh; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; padding: 18px 14px; }
+.warp[data-w="narrow"] .warp-hero:nth-child(3) { display: flex; }
+.warp[data-w="narrow"] .warp-hero:nth-child(2) { margin-top: 18px; margin-bottom: -6px; }
+.warp[data-w="narrow"] .warp-art .theme-pick-card b { font-size: 30px; }
+.warp[data-w="narrow"] .warp-art .theme-pick-dots { display: none; }
+.warp[data-w="narrow"] .warp-name { left: -4px; bottom: 10%; padding: 4px 8px 4px 6px; }
+.warp[data-w="narrow"] .warp-name small { display: none; }
+.warp[data-w="narrow"] .warp-name b { font-size: 12px; }
+.warp[data-w="narrow"] .warp-bar { justify-content: stretch; }
+.warp[data-w="narrow"] .warp-bar .dp-act { flex: 1; }
+.warp[data-w="narrow"] .warp-draws { display: grid; grid-template-columns: 1fr; }
+.warp[data-w="narrow"] .warp-draw-label { flex: 1; min-width: 0; }
+.warp[data-w="narrow"] .gs-foot { flex-wrap: wrap; }
+.warp[data-w="narrow"] .gs-foot-act { max-width: none; width: 100%; }

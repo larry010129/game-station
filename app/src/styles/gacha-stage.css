@@ -1,0 +1,250 @@
+/* ---- Draw Theme: a viewport stage of badges. Motion comes from the clock in DrawBadges.tsx. ---- */
+.gacha:not(.gacha-page) { width: min(640px, 100%); }
+.gs {
+  --gacha-machine: var(--accent);
+  --gacha-gold: #c9a227;
+  --gacha-crystal: #5b8fd9;
+  width: 100%;
+}
+.gs[data-pack="brand"] { --gacha-machine: var(--gacha-gold); }
+.gs[data-pack="region"] { --gacha-machine: #5aa9ff; }
+.gs { position: relative; display: flex; flex: 1; flex-direction: column; width: 100%; min-height: 0; container-type: size; }
+.db-grid {
+  display: grid; flex: 1; width: 100%; min-height: 0; gap: clamp(8px, 1.2vmin, 16px);
+}
+.db-grid[data-count="1"] { place-items: center; }
+/* One badge: a little under two-thirds of the stage height, so it reads as a badge held up, not a poster. */
+.db-grid[data-count="1"] .db-slot {
+  width: min(46cqi, 40cqh); height: auto; aspect-ratio: 1 / 2.2;
+}
+/* Ten badges: the spread keeps every badge portrait (about 0.7 wide to 1 tall, like an ID card on a lanyard)
+   and sits centred with room around it, instead of stretching each badge to fill the screen.
+   With a gap of ~3.5% of the width, a 5 x 2 grid whose box is 1.9 : 1 gives cells of ~0.7 : 1. */
+.db-grid:not([data-count="1"]) {
+  flex: none; margin: auto;
+  width: min(84cqi, calc(90cqh * 1.2)); aspect-ratio: 1.2;
+  gap: 3.5cqmin 2.8cqmin;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+@container (max-width: 720px) {
+  /* 2 x 5 on a narrow stage: a tall box (~0.29 : 1) keeps the cells badge-shaped. */
+  .db-grid:not([data-count="1"]) {
+    width: min(90cqi, calc(94cqh * 0.2)); aspect-ratio: 0.2;
+    gap: 2.4cqmin 3cqmin;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+  }
+}
+.db-slot { min-width: 0; min-height: 0; height: 100%; container-type: size; }
+
+/* The badge: back (face down until it flips) and front (the result). It hangs from the rig at its own drop. */
+.db-slot { position: relative; --u: calc(100cqi / 124); --ct: calc(var(--u) * (62 + var(--drop, 0))); }
+.db-badge {
+  position: absolute; left: 0; top: var(--ct); width: 100%; height: calc(100cqh - var(--u) * 86); padding: 0; border: 0; background: none;
+  border-radius: 0.85em; cursor: default; color: var(--text); text-align: left; transform-origin: 50% 0;
+  font-size: min(calc(100cqi / 11.2), calc((100cqh - var(--u) * 86) / 15.5));
+}
+.db-rig { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.db-rig i { position: absolute; display: block; }
+.db-rail {
+  left: -13%; right: -13%; top: 0; height: calc(var(--u) * 7); border-radius: 999px;
+  background: linear-gradient(180deg, #e9ebee, #a9aeb6 45%, #7b8089 55%, #c4c8ce);
+  box-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 4) rgb(0 0 0 / 0.35);
+}
+.db-ring {
+  left: 50%; top: calc(var(--u) * 3); width: calc(var(--u) * 9); height: calc(var(--u) * 9); margin-left: calc(var(--u) * -4.5);
+  border-radius: 50%; border: calc(var(--u) * 1.8) solid #aeb3bb; box-shadow: 0 calc(var(--u) * 1) calc(var(--u) * 2) rgb(0 0 0 / 0.4);
+}
+.db-strap {
+  left: 50%; top: calc(var(--u) * 10); width: calc(var(--u) * 11); margin-left: calc(var(--u) * -5.5);
+  height: calc(var(--ct) - var(--u) * 30);
+  background:
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.12) 0 calc(var(--u) * 1), transparent calc(var(--u) * 1) calc(var(--u) * 2.2)),
+    repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.18) 0 calc(var(--u) * 1), transparent calc(var(--u) * 1) calc(var(--u) * 2.2)),
+    linear-gradient(90deg, color-mix(in srgb, var(--tone) 78%, #000), var(--tone) 50%, color-mix(in srgb, var(--tone) 78%, #000));
+  border-inline: calc(var(--u) * 0.8) dashed rgb(255 255 255 / 0.4);
+}
+.db-crimp {
+  left: 50%; top: calc(var(--u) * 10); width: calc(var(--u) * 13); height: calc(var(--u) * 6); margin-left: calc(var(--u) * -6.5);
+  border-radius: calc(var(--u) * 1.5); background: linear-gradient(180deg, #d5d8dd, #8a8f98);
+}
+.db-reel {
+  left: 50%; top: calc(var(--ct) - var(--u) * 30); width: calc(var(--u) * 21); height: calc(var(--u) * 21); margin-left: calc(var(--u) * -10.5);
+  border-radius: 50%; background: radial-gradient(circle at 50% 50%, #c9cdd3 0 22%, #2a2c31 24% 100%); box-shadow: 0 calc(var(--u) * 1.5) calc(var(--u) * 3) rgb(0 0 0 / 0.45);
+}
+/* The cord and clip belong to the badge: they move, swing and tilt with it. The clip's tongue goes through the hole. */
+.db-cord {
+  position: absolute; display: block; z-index: 4; pointer-events: none; left: 50%; top: calc(var(--u) * -10); width: calc(var(--u) * 2); height: calc(var(--u) * 7);
+  margin-left: calc(var(--u) * -1); background: #1d1f23;
+}
+.db-clip {
+  position: absolute; display: block; z-index: 5; pointer-events: none; left: 50%; top: calc(var(--u) * -9); width: calc(var(--u) * 30); height: calc(var(--u) * 20);
+  margin-left: calc(var(--u) * -15); background: linear-gradient(180deg, #4a4d54, #1f2125);
+  clip-path: polygon(8% 0, 92% 0, 100% 55%, 66% 55%, 62% 100%, 38% 100%, 34% 55%, 0 55%);
+}
+.db-badge.is-down, .db-badge.is-preview { cursor: pointer; }
+.db-badge:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+.db-flip { position: absolute; inset: 0; transform-style: preserve-3d; }
+.db-face {
+  position: absolute; inset: 0; display: block; overflow: hidden; border-radius: 0.85em; border: 1px solid var(--edge-2);
+  background: var(--glass-solid); color: var(--text); backface-visibility: hidden;
+}
+.db-face.front { transform: rotateY(180deg); }
+.db-band { color: var(--tone); position: absolute; left: 0; right: 0; top: 0; height: 2.15em; background: repeating-linear-gradient(135deg, transparent 0 0.45em, rgb(255 255 255 / 0.1) 0.45em 0.56em), linear-gradient(180deg, color-mix(in srgb, currentColor 80%, #fff), currentColor 72%, color-mix(in srgb, currentColor 86%, #000)); }
+.db-band.tall { height: 4.3em; }
+/* Face down, only a company (Brand or Region) look stands out: its back is rainbow. Every other back is one colour,
+   the app theme's own. Face up, items are the theme colour, Regular themes are gold and company looks are rainbow. */
+.db-face.back .db-band { color: var(--accent); }
+.db-slot[data-front="theme"] .db-face.back .db-band { color: var(--tone); }
+.db-slot[data-tier="company"] .db-face.back .db-band,
+.db-slot[data-front="company"] .db-face.front .db-band {
+  background: linear-gradient(110deg, #ff8fd0, #8fd8ff 35%, #ffe38a 65%, #c39bff);
+  background-size: 220% 100%; animation: db-iris 3.2s linear infinite;
+}
+.db-slot[data-tier="company"] .db-face.back,
+.db-slot[data-front="company"] .db-face.front { border-color: rgb(255 255 255 / 0.55); }
+.db-slot[data-tier="company"] .db-badge { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.35), 0 10px 30px -8px rgb(195 155 255 / 0.65); border-radius: 0.85em; }
+.db-slot[data-front="company"] .db-codes svg { color: #c39bff; }
+/* Item icons inside the art take the one item colour (no per-type blue, green, purple or orange). */
+.db-slot[data-front="item"] .gs-tile.item,
+.db-slot[data-front="item"] .gs-tile.item.better,
+.db-slot[data-front="item"] .gs-tile.pick,
+.db-slot[data-front="item"] .gs-tile.crystal {
+  color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--edge)); background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+@keyframes db-iris { to { background-position: -220% 0; } }
+.db-badge:disabled { cursor: default; }
+.db-badge.is-down:hover .db-flip { transform: perspective(900px) rotateY(0deg) translateY(-3px) !important; }
+
+/* The rarity tease: a burst before the spread, coloured by the best result in the draw. */
+.db-tease { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; overflow: hidden; --tease: var(--accent); }
+.db-tease[data-tier="company"] { --tease: #c39bff; }
+.db-tease-rays { position: absolute; width: 160vmax; height: 160vmax; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--tease) 30%, transparent) 0deg 6deg, transparent 6deg 18deg); mask: radial-gradient(closest-side, #000 20%, transparent 70%); -webkit-mask: radial-gradient(closest-side, #000 20%, transparent 70%); }
+.db-tease-core { width: min(34vmin, 260px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #fff 0 18%, color-mix(in srgb, var(--tease) 85%, #fff) 40%, transparent 70%); filter: blur(1px); }
+.db-tease[data-tier="company"] .db-tease-core { background: radial-gradient(circle, #fff 0 18%, #ffd6f0 32%, #b8e8ff 46%, #ffe9a8 58%, transparent 72%); }
+@media (prefers-reduced-motion: reduce) { .db-slot[data-tier="company"] .db-face.back .db-band, .db-slot[data-front="company"] .db-face.front .db-band { animation: none; } }
+.db-band::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: rgb(0 0 0 / 0.15); }
+.db-hole { position: absolute; left: 50%; top: 0.72em; width: 2.7em; height: 0.56em; margin-left: -1.35em; border-radius: 999px; background: var(--bg); box-shadow: inset 0 0.09em 0.2em rgb(0 0 0 / 0.55), 0 0.05em 0 rgb(255 255 255 / 0.3); }
+.db-glint { position: absolute; top: 0; bottom: 0; left: -50%; width: 200%; pointer-events: none; opacity: 0.35; background: linear-gradient(100deg, transparent 40%, rgb(255 255 255 / 0.26) 48%, rgb(255 255 255 / 0.08) 52%, transparent 58%); }
+.db-shade { position: absolute; inset: 0; pointer-events: none; background: #000; }
+
+.db-art { position: absolute; left: 50%; top: 2.15em; width: 8em; height: 6.7em; margin-left: -4em; }
+.db-art-in { position: absolute; left: 0; top: 0; width: 148px; height: 124px; transform: scale(calc(8em / 148px)); transform-origin: 0 0; }
+.db-name { position: absolute; left: 0.8em; right: 0.8em; top: 9.35em; font-size: 1.08em; font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-role { position: absolute; left: 0.8em; right: 0.8em; top: 11.2em; font-size: 0.8em; line-height: 1.2; text-align: center; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-team { position: absolute; left: 0.8em; right: 0.8em; top: 13.1em; font-size: 0.6em; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; text-align: center; color: var(--dim); white-space: nowrap; }
+.db-codes { position: absolute; left: 0.8em; right: 0.8em; bottom: 0.7em; padding-top: 0.5em; border-top: 1px dashed var(--edge-2); }
+.db-codes svg { display: block; width: 100%; height: 1.6em; color: color-mix(in srgb, var(--text) 80%, transparent); }
+.db-codes small { display: block; margin-top: 0.25em; text-align: center; font-family: ui-monospace, "JetBrains Mono Variable", monospace; font-size: 0.52em; letter-spacing: 0.32em; color: var(--dim); }
+.db-back-head { position: absolute; left: 0.85em; right: 0.85em; top: 2.6em; display: block; }
+.db-back-head strong { display: block; font-size: 0.95em; font-weight: 600; line-height: 1.15; }
+.db-back-head small { display: block; font-size: 0.72em; color: var(--dim); }
+.db-qr { position: absolute; left: 50%; top: 5.6em; width: 6.4em; height: 6.4em; margin-left: -3.2em; color: var(--text); }
+
+/* The result tile inside a front face. */
+.gs-tile { position: absolute; inset: 0; box-sizing: border-box; border: 1px solid var(--edge); display: grid; place-items: center; color: var(--text); }
+.gs-tile.brand { box-shadow: inset 0 0 0 2px #c39bff; }
+.gs-tile.pick { border-radius: 10px; color: var(--gacha-gold); background: color-mix(in srgb, var(--gacha-gold) 10%, transparent); border-color: color-mix(in srgb, var(--gacha-gold) 45%, var(--edge)); }
+.gs-tile.item { border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, transparent); }
+.gs-tile.item.better { color: var(--caution, #f0b429); border-color: color-mix(in srgb, var(--caution, #f0b429) 40%, var(--edge)); }
+.gs-tile.crystal { border-radius: 10px; color: var(--gacha-crystal); background: color-mix(in srgb, var(--gacha-crystal) 10%, transparent); border-color: color-mix(in srgb, var(--gacha-crystal) 40%, var(--edge)); }
+.gs-tile.crystal[data-crystal="special"] { color: var(--gacha-gold); background: color-mix(in srgb, var(--gacha-gold) 10%, transparent); border-color: color-mix(in srgb, var(--gacha-gold) 45%, var(--edge)); }
+.gs-tile-card { position: absolute; left: 14px; right: 14px; top: 14px; height: 58px; box-sizing: border-box; border: 1px solid; display: grid; place-items: center; }
+.gs-tile-card b { font-size: 30px; font-weight: 500; line-height: 1; }
+.gs-tile-dots { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 6px; }
+.gs-tile-dots i { width: 10px; height: 10px; border-radius: 50%; }
+.gs-label { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; max-width: 100%; }
+.gs-label strong { font-size: 12.5px; font-weight: 500; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-label small { font-size: 11px; color: var(--dim); }
+
+.gacha-skip {
+  position: absolute; right: 10px; bottom: 10px; height: 30px; padding: 0 14px; border-radius: 999px; font-size: 12.5px;
+  border: 1px solid var(--edge-2); background: transparent; color: var(--dim); cursor: pointer;
+}
+.gacha-skip:hover { color: var(--text); }
+
+/* Face-down badges flip on click; face-up looks and sounds preview; the rest are not clickable. */
+.db-badge { cursor: default; }
+.db-badge.is-down, .db-badge.is-preview { cursor: pointer; }
+.db-badge.is-preview:hover .db-face.front { border-color: var(--text); }
+
+/* The pull covers the viewport. Cards share that box; the page behind does not scroll. */
+.gacha-page .gacha-stage:not([data-collapsed="true"]) {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: stretch;
+  padding: 0; border: 0; background: transparent;
+}
+.gacha-page .gacha-stage[data-phase="drawing"],
+.gacha-page .gacha-stage[data-phase="revealed"] {
+  position: fixed; inset: 0; z-index: 80; gap: 12px; padding: 18px 24px 16px; overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 94%, #000);
+}
+body:has(.gacha-stage[data-phase="drawing"]),
+body:has(.gacha-stage[data-phase="revealed"]) { overflow: hidden; }
+.gs-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex: none; min-width: 0; }
+.gs-foot .gacha-line { flex: 1; min-width: 0; margin: 0; text-align: left; }
+.gs-foot-act { display: flex; align-items: center; gap: 16px; flex: none; max-width: min(640px, 58%); }
+.gs-foot .gacha-actions { width: min(520px, 100%); margin: 0; }
+.gs-foot .gacha-skip { position: static; height: 40px; }
+
+/* ---- First Brand look: the look's own colours flood the screen, the brand mark traces itself, then fills. ---- */
+.bu {
+  --bu-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px 16px; overflow: auto;
+  background: radial-gradient(60% 50% at 50% 34%, color-mix(in srgb, var(--bu-mark) 22%, transparent), transparent 70%), var(--bu-bg);
+  color: var(--bu-text);
+  clip-path: circle(150% at 50% 34%);
+  animation: bu-flood 620ms var(--bu-ease) both;
+}
+.bu-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(420px, 100%); text-align: center; }
+.bu-mark-wrap { position: relative; display: grid; place-items: center; width: clamp(112px, 20vmin, 176px); aspect-ratio: 1; margin-bottom: 14px; }
+.bu-mark { grid-area: 1 / 1; width: 100%; height: 100%; overflow: visible; color: var(--bu-mark); transform-origin: 50% 50%; animation: bu-settle 420ms var(--bu-ease) 950ms both; }
+.bu-ring { grid-area: 1 / 1; }
+.bu-trace { fill: none; stroke: currentColor; stroke-width: 1.6px; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: bu-trace 900ms cubic-bezier(0.65, 0, 0.35, 1) 300ms forwards, bu-out 300ms ease-out 1150ms forwards; }
+.bu-fill { fill: currentColor; opacity: 0; animation: bu-in 420ms var(--bu-ease) 950ms forwards; }
+.bu-mark-plain { display: grid; place-items: center; font-size: 3.2em; font-weight: 600; opacity: 0; animation: bu-fill 420ms var(--bu-ease) 500ms forwards; }
+.bu-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--bu-mark); opacity: 0; pointer-events: none; animation: bu-ring 900ms cubic-bezier(0.22, 1, 0.36, 1) 1150ms; }
+.bu-title { margin: 0; font-family: var(--ui); font-size: clamp(1.8rem, 4.2vw, 2.6rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; text-wrap: balance; }
+.bu-tags { margin: -2px 0 2px; animation: bu-rise 560ms var(--bu-ease) 1300ms both; }
+.bu-tags i { font-size: 12px; line-height: 18px; padding: 1px 8px; }
+.bu-tags i:first-child { background: var(--bu-text); color: var(--bu-bg); }
+.bu-tags i:last-child { background: color-mix(in srgb, var(--bu-mark) 22%, transparent); color: var(--bu-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bu-mark) 55%, transparent); }
+.bu-line { margin: 0; max-width: 34ch; font-size: 15px; line-height: 1.45; color: var(--bu-muted); }
+.bu-card { width: min(240px, 72vw); margin: 10px 0 8px; }
+.bu-card .theme-pick { box-shadow: 0 22px 44px -20px rgb(0 0 0 / 0.65); }
+.bu-go { min-width: 160px; height: 46px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--bu-text); color: var(--bu-bg); font-size: 15px; font-weight: 600; cursor: pointer; transition: transform 0.2s var(--bu-ease); }
+.bu-go:hover { transform: translateY(-2px); }
+.bu-go:focus-visible { outline: 2px solid var(--bu-mark); outline-offset: 3px; }
+.bu-title, .bu-line, .bu-card, .bu-go { animation: bu-rise 560ms var(--bu-ease) both; }
+.bu-title { animation-delay: 1250ms; }
+.bu-line { animation-delay: 1340ms; }
+.bu-card { animation-delay: 1430ms; }
+.bu-go { animation-delay: 1560ms; }
+@keyframes bu-flood { from { clip-path: circle(0% at 50% 34%); } }
+@keyframes bu-trace { to { stroke-dashoffset: 0; } }
+@keyframes bu-out { to { opacity: 0; } }
+@keyframes bu-fill { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+@keyframes bu-in { to { opacity: 1; } }
+@keyframes bu-settle { from { transform: scale(0.94); } }
+@keyframes bu-ring { 0% { opacity: 0.7; transform: scale(0.7); } 100% { opacity: 0; transform: scale(2.3); } }
+@keyframes bu-rise { from { opacity: 0; transform: translateY(14px); } }
+@media (prefers-reduced-motion: reduce) {
+  .bu { clip-path: none; animation: bu-out-in 240ms ease-out both; }
+  .bu-trace, .bu-ring { display: none; }
+  .bu-fill, .bu-mark-plain, .bu-mark { opacity: 1; animation: none; }
+  .bu-title, .bu-tags, .bu-line, .bu-card, .bu-go { animation: bu-out-in 240ms ease-out both; }
+}
+@keyframes bu-out-in { from { opacity: 0; } }
+
+/* The tag on a new look or item, and the crystal paid for a repeat. A pill with one solid underlay beneath it, after
+   the Tag component (unlumen, 21st.dev): light fill, dark rim and ink from the badge colour. */
+.db-tag {
+  position: absolute; top: 0.8em; right: 0.7em; z-index: 2; display: inline-flex; align-items: center; gap: 0.28em; padding: 0.1em 0.55em 0.12em 0.45em;
+  font-size: 0.62em; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.25; white-space: nowrap;
+  color: color-mix(in srgb, var(--tone) 38%, #000); background: color-mix(in srgb, var(--tone) 10%, #fff);
+  border: 0.2em solid color-mix(in srgb, var(--tone) 55%, #000); border-radius: 999px;
+  box-shadow: -0.22em 0.28em 0 color-mix(in srgb, var(--tone) 55%, #000);
+}
+.db-tag svg { flex: none; }
+.gs-tile.crystal { flex-direction: column; gap: 4px; align-content: center; }
+.gs-tile.crystal b { font-size: 20px; font-weight: 600; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }

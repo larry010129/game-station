@@ -1,11 +1,20 @@
 import { usePatreonEntitlement } from "./patreon";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { readJson, readString, removeKey, writeJson, writeString } from "../lib/storage";
 import { deletePicture, loadPicture, savePicture } from "./imageStore";
 import { applyPalette, parseThemeModule, type Palette, type ThemeDef } from "./palette";
 import { applyTweaks, cleanTweaks, type Tweaks } from "./tweaks";
+import { useCreatorUnlock } from "./creatorAccess";
 import { isLookLocked } from "./lookAccess";
-import { CATALOG, CHARCOAL, LOCKED_IDS, UNLOCKABLES } from "./themeCatalog";
+import {
+  CHARCOAL,
+  getCatalog,
+  getExtraUnlockables,
+  getLockedIds,
+  getThemeCatalogVersion,
+  subscribeThemeCatalog,
+  themeStatus,
+} from "./themeCatalog";
 import { trackQuest } from "./useQuests";
 
 const KEY = "cs.theme";
@@ -181,7 +190,7 @@ export function applySavedTheme() {
   const { saved, legacy } = readSaved();
   const id = saved.id ?? legacy?.id ?? CHARCOAL.id;
   const modules = loadModules(legacy);
-  const active = [...CATALOG, ...modules].find((t) => t.id === id) ?? CHARCOAL;
+  const active = [...getCatalog(), ...modules].find((t) => t.id === id) ?? CHARCOAL;
   applyPalette(active.palette);
   applyTweaks(cleanTweaks(saved.tweaks));
   const dim = typeof saved.dim === "number" ? saved.dim : DEFAULT_DIM;
@@ -235,13 +244,28 @@ export function useTheme() {
     };
   }, []);
 
-  // Patreon Basic opens every preset look without writing to the earned unlocks, so cancelling never takes an earned look away.
+  // Patreon Basic and the local creator unlock open every preset look without writing to the earned unlocks,
+  // so turning either off never takes an earned look away.
   const { basic } = usePatreonEntitlement();
-  // Only looks that are free, earned or opened by Patreon Basic can be worn; a locked one is never applied or previewed.
-  const lockRef = useRef({ unlocks, basic });
-  lockRef.current = { unlocks, basic };
-  const isLocked = useCallback((themeId: string) => isLookLocked(themeId, LOCKED_IDS, unlocks, basic), [unlocks, basic]);
-  const all = useMemo(() => [...CATALOG, ...UNLOCKABLES, ...modules].filter((t) => !isLookLocked(t.id, LOCKED_IDS, unlocks, basic)), [unlocks, basic, modules]);
+  const creator = useCreatorUnlock();
+  const catalogEpoch = useSyncExternalStore(subscribeThemeCatalog, getThemeCatalogVersion, getThemeCatalogVersion);
+  const lockedIds = getLockedIds();
+  // Only looks that are free, earned, opened by Patreon Basic, or opened by the creator unlock can be worn.
+  const lockRef = useRef({ unlocks, basic, creator, lockedIds });
+  lockRef.current = { unlocks, basic, creator, lockedIds };
+  const isLocked = useCallback(
+    (themeId: string) => isLookLocked(themeId, lockedIds, unlocks, basic, creator),
+    [unlocks, basic, creator, lockedIds, catalogEpoch],
+  );
+  // Hidden looks stay invisible even under Patreon Basic / creator unlock, unless already earned. Owned Archived stay wearable.
+  const all = useMemo(
+    () =>
+      [...getCatalog(), ...getExtraUnlockables(), ...modules].filter((t) => {
+        if (t.source !== "yours" && themeStatus(t) === "Hidden" && !unlocks.includes(t.id)) return false;
+        return !isLookLocked(t.id, lockedIds, unlocks, basic, creator);
+      }),
+    [unlocks, basic, creator, modules, lockedIds, catalogEpoch],
+  );
   const active = all.find((t) => t.id === id) ?? CHARCOAL;
 
   // Painted before the browser draws, so a light theme never flashes dark first.
@@ -269,7 +293,11 @@ export function useTheme() {
   }, [unlocks]);
 
   const select = useCallback((next: string) => {
-    if (isLookLocked(next, LOCKED_IDS, lockRef.current.unlocks, lockRef.current.basic)) return;
+    const { unlocks: earned, basic: bas, creator: cre, lockedIds: locked } = lockRef.current;
+    if (isLookLocked(next, locked, earned, bas, cre)) return;
+    const hit = [...getCatalog(), ...getExtraUnlockables()].find((t) => t.id === next);
+    // Hidden stays off-limits under Basic/creator unless already earned.
+    if (hit && themeStatus(hit) === "Hidden" && !earned.includes(next)) return;
     setPreviewId(null);
     setId(next);
     setRecent((list) => [next, ...list.filter((x) => x !== next)].slice(0, MAX_RECENT));
@@ -363,7 +391,7 @@ export function useTheme() {
         } catch {
           // A module that cannot be read leaves the theme as it is.
         }
-      } else if (CATALOG.some((c) => c.id === t.id)) select(t.id);
+      } else if (getCatalog().some((c) => c.id === t.id)) select(t.id);
       setTweaks(cleanTweaks(t.tweaks));
     },
     [importModules, select],

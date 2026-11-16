@@ -1,3 +1,5 @@
+import type { ThemeTags } from "../content/brandTags.ts";
+
 /** A station look. Colours are any CSS colour. `null` palette means the built-in charcoal. */
 export interface Palette {
   bg: string;
@@ -46,6 +48,9 @@ export function fontStack(p: Palette): string | undefined {
   return key ? FONTS.find((f) => f.key === key)?.stack : undefined;
 }
 
+/** Content availability (bundled for now; later a CMS release). Omitted → see themeCatalog.themeStatus. */
+export type ThemeStatus = "Hidden" | "Available" | "Archived";
+
 export interface ThemeDef {
   id: string;
   name: string;
@@ -54,6 +59,16 @@ export interface ThemeDef {
   source: "station" | "21st" | "yours";
   url?: string;
   palette: Palette | null;
+  /** Hidden: invisible until announced. Available: shop/gacha. Archived: Past themes only (owned stay usable). */
+  status?: ThemeStatus;
+  /** Company themes only: which packs include it, and its country and region. */
+  tags?: ThemeTags;
+  /** Short note for Past themes, e.g. "Nov 2026". */
+  lastAvailable?: string;
+  /** Past themes may say "may return" without a date. */
+  mayReturn?: boolean;
+  /** Only show a return date when one has been announced. */
+  returnDate?: string;
 }
 
 const APPLIED = [

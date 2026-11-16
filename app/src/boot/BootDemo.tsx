@@ -8,6 +8,7 @@ import type { BootState, BootStep, StepStatus } from "./types";
  * Add &fail=1 for the no-signal state, &short=1 for the warm-restart version.
  */
 const STEPS: Omit<BootStep, "status">[] = [
+  { id: "content", label: "Updating content", detail: "Checking for content updates…", required: false },
   { id: "core", label: "Core service", detail: "Waking the core service…", required: true },
   { id: "hardware", label: "Hardware scan", detail: "Scanning hardware…", required: true },
   { id: "profiles", label: "Profiles", detail: "Loading your profiles…", required: true },

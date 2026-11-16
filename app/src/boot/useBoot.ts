@@ -4,8 +4,10 @@ import type { CardId } from "../layout/layouts";
 import { connectStation, liveAvailable, StageError } from "../lib/connect";
 import type { StationInfo } from "../lib/types";
 import { apiResultMatch, watchApi, type ApiResult } from "../state/useApi";
+import { contentUpdatesEnabled } from "../content/contentSettings.ts";
+import { runContentUpdate } from "../content/updateContent.ts";
 import { failCount, onSignal, signalled } from "./bootSignals";
-import { CORE, HARDWARE, PROFILES, TELEMETRY, stepsFor, type StepDef, type StepSource } from "./bootSteps";
+import { CONTENT, CONTENT_STEP, CORE, HARDWARE, PROFILES, TELEMETRY, stepsFor, type StepDef, type StepSource } from "./bootSteps";
 import type { BootPhase, BootState, BootStep, StepStatus } from "./types";
 
 const MIN_MS = 1200;
@@ -111,12 +113,30 @@ export function useBoot({ cards, onInfo }: Options): BootState {
   const [short, setShort] = useState(() => bootedBefore() && !replay());
   const firstChecked = useRef(false);
   const sampleBase = useRef(0);
+  const cmsOn = contentUpdatesEnabled();
+  const [contentStatus, setContentStatus] = useState<StepStatus>(() => (cmsOn ? "linking" : "online"));
 
   const born = useRef(Date.now());
   const [requiredAt, setRequiredAt] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
   const [, setTick] = useState(0);
   const bump = useCallback(() => setTick((n) => n + 1), []);
+
+  // Dev-only: ask the local CMS for a newer signed release. Failure keeps bundled / stored content.
+  useEffect(() => {
+    if (!cmsOn) return;
+    let alive = true;
+    const ac = new AbortController();
+    setContentStatus("linking");
+    void runContentUpdate(ac.signal).then((status) => {
+      if (!alive) return;
+      setContentStatus(status.state === "failed" || status.state === "rejected" ? "offline" : "online");
+    });
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+  }, [cmsOn, attempt]);
 
   // Service, then hardware, then profiles. Keeps trying; Retry restarts it at once.
   useEffect(() => {
@@ -187,7 +207,10 @@ export function useBoot({ cards, onInfo }: Options): BootState {
 
   const cardKey = cards ? cards.join(",") : null;
   // Keyed by the card list's contents, not the array.
-  const defs = useMemo(() => stepsFor(cards), [cardKey]);
+  const defs = useMemo(() => {
+    const base = stepsFor(cards);
+    return cmsOn ? [CONTENT_STEP, ...base] : base;
+  }, [cardKey, cmsOn]);
 
   const sampleOk = signalled("/api/sample") === "ok";
   const sampleFailed = !sampleOk && failCount("/api/sample") - sampleBase.current >= SAMPLE_FAILS_SHOWN;
@@ -203,13 +226,18 @@ export function useBoot({ cards, onInfo }: Options): BootState {
 
   const now = Date.now();
   const late = requiredAt != null && now - requiredAt >= OPTIONAL_MS;
-  const steps: BootStep[] = defs.map((d) => ({
-    id: d.id,
-    label: d.label,
-    detail: d.detail,
-    required: d.required,
-    status: d.required ? required[d.id] : optionalStatus(d, hasInfo, late),
-  }));
+  const steps: BootStep[] = defs.map((d) => {
+    if (d.id === CONTENT) {
+      return { id: d.id, label: d.label, detail: d.detail, required: d.required, status: contentStatus };
+    }
+    return {
+      id: d.id,
+      label: d.label,
+      detail: d.detail,
+      required: d.required,
+      status: d.required ? required[d.id] : optionalStatus(d, hasInfo, late),
+    };
+  });
   const settled = steps.every((s) => s.required || (s.status !== "standby" && s.status !== "linking"));
   const minMs = short ? MIN_SHORT_MS : MIN_MS;
   const minPassed = now - born.current >= minMs;

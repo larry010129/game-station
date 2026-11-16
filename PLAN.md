@@ -14,16 +14,26 @@ This plan does not name the looks.
 
 # Gacha
 
-The gacha spends earned Credits. Credits cannot be bought. A tip adds none. Patreon sign-in adds none. Buying one chosen locked look for 120 Credits is separate from a draw.
+The gacha spends earned Credits. Credits cannot be bought. A tip adds none. Patreon sign-in adds none. Buying one chosen locked look for 120 Credits is separate from a draw. Credits are never a prize.
+
+Two packs share the same machine UI with a pack tab. Each pack has its own price, drop table, look pity and machine colour.
 
 | Purchase | Cost |
 | --- | --- |
-| One draw | 100 Credits |
-| Ten draws | 900 Credits, paid as one purchase |
+| Regular Pack · one draw | 100 Credits |
+| Regular Pack · ten draws | 900 Credits, paid as one purchase |
+| Brand Pack · one draw | 150 Credits |
+| Brand Pack · ten draws | 1,350 Credits, paid as one purchase |
 
-A draw awards one preset the user does not already own, or a coupon. Drop rates are not set. Coupon value is not set. If the user owns every preset, the draw is a coupon.
+**Regular Pack odds:** Regular theme 15%, weekly unlock pick 3%, Better item 25%, Common item 57%.
 
-Draws use preset looks only. Brand colors are not in the gacha.
+**Brand Pack odds:** Regular theme 13.5%, Brand theme 1% (this fortnight’s 2 Brand looks), weekly unlock pick 3%, Custom upload unlock 0.5%, Better item 25%, Common item 57%. Brand themes are only won from the Brand Pack (draw, Brand pity, or Brand prisms)—not with Credits or a weekly pick—unless the CMS adds one back to the Regular Pack (Themes → Back in Regular Pack). An added-back look then drops from the Regular theme row in every pack, counts as a Regular theme (a repeat gives Regular crystals), and can be picked with Regular crystals. It is still never sold for Credits.
+
+Every draw awards a look, a weekly unlock pick, or an app item. Owned looks and one-time items stay in the pool; a repeat becomes Regular crystals (Regular Pack) or Brand prisms (Brand Pack). Crystals/prisms cannot become Credits. Regular crystals (10) unlock one unowned Regular look; Brand prisms (5) unlock one of this fortnight’s two Brand themes.
+
+Look pity is per pack: after 9 draws without a look, the next forces a Regular theme. Brand Pack also has Brand pity: after 69 draws without a Brand theme, the 70th is one of this fortnight’s two. A ten-draw always includes at least one Regular theme. Weekly unlock picks from draws are capped at 2 per week across both packs; overflow chance becomes a streak freeze.
+
+A pack is disabled only when every look and one-time item in it is already owned.
 
 # Patreon paid tiers
 
@@ -68,6 +78,16 @@ Claim is explicit. A claim pays once.
 - Daily resets at local midnight.
 - Weekly resets Monday 00:00 local.
 - Monthly resets on the 1st at 00:00 local.
+
+## Daily check-in board
+
+The Quests page shows a 7-box check-in board. Opening the station checks the user in for that local day, and each check-in day lets the user claim the next box once. A missed day costs nothing: the board waits on the next box, and there is no catch-up for missed days. Day 7 stays shown as claimed for the rest of that day; the next local day the board starts again at Day 1. Board claims do not count as claimed tasks for rank.
+
+| Box | Day 1 | Day 2 | Day 3 | Day 4 | Day 5 | Day 6 | Day 7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Pays | 1 Regular | 1 Regular | 2 Special | 1 Regular | 1 Regular | 1 Regular | 3 Special |
+
+There are two Draw Tickets. Each pack takes one kind, and the CMS chooses which (Odds → the pack → Draw Ticket). By default the Regular Pack takes **Regular Tickets** and the Brand and Region packs take **Special Tickets**; a future pack picks one the same way. One ticket pays one draw in a pack that takes it (ten pay for a ten-draw). When enough of the pack's ticket are held, the draw buttons (and Draw again) show and spend tickets instead of Credits. A ticket draw rolls exactly like a Credit draw, with the same odds, pity and caps. Tickets only come from the board: they are never a gacha prize, never Credits, and cannot be bought. The table is `BOARD_PRIZES` in `checkinBoard.ts`.
 
 ## Daily, all ranks
 

@@ -37,6 +37,14 @@ test("a locked look opens when it is earned or Patreon Basic is on, and a free l
   assert.equal(isLookLocked("my-own-module", locked, [], false), false, "a look you made is yours");
 });
 
+test("the local creator unlock opens a locked look, including Nightsteel, and turning it off locks it again", () => {
+  const locked = new Set(lockedIdsOf(ids(50), ["nightsteel"]));
+  assert.equal(isLookLocked("nightsteel", locked, [], false, true), false);
+  assert.equal(isLookLocked("look-40", locked, [], false, true), false);
+  assert.equal(isLookLocked("nightsteel", locked, [], false, false), true);
+  assert.equal(isLookLocked("look-40", locked, ["look-40"], false, false), false, "an earned look stays open");
+});
+
 test("cancelling Patreon relocks only what Basic was opening; earned looks stay open", () => {
   const locked = new Set(lockedIdsOf(ids(50), []));
   const earned = ["look-33"];

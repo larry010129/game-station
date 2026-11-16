@@ -1,4 +1,5 @@
 import { FONTS, type FontKey } from "../state/palette";
+import { Icon } from "./Icon";
 import { LIMITS, hasTweaks, type Density, type Tweaks } from "../state/tweaks";
 import { Segmented } from "./Segmented";
 
@@ -35,9 +36,16 @@ const DENSITIES: { value: Density; label: string }[] = [
 export function ThemeTune({ tweaks, base, onTweak, onClear, hover, onHover }: Props) {
   const shown = (key: Slide, fallback: number) => tweaks[key] ?? (key === "radius" ? base.radius : key === "opacity" ? base.opacity : fallback);
   return (
-    <section className="vault-card theme-tune" aria-label="Fine-tune the look">
-      <h3>Fine-tune</h3>
-      <p className="hint">Changes sit on top of any theme. Untouched controls follow the theme you pick.</p>
+    <section className="vault-card theme-tune locked" aria-label="Fine-tune the look, coming soon">
+      <h3>
+        Fine-tune
+        <span className="theme-tune-soon">
+          <Icon name="lock" small />
+          Coming soon
+        </span>
+      </h3>
+      <p className="hint">Personal adjustments on top of any theme are locked for now.</p>
+      <fieldset className="theme-tune-body" disabled>
       <div className="theme-tune-grid">
         {ROWS.map((r) => {
           const [lo, hi] = LIMITS[r.key];
@@ -89,6 +97,7 @@ export function ThemeTune({ tweaks, base, onTweak, onClear, hover, onHover }: Pr
           Reset tweaks
         </button>
       </div>
+      </fieldset>
     </section>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Icon, type IconName } from "../components/Icon";
 import { Segmented } from "../components/Segmented";
 import { StationSelect } from "../components/StationSelect";
+import { CreatorSettings } from "../components/CreatorSettings";
 import { NavSettings, type NavTabsApi } from "../components/NavSettings";
 import { SourcesSettings } from "../components/SourcesSettings";
 import { NotificationCenter } from "../components/NotificationCenter";
@@ -31,6 +32,7 @@ const SECTIONS: { id: string; label: string; hint: string; icon: IconName }[] = 
   { id: "game", label: "Game mode", hint: "Steps and profiles", icon: "power" },
   { id: "look", label: "Appearance", hint: "Theme, colour, wallpaper", icon: "palette" },
   { id: "backup", label: "Backup", hint: "Export and restore", icon: "out" },
+  { id: "creator", label: "Creator", hint: "Codes for this PC", icon: "unlock" },
 ];
 const KEY = "station.vault.section";
 
@@ -156,6 +158,7 @@ export function VaultPage({ onProfilesChanged, look, windowView, monitor, displa
           </section>
         )}
         {current.id === "backup" && <BackupSettings />}
+        {current.id === "creator" && <CreatorSettings />}
       </div>
     </section>
   );

@@ -1,7 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../components/Icon";
-import { GachaPanel } from "../components/GachaPanel";
+import { gachaBannerIsNew } from "./DrawPage";
+import { ShimmerButton } from "../components/ShimmerButton";
 import { ThemeTune } from "../components/ThemeTune";
 import { ThemePanel } from "../components/ThemePanel";
 import { FONTS, fontOf, fontStack, moduleJson, toHex, type FontKey, type Palette, type ThemeDef } from "../state/palette";
@@ -12,8 +13,24 @@ import {
   readCredits,
   spendCredits,
 } from "../state/stationCredits";
+import { getWhatsNewEntries } from "../content/contentStore.ts";
 import { LOOK_COST } from "../state/gachaEngine";
-import { CATALOG, FREE_COUNT, LOCKED_PRESETS, THEME_GROUPS, UNLOCKABLES } from "../state/themeCatalog";
+import {
+  CONTENT_CHANGELOG,
+  getCatalog,
+  getExtraUnlockables,
+  getFreeCount,
+  getLockedPresets,
+  getThemeCatalogVersion,
+  getThemeGroups,
+  isBrandTheme,
+  isRainbowTheme,
+  isCreditBuyableTheme,
+  isListedTheme,
+  subscribeThemeCatalog,
+  themeStatus,
+} from "../state/themeCatalog";
+import { useCreatorUnlock } from "../state/creatorAccess";
 import { usePatreonEntitlement } from "../state/patreon";
 import { takePick, useQuests } from "../state/useQuests";
 import type { useTheme } from "../state/useTheme";
@@ -217,13 +234,21 @@ function RandomThemeCard({ onPick, picked }: { onPick: () => void; picked?: stri
  *  marks it as gated. Click opens the unlock dialog — it never applies the theme. */
 function LockedThemeCard({ theme, onOpen }: { theme: ThemeDef; onOpen: () => void }) {
   const p = paint(theme);
+  const brand = isBrandTheme(theme);
+  const rainbow = isRainbowTheme(theme);
   return (
-    <div className="theme-pick-wrap">
+    <div className="theme-pick-wrap" data-rainbow={rainbow ? "true" : undefined}>
       <button
         type="button"
         className="theme-pick theme-pick-locked"
-        title={`${theme.name}: locked`}
-        aria-label={`Locked theme ${theme.name}. Open unlock options.`}
+        title={brand ? `${theme.name}: Brand Pack` : rainbow ? `${theme.name}: rainbow, draw only` : `${theme.name}: locked`}
+        aria-label={
+          brand
+            ? `Brand theme ${theme.name}. Open Brand Pack info.`
+            : rainbow
+              ? `Rainbow theme ${theme.name}, draw only. Open info.`
+              : `Locked theme ${theme.name}. Open unlock options.`
+        }
         aria-haspopup="dialog"
         onClick={onOpen}
         style={{ background: p.bg, color: p.text, borderRadius: p.radius, boxShadow: p.shadow }}
@@ -238,7 +263,7 @@ function LockedThemeCard({ theme, onOpen }: { theme: ThemeDef; onOpen: () => voi
         </span>
         <span className="theme-pick-meta">
           <strong>{theme.name}</strong>
-          <small style={{ color: p.muted }}>{theme.author}</small>
+          <small style={{ color: p.muted }}>{brand ? "Brand Pack" : rainbow ? "Rainbow · draw only" : theme.author}</small>
         </span>
       </button>
       <span className="theme-pick-lock" aria-hidden="true">
@@ -248,16 +273,45 @@ function LockedThemeCard({ theme, onOpen }: { theme: ThemeDef; onOpen: () => voi
   );
 }
 
+/** Archived look: colours and name only — not for sale. */
+function PastThemeCard({ theme }: { theme: ThemeDef }) {
+  const p = paint(theme);
+  return (
+    <div className="theme-pick-wrap">
+      <div className="theme-pick theme-pick-past" style={{ background: p.bg, color: p.text, borderRadius: p.radius, boxShadow: p.shadow }}>
+        <span className="theme-pick-card" style={{ background: p.card, borderColor: p.border, borderRadius: p.radius, fontFamily: fontStack(p) }}>
+          <b style={{ color: p.accent }}>Aa</b>
+          <span className="theme-pick-dots" aria-hidden="true">
+            <i style={{ background: p.accent }} />
+            <i style={{ background: p.caution }} />
+            <i style={{ background: p.alert }} />
+          </span>
+        </span>
+        <span className="theme-pick-meta">
+          <strong>{theme.name}</strong>
+          <small style={{ color: p.muted }}>Not available now. It may come back.</small>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Unlock popup: quest (free) or spend Credits. Pattern from 21st Modal Pricing
  *  (two clear choices) + accessible dialog shell (Escape, focus trap, aria-modal). */
 function UnlockThemeDialog({
   open,
   name,
+  brandOnly,
+  rainbow,
   onClose,
   onUnlock,
 }: {
   open: boolean;
   name: string;
+  /** Brand looks: no Credits / weekly pick — Brand Pack only. */
+  brandOnly?: boolean;
+  /** Rainbow Regular themes: draw only (with `brandOnly` set, the dialog shows the rainbow text instead). */
+  rainbow?: boolean;
   onClose: () => void;
   onUnlock: (via: "weekly" | "credits") => void;
 }) {
@@ -331,10 +385,12 @@ function UnlockThemeDialog({
   const canAfford = balance >= LOOK_COST;
 
   const useWeekly = () => {
+    if (brandOnly) return;
     if (takePick()) onUnlock("weekly");
   };
 
   const claimCredits = () => {
+    if (brandOnly) return;
     const next = spendCredits(LOOK_COST);
     if (next == null) {
       setBalance(readCredits());
@@ -365,62 +421,78 @@ function UnlockThemeDialog({
         <header className="theme-unlock-head">
           <div>
             <h2 id={titleId}>{name}</h2>
-            <p id={descId}>Locked. Use a weekly unlock, or spend {CREDIT_NAME.toLowerCase()}. Every locked look costs the same.</p>
+            <p id={descId}>
+              {brandOnly && rainbow
+                ? "Rainbow look. Win it from a draw: the Regular Pack's rainbow row, or a rainbow from the Brand or Region Pack. Credits, weekly unlocks and Regular crystals cannot open it."
+                : brandOnly
+                ? "Brand look. Win it from the Brand Pack (draw, pity, or Special crystals). Credits and weekly unlocks cannot open it."
+                : `Locked. Use a weekly unlock, or spend ${CREDIT_NAME.toLowerCase()}. Every locked look costs the same.`}
+            </p>
           </div>
           <button type="button" className="theme-unlock-x" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </header>
 
-        <p className="theme-unlock-balance" aria-live="polite">
-          Balance <strong>{formatCredits(balance)}</strong>
-        </p>
-
-        <div className="theme-unlock-paths" role="group" aria-label="Unlock options">
-          <section className="theme-unlock-path" aria-labelledby="unlock-weekly-title">
-            <div className="theme-unlock-path-top">
-              <h3 id="unlock-weekly-title">Weekly unlock</h3>
-              <span className="theme-unlock-badge">{waiting > 0 ? `${waiting} waiting` : "Free"}</span>
-            </div>
-            <p>
-              {waiting > 0
-                ? "Pick this look with a weekly unlock. It costs nothing."
-                : "Check in on 5 different days in one week to earn one. Find it under Quests."}
+        {brandOnly ? (
+          <footer className="theme-unlock-foot">
+            <button type="button" className="pill-btn" onClick={onClose}>
+              Got it
+            </button>
+          </footer>
+        ) : (
+          <>
+            <p className="theme-unlock-balance" aria-live="polite">
+              Balance <strong>{formatCredits(balance)}</strong>
             </p>
-            <button type="button" className="pill-btn" disabled={waiting < 1} aria-disabled={waiting < 1} onClick={useWeekly}>
-              {waiting > 0 ? "Use a weekly unlock" : "None waiting"}
-            </button>
-          </section>
 
-          <section className="theme-unlock-path" aria-labelledby="unlock-credits-title">
-            <div className="theme-unlock-path-top">
-              <h3 id="unlock-credits-title">Spend {CREDIT_NAME}</h3>
-              <span className="theme-unlock-price">{formatCredits(LOOK_COST)}</span>
+            <div className="theme-unlock-paths" role="group" aria-label="Unlock options">
+              <section className="theme-unlock-path" aria-labelledby="unlock-weekly-title">
+                <div className="theme-unlock-path-top">
+                  <h3 id="unlock-weekly-title">Weekly unlock</h3>
+                  <span className="theme-unlock-badge">{waiting > 0 ? `${waiting} waiting` : "Free"}</span>
+                </div>
+                <p>
+                  {waiting > 0
+                    ? "Pick this look with a weekly unlock. It costs nothing."
+                    : "Check in on 5 different days in one week to earn one. Find it under Quests."}
+                </p>
+                <button type="button" className="pill-btn" disabled={waiting < 1} aria-disabled={waiting < 1} onClick={useWeekly}>
+                  {waiting > 0 ? "Use a weekly unlock" : "None waiting"}
+                </button>
+              </section>
+
+              <section className="theme-unlock-path" aria-labelledby="unlock-credits-title">
+                <div className="theme-unlock-path-top">
+                  <h3 id="unlock-credits-title">Spend {CREDIT_NAME}</h3>
+                  <span className="theme-unlock-price">{formatCredits(LOOK_COST)}</span>
+                </div>
+                <p>Spending {CREDIT_NAME.toLowerCase()} never uses up a waiting weekly unlock.</p>
+                {(!canAfford || short) && (
+                  <p className="theme-unlock-short" role="alert">
+                    Not enough {CREDIT_NAME.toLowerCase()}: need {LOOK_COST}, you have {balance}.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="pill-btn"
+                  aria-pressed={canAfford ? true : undefined}
+                  disabled={!canAfford}
+                  aria-disabled={!canAfford}
+                  onClick={claimCredits}
+                >
+                  {canAfford ? `Spend ${formatCredits(LOOK_COST)}` : `Need ${formatCredits(LOOK_COST)}`}
+                </button>
+              </section>
             </div>
-            <p>Spending {CREDIT_NAME.toLowerCase()} never uses up a waiting weekly unlock.</p>
-            {(!canAfford || short) && (
-              <p className="theme-unlock-short" role="alert">
-                Not enough {CREDIT_NAME.toLowerCase()}: need {LOOK_COST}, you have {balance}.
-              </p>
-            )}
-            <button
-              type="button"
-              className="pill-btn"
-              aria-pressed={canAfford ? true : undefined}
-              disabled={!canAfford}
-              aria-disabled={!canAfford}
-              onClick={claimCredits}
-            >
-              {canAfford ? `Spend ${formatCredits(LOOK_COST)}` : `Need ${formatCredits(LOOK_COST)}`}
-            </button>
-          </section>
-        </div>
 
-        <footer className="theme-unlock-foot">
-          <button type="button" className="link" onClick={onClose}>
-            Not now
-          </button>
-        </footer>
+            <footer className="theme-unlock-foot">
+              <button type="button" className="link" onClick={onClose}>
+                Not now
+              </button>
+            </footer>
+          </>
+        )}
       </div>
     </div>,
     document.body,
@@ -428,7 +500,7 @@ function UnlockThemeDialog({
 }
 
 /** Theme store: pick a look, build one, or upload a module. */
-export function ThemesPage({ look }: { look: Look }) {
+export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () => void }) {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("All");
   // What the Random tile last picked. The tile only names it while that theme is
@@ -441,19 +513,29 @@ export function ThemesPage({ look }: { look: Look }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unlockFor, setUnlockFor] = useState<ThemeDef | null>(null);
-  // Patreon Basic opens every preset look; an earned unlock (weekly pick, Credits) is kept separately and survives cancelling.
+  // The brand editor stays closed unless Patreon Brand or the local creator unlock is on.
   const { brand } = usePatreonEntitlement();
+  const creator = useCreatorUnlock();
+  const brandEditor = brand || creator;
+  const catalogEpoch = useSyncExternalStore(subscribeThemeCatalog, getThemeCatalogVersion, getThemeCatalogVersion);
+  const catalog = getCatalog();
+  const themeGroups = getThemeGroups();
+  const freeCount = getFreeCount();
+  const lockedPresets = getLockedPresets();
 
   const groups = useMemo(() => {
     const extra = look.modules.length ? ["Yours"] : [];
     const own = [...(look.favs.length ? ["Favourites"] : []), ...(look.recent.length ? ["Recent"] : [])];
-    const [all, ...rest] = THEME_GROUPS;
-    return [all, ...own, ...rest, ...extra.filter((g) => !THEME_GROUPS.includes(g))];
-  }, [look.modules.length, look.favs.length, look.recent.length]);
+    const [all, ...rest] = themeGroups;
+    return [all, ...own, ...rest, ...extra.filter((g) => !themeGroups.includes(g))];
+  }, [look.modules.length, look.favs.length, look.recent.length, themeGroups, catalogEpoch]);
 
   const themes = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = [...CATALOG, ...UNLOCKABLES, ...look.modules].filter((t) => {
+    const list = [...catalog, ...getExtraUnlockables(), ...look.modules].filter((t) => {
+      // Hidden never lists unless earned; Archived still lists (Unlocked if owned, else Past).
+      const earned = look.unlocks.includes(t.id);
+      if (!isListedTheme(t, earned || t.source === "yours")) return false;
       if (group === "Favourites") return look.favs.includes(t.id);
       if (group === "Recent") return look.recent.includes(t.id);
       if (group !== "All" && t.group !== group) return false;
@@ -467,7 +549,12 @@ export function ThemesPage({ look }: { look: Look }) {
       return [...starred, ...list.filter((t) => !look.favs.includes(t.id))];
     }
     return list;
-  }, [group, look.favs, look.modules, look.recent, query]);
+  }, [group, look.favs, look.modules, look.recent, look.unlocks, query, catalog, catalogEpoch]);
+
+  // Locked/Unlocked for Available (and owned Archived stay Unlocked). Unowned Archived → Past themes.
+  const unlockedThemes = useMemo(() => themes.filter((t) => !look.isLocked(t.id)), [themes, look.isLocked]);
+  const lockedThemes = useMemo(() => themes.filter((t) => look.isLocked(t.id) && themeStatus(t) === "Available"), [themes, look.isLocked]);
+  const pastThemes = useMemo(() => themes.filter((t) => look.isLocked(t.id) && themeStatus(t) === "Archived"), [themes, look.isLocked]);
 
   // Hover preview: the page tries a theme on after a short hover and drops it on leave. Off by default.
   const hoverTimer = useRef(0);
@@ -550,31 +637,59 @@ export function ThemesPage({ look }: { look: Look }) {
   };
 
   const randomTheme = () => {
-    const open = CATALOG.filter((t) => !look.isLocked(t.id));
+    // Hidden never; Archived only if already owned (wearable).
+    const open = catalog.filter((t) => !look.isLocked(t.id) && (themeStatus(t) !== "Hidden" || look.unlocks.includes(t.id)));
     const pool = open.filter((t) => t.id !== look.active.id);
     const list = pool.length > 0 ? pool : open;
     const t = list[Math.floor(Math.random() * list.length)];
+    if (!t) return;
     look.select(t.id);
     setRandomPick({ id: t.id, name: t.name });
   };
+
+  const shopLocked = lockedPresets.filter((t) => themeStatus(t) === "Available").length;
+  // CMS release changelog when one was applied; otherwise the bundled phase-2 stub.
+  const fromRelease = getWhatsNewEntries();
+  const whatsNew = fromRelease.length > 0 ? fromRelease : CONTENT_CHANGELOG;
 
   return (
     <section className="themes" aria-label="Themes">
       <header className="themes-head">
         <h2>Themes</h2>
         <p>
-          {FREE_COUNT + LOCKED_PRESETS.length} looks from the station and 21st.dev: the first {FREE_COUNT} are free and {LOCKED_PRESETS.length} are locked. You can also make or upload your own. Selecting one recolours the page, the cards, caution, and alerts.
+          {freeCount + shopLocked} looks on the floor now: the first {freeCount} are free and {shopLocked} are locked. Hidden Brand looks stay off the list until announced. You can also make or upload your own.
         </p>
       </header>
 
+      {whatsNew.length > 0 && (
+        <aside className="themes-whats-new" aria-label="What's new">
+          <h3>What&apos;s new</h3>
+          <ul>
+            {whatsNew.map((entry) => (
+              <li key={entry.id}>
+                <strong>{entry.title}</strong>
+                <span>{entry.body}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
+
       <div className="theme-tools">
-        <input
-          type="search"
-          value={query}
-          placeholder="Search themes"
-          aria-label="Search themes"
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="theme-search-row">
+          <input
+            type="search"
+            value={query}
+            placeholder="Search themes"
+            aria-label="Search themes"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <ShimmerButton className="theme-draw-btn" onClick={onOpenDraw}>
+            <Icon name="sparkles" small />
+            Draw Theme
+            {gachaBannerIsNew() && <span className="gacha-new">New</span>}
+          </ShimmerButton>
+        </div>
         <div className="theme-chips" role="toolbar" aria-label="Theme groups">
           {groups.map((g) => (
             <button key={g} type="button" className="pill-btn" aria-pressed={group === g} onClick={() => setGroup(g)}>
@@ -584,36 +699,71 @@ export function ThemesPage({ look }: { look: Look }) {
         </div>
       </div>
 
-      {themes.length === 0 && !showRandom ? (
+      {themes.length === 0 && !showRandom && pastThemes.length === 0 ? (
         <p className="hint">No themes match that.</p>
       ) : (
-        <div className="theme-grid">
-          {showRandom && <RandomThemeCard onPick={randomTheme} picked={randomPick && randomPick.id === look.active.id ? randomPick.name : undefined} />}
-          {themes.map((t) =>
-            look.isLocked(t.id) ? (
-              <LockedThemeCard key={t.id} theme={t} onOpen={() => setUnlockFor(t)} />
-            ) : (
-            <ThemeCard
-              key={t.id}
-              theme={t}
-              on={look.active.id === t.id}
-              fav={look.favs.includes(t.id)}
-              onPick={() => look.select(t.id)}
-              onFav={() => look.toggleFav(t.id)}
-              onHover={(over) => hoverOn(t.id, over)}
-              onRemove={t.source === "yours" ? () => look.remove(t.id) : undefined}
-            />
-            ),
+        <>
+          {(unlockedThemes.length > 0 || showRandom) && (
+            <section className="theme-section" aria-labelledby="themes-unlocked">
+              <h3 id="themes-unlocked" className="theme-section-title">
+                Unlocked <span>{unlockedThemes.length}</span>
+              </h3>
+              <div className="theme-grid">
+                {showRandom && <RandomThemeCard onPick={randomTheme} picked={randomPick && randomPick.id === look.active.id ? randomPick.name : undefined} />}
+                {unlockedThemes.map((t) => (
+                  <ThemeCard
+                    key={t.id}
+                    theme={t}
+                    on={look.active.id === t.id}
+                    fav={look.favs.includes(t.id)}
+                    onPick={() => look.select(t.id)}
+                    onFav={() => look.toggleFav(t.id)}
+                    onHover={(over) => hoverOn(t.id, over)}
+                    onRemove={t.source === "yours" ? () => look.remove(t.id) : undefined}
+                  />
+                ))}
+              </div>
+            </section>
           )}
-        </div>
+          {lockedThemes.length > 0 && (
+            <section className="theme-section" aria-labelledby="themes-locked">
+              <h3 id="themes-locked" className="theme-section-title">
+                Locked <span>{lockedThemes.length}</span>
+              </h3>
+              <p className="hint">
+                Open a regular look with a weekly unlock or {CREDIT_NAME.toLowerCase()}, or win it in a draw. Brand looks come only from the Brand Pack.
+              </p>
+              <div className="theme-grid">
+                {lockedThemes.map((t) => (
+                  <LockedThemeCard key={t.id} theme={t} onOpen={() => setUnlockFor(t)} />
+                ))}
+              </div>
+            </section>
+          )}
+          {pastThemes.length > 0 && (
+            <section className="theme-section" aria-labelledby="themes-past">
+              <h3 id="themes-past" className="theme-section-title">
+                Past themes <span>{pastThemes.length}</span>
+              </h3>
+              <p className="hint">These left the shop. They are not for sale and cannot be drawn. A look you already own stays under Unlocked.</p>
+              <div className="theme-grid">
+                {pastThemes.map((t) => (
+                  <PastThemeCard key={t.id} theme={t} />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       <UnlockThemeDialog
         open={unlockFor != null}
         name={unlockFor?.name ?? ""}
+        brandOnly={unlockFor != null && (isBrandTheme(unlockFor) || !isCreditBuyableTheme(unlockFor))}
+        rainbow={unlockFor != null && isRainbowTheme(unlockFor)}
         onClose={() => setUnlockFor(null)}
         onUnlock={(via) => {
-          if (!unlockFor) return;
+          if (!unlockFor || !isCreditBuyableTheme(unlockFor)) return;
           look.unlock(unlockFor.id, { select: true });
           setError(null);
           setNotice(via === "weekly" ? `${unlockFor.name} unlocked with a weekly unlock.` : `${unlockFor.name} unlocked, spent ${formatCredits(LOOK_COST)}.`);
@@ -631,11 +781,10 @@ export function ThemesPage({ look }: { look: Look }) {
       />
 
       <div className="themes-split">
-        <GachaPanel owned={look.unlocks} onWin={(id) => look.unlock(id)} />
         <section className="vault-card" aria-label="Create a theme">
           <h3>Create</h3>
           <p className="hint">Build a look on this PC. It stays in Yours.</p>
-          {!brand ? (
+          {!brandEditor ? (
             <p className="hint" role="status">
               The brand-colour editor comes with the Silver tier and above, and with Creator access. Credits and weekly unlocks cannot open it. Log in with Patreon on the Support page.
             </p>

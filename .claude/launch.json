@@ -12,6 +12,24 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "app", "run", "dev"],
       "port": 1420
+    },
+    {
+      "name": "service-only",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "app", "run", "service"],
+      "port": 8787
+    },
+    {
+      "name": "remotion",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "gacha-remotion", "run", "dev", "--", "--port=3100"],
+      "port": 3100
+    },
+    {
+      "name": "cms",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "cms", "run", "dev"],
+      "port": 1430
     }
   ]
 }

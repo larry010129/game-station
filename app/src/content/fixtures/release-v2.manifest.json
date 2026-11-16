@@ -1,0 +1,17 @@
+{
+  "manifest": {
+    "number": 2,
+    "publishedAt": "2026-04-01T00:00:00.000Z",
+    "notes": "Dev fixture: Regular Pack one-draw price 110.",
+    "contentHash": "3f91c998ec921f8aa82968dbf22077449d5c6cc635a2e54ba10b95a1b80d98ab",
+    "files": [
+      {
+        "path": "content.json",
+        "hash": "3f91c998ec921f8aa82968dbf22077449d5c6cc635a2e54ba10b95a1b80d98ab",
+        "size": 6343
+      }
+    ]
+  },
+  "signature": "CWvH3cwTBhR/M1ToYZEVfzpvXgyiM4fiRBwL2PcyEzto+e1Li9jV2IdUy3Inmg9FoCSZt7NI5UujQIqky8QiCA==",
+  "alg": "ed25519"
+}

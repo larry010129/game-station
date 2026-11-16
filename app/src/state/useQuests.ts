@@ -5,6 +5,7 @@ import {
   addMinutes,
   claim,
   cleanState,
+  grantPick as grantPickState,
   recordArmed,
   recordCheckin,
   recordOnce,
@@ -50,6 +51,15 @@ export function claimQuest(id: string): number | null {
 /** Uses one waiting weekly-look pick. Returns false when none is waiting. */
 export function takePick(): boolean {
   const next = takeLookPick(readQuests());
+  if (!next) return false;
+  if (!writeJson(QUESTS_KEY, next)) return false;
+  window.dispatchEvent(new Event(EVENT));
+  return true;
+}
+
+/** Gacha apply path: +1 looksWaiting, capped at LOOKS_WAITING_CAP. Returns false when at the cap. */
+export function grantPick(): boolean {
+  const next = grantPickState(readQuests());
   if (!next) return false;
   if (!writeJson(QUESTS_KEY, next)) return false;
   window.dispatchEvent(new Event(EVENT));

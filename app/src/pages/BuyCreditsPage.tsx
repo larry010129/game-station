@@ -36,9 +36,8 @@ export function BuyCreditsPage() {
       </header>
 
       <div className="buy-credits-cta">
-        <p className="buy-credits-bal">
-          Balance <strong>{formatCredits(balance)}</strong>
-        </p>
+        <h3>Enjoying Command Station?</h3>
+        <p>Buy the project a coffee. It keeps the station maintained and growing, and it does not add {CREDIT_NAME}.</p>
         <button
           type="button"
           className="buy-credits-bmc"
@@ -48,6 +47,9 @@ export function BuyCreditsPage() {
         >
           <img src={bmcButton} alt="" width={545} height={153} />
         </button>
+        <p className="buy-credits-bal">
+          Balance <strong>{formatCredits(balance)}</strong>
+        </p>
       </div>
 
       {opened && (

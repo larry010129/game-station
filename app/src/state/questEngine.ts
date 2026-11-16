@@ -257,6 +257,18 @@ export function takeLookPick(s: QuestState): QuestState | null {
   return s.looksWaiting > 0 ? { ...s, looksWaiting: s.looksWaiting - 1 } : null;
 }
 
+/**
+ * Caps how many weekly unlock picks can be held at once (gacha `grantPick` and held balance).
+ * Keeps draws from cheapening the 5-day check-in quest.
+ */
+export const LOOKS_WAITING_CAP = 5;
+
+/** Adds one waiting weekly-look pick (gacha apply path). Returns null when already at the cap. */
+export function grantPick(s: QuestState): QuestState | null {
+  if (s.looksWaiting >= LOOKS_WAITING_CAP) return null;
+  return { ...s, looksWaiting: s.looksWaiting + 1 };
+}
+
 // ---- reading saved state --------------------------------------------------------------------
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
