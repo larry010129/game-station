@@ -1,0 +1,17 @@
+{
+  "manifest": {
+    "number": 4,
+    "publishedAt": "2026-11-15T21:59:16.388Z",
+    "notes": "E2E verify publish",
+    "contentHash": "150911818ee9062bca9ae5610a91624bf435734c2d49f0dbe4af4e713797ce9c",
+    "files": [
+      {
+        "path": "content.json",
+        "hash": "150911818ee9062bca9ae5610a91624bf435734c2d49f0dbe4af4e713797ce9c",
+        "size": 38596
+      }
+    ]
+  },
+  "signature": "bY45UQS+9zCb/X8uy9N0V3tKGaaZC6WcemgFh4+1OwcbU7F8F8OYVYYhnhzutzzh8jMFqKV7HTBIEYooGXP0Bg==",
+  "alg": "ed25519"
+}

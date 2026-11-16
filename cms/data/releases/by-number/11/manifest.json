@@ -1,0 +1,18 @@
+{
+  "manifest": {
+    "number": 11,
+    "publishedAt": "2026-11-16T06:27:12.645Z",
+    "effectiveAt": "2026-11-16T06:27:12.622Z",
+    "notes": "Rainbow 5-star themes: 8 Regular themes are now rainbow (5★) and can only be won from draws. Regular Pack: a rainbow is guaranteed within 90 draws. Brand and Region packs: a rainbow is a featured theme or a rainbow Regular theme, guaranteed within 70 draws. Open Published odds in any pack to see every chance.",
+    "contentHash": "18b71070856d9de940fdf4780875939575ab80de6d190bde1d46928384f75a54",
+    "files": [
+      {
+        "path": "content.json",
+        "hash": "18b71070856d9de940fdf4780875939575ab80de6d190bde1d46928384f75a54",
+        "size": 80906
+      }
+    ]
+  },
+  "signature": "4+u8Vz+QAEM02dOk9/bunxyiS4xl6gurjCBTF8ehS+WdZ63gcWpPFzdLH2c3ZmejpAOkQ4BshEN5faYgnXrXCg==",
+  "alg": "ed25519"
+}

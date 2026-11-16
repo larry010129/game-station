@@ -1,0 +1,17 @@
+{
+  "manifest": {
+    "number": 5,
+    "publishedAt": "2026-11-16T05:30:35.546Z",
+    "notes": "Rainbow 5-star themes: 8 Regular themes are now rainbow (5★), draw only. Regular Pack: rainbow 1%, guaranteed within 90 draws. Brand and Region packs: a 1.5% rainbow with a 50/50 for a featured theme; miss it and the next rainbow is featured for sure (within 70 draws each).",
+    "contentHash": "a769a8f1016b5d842855963f33c88e53b894c9bd4651fa4c740399b56fdd8afb",
+    "files": [
+      {
+        "path": "content.json",
+        "hash": "a769a8f1016b5d842855963f33c88e53b894c9bd4651fa4c740399b56fdd8afb",
+        "size": 80591
+      }
+    ]
+  },
+  "signature": "CGq8D5urniQoM37JVqBPUVAUNMFOKwh00HvXy5De2fQ0rD5vf8m0NoPclCwxT/E4i0jlcT4vb/CqlhKqsAQ+Bw==",
+  "alg": "ed25519"
+}
