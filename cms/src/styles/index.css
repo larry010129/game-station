@@ -1,0 +1,51 @@
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--cms-font-sans);
+  background: var(--cms-bg);
+  color: var(--cms-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Shared form-control contrast for primitives + shadcn/21st inputs. */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+      [type="file"]
+    ):not([type="button"]):not([type="submit"]):not([type="reset"]):not(
+      [type="image"]
+    ):not([type="color"]),
+  select,
+  textarea {
+    background-color: var(--cms-field-bg);
+    color: var(--cms-field-fg);
+    color-scheme: dark;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--cms-field-placeholder);
+    opacity: 1;
+  }
+
+  option {
+    background-color: var(--cms-field-bg);
+    color: var(--cms-field-fg);
+  }
+}

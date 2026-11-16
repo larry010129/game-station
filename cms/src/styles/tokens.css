@@ -1,0 +1,97 @@
+/* Operate-mode CMS tokens: a neutral black dark theme (near-black page, hairline borders, white text, grey
+   secondary text), matching the Animated Sidebar demo, with Datta Able's layout and gradient bars.
+   The light palette used earlier (#f4f7fa page, white cards, #0780b8 accent) is kept at the end of this file. */
+:root {
+  color-scheme: dark;
+
+  --cms-bg: #0a0a0a;
+  --cms-surface: #111113;
+  --cms-surface-raised: #1a1a1d;
+  --cms-ink: #fafafa;
+  --cms-muted: #a1a1aa;
+  --cms-edge: #27272a;
+  --cms-accent: #4f8cff;
+  --cms-accent-fg: #0a0a0a;
+  --cms-ok: #6ecf97;
+  --cms-warn: #e0b84a;
+  --cms-danger: #f0969b;
+  --cms-info: #7eb0f0;
+
+  /* The same colours as bare channels. Tailwind needs these to build opacity
+     classes (border-border/50, bg-card/40): a plain var() colour cannot take
+     an alpha, so those classes were never generated and fell back to default
+     light grey. Keep each pair in step with the hex above. */
+  --cms-bg-rgb: 10 10 10;
+  --cms-surface-rgb: 17 17 19;
+  --cms-surface-raised-rgb: 26 26 29;
+  --cms-ink-rgb: 250 250 250;
+  --cms-muted-rgb: 161 161 170;
+  --cms-edge-rgb: 39 39 42;
+  --cms-accent-rgb: 79 140 255;
+  --cms-accent-fg-rgb: 10 10 10;
+  --cms-ok-rgb: 110 207 151;
+  --cms-warn-rgb: 224 184 74;
+  --cms-danger-rgb: 240 150 155;
+  --cms-info-rgb: 126 176 240;
+  --cms-destructive-rgb: 58 31 36;
+
+  /* Datta Able brand colours, used for fills: bars, active marks. */
+  --cms-brand: #04a9f5;
+  --cms-grad-1: linear-gradient(90deg, #1de9b6 0%, #1dc4e9 100%);
+  --cms-grad-2: linear-gradient(90deg, #899fd4 0%, #a389d4 100%);
+  --cms-grad-danger: linear-gradient(90deg, #f4a09a 0%, #f44236 100%);
+  --cms-card-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
+
+
+  /* Coherent form-control pair: white field + dark text (+ readable placeholder). */
+  --cms-field-bg: #0a0a0a;
+  --cms-field-fg: #fafafa;
+  --cms-field-placeholder: #8b8b94;
+  --cms-font-sans: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  --cms-radius: 6px;
+  --cms-header-height: 64px;
+  --cms-focus: rgba(79, 140, 255, 0.35);
+
+  /* shadcn-compatible aliases used by installed 21st components */
+  --background: var(--cms-bg);
+  --foreground: var(--cms-ink);
+  --card: var(--cms-surface);
+  --card-foreground: var(--cms-ink);
+  --primary: var(--cms-accent);
+  --primary-foreground: var(--cms-accent-fg);
+  --secondary: var(--cms-surface-raised);
+  --secondary-foreground: var(--cms-ink);
+  --muted: var(--cms-surface-raised);
+  --muted-foreground: var(--cms-muted);
+  --accent: var(--cms-surface-raised);
+  --accent-foreground: var(--cms-ink);
+  --destructive: #3a1f24;
+  --destructive-foreground: var(--cms-danger);
+  --border: var(--cms-edge);
+  --input: var(--cms-edge);
+  --ring: var(--cms-accent);
+  --success: var(--cms-ok);
+  --warning: var(--cms-warn);
+  --info: var(--cms-info);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--cms-brand) 30%, transparent);
+  color: var(--cms-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--cms-accent);
+  outline-offset: 2px;
+}
+
+/* ---- Light palette, for reference ----
+  --cms-bg: #f4f7fa;  --cms-surface: #ffffff;  --cms-surface-raised: #f3f5f7;
+  --cms-ink: #1d2630;  --cms-muted: #5b6b79;  --cms-edge: #e3e8ee;
+  --cms-accent: #0780b8;  --cms-accent-fg: #ffffff;
+  --cms-ok: #0a8566;  --cms-warn: #946c00;  --cms-danger: #c62a20;  --cms-info: #0a7ea8;
+  --cms-card-shadow: 0 1px 20px 0 rgba(69, 90, 100, 0.08);  --destructive: #fde8e6;
+  (channels: bg 244 247 250, surface 255 255 255, raised 243 245 247, ink 29 38 48, muted 91 107 121,
+   edge 227 232 238, accent 7 128 184, accent-fg 255 255 255, ok 10 133 102, warn 148 108 0,
+   danger 198 42 32, info 10 126 168, destructive 253 232 230)
+*/

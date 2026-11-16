@@ -1,0 +1,11 @@
+# Signing secrets
+keys/*.pem
+
+# Published local releases (keep example/ + README)
+releases/by-number/
+releases/blobs/
+releases/current.json
+
+# Optional uploaded assets for a draft
+assets/
+uploads/

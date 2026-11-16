@@ -1,0 +1,11 @@
+{
+  "alg": "ed25519",
+  "signature": "<base64-ed25519-over-canonical-json-of-manifest>",
+  "manifest": {
+    "number": 0,
+    "publishedAt": null,
+    "notes": "Empty example — real releases live under data/releases/by-number/<n>/ after publish.",
+    "contentHash": "",
+    "files": []
+  }
+}
