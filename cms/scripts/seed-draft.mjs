@@ -194,6 +194,7 @@ const draft = {
     lookPityAfter: 9,
     brandPityAfter: 69,
     rainbowPityAfter: 89,
+    creditBigAmount: 100,
     promotedChance: 50,
     weeklyPickCap: 2,
     regularCrystalCost: 10,

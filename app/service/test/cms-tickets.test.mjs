@@ -19,7 +19,7 @@ test("a draft without ticket or add-back settings publishes the defaults", () =>
   assert.equal("regularExtraIds" in gacha, false);
   assert.deepEqual(validateGacha(gacha), []);
   assert.equal(setContent(gacha), true);
-  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p, getContent())), ["regular", "special", "special"]);
+  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p, getContent())), ["special", "special", "special"]);
   assert.deepEqual(regularExtraIds(getContent()), []);
 });
 
@@ -33,7 +33,7 @@ test("ticket choices and Brand looks added back to Regular reach the app", () =>
   assert.deepEqual(validateGacha(gacha), []);
   assert.equal(validateContent(gacha), true);
   setContent(gacha);
-  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p, getContent())), ["regular", "special", "regular"]);
+  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p, getContent())), ["special", "special", "regular"]);
   assert.deepEqual(regularExtraIds(getContent()), [brandId]);
 });
 

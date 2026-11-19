@@ -78,6 +78,28 @@ export function mdy(iso: string): string {
   return `${m}/${d}/${y.slice(2)}`;
 }
 
+/**
+ * Releases still scheduled (go-live after `now`) that a push going live at `goLive` would overtake. Every release is
+ * built from the whole draft, so such a push makes their scheduled changes live at `goLive`, and apps then skip the
+ * scheduled release itself (it has a lower number). The Push panel warns with these numbers.
+ */
+export function overtakenReleases(
+  goLive: Date,
+  releases: readonly { number: number; effectiveAt?: string | null }[],
+  now: Date = new Date(),
+): number[] {
+  const at = (r: { effectiveAt?: string | null }) => (r.effectiveAt ? Date.parse(r.effectiveAt) : NaN);
+  // Apps only move to higher numbers, so a scheduled release below the newest live one will never be applied anyway.
+  const newestLive = Math.max(0, ...releases.filter((r) => !(at(r) > now.getTime())).map((r) => r.number));
+  return releases
+    .filter((r) => {
+      const t = at(r);
+      return Number.isFinite(t) && t > now.getTime() && t > goLive.getTime() && r.number > newestLive;
+    })
+    .map((r) => r.number)
+    .sort((a, b) => a - b);
+}
+
 /** The last day (a Sunday) of a run that starts on Monday `weekOf` and lasts `weeks` weeks, as mm/dd/yy. */
 export function runLastDay(weekOf: string, weeks = 1): string {
   const [y, m, d] = weekOf.split("-").map(Number);

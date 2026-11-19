@@ -2,7 +2,7 @@ import type { ContentBundle, CurrentReleaseInfo, SignedManifest } from "./releas
 
 const FETCH_MS = 4_000;
 
-async function getText(url: string, signal?: AbortSignal): Promise<string> {
+async function getBody<T>(url: string, read: (res: Response) => Promise<T>, signal?: AbortSignal): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_MS);
   const onAbort = () => ctrl.abort();
@@ -10,12 +10,17 @@ async function getText(url: string, signal?: AbortSignal): Promise<string> {
   try {
     const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    return await res.text();
+    return await read(res);
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
   }
 }
+
+const getText = (url: string, signal?: AbortSignal) => getBody(url, (res) => res.text(), signal);
+
+/** Raw bytes: release files are hashed byte for byte, and a banner image is not text. */
+const getBytes = (url: string, signal?: AbortSignal) => getBody(url, async (res) => new Uint8Array(await res.arrayBuffer()), signal);
 
 function joinUrl(base: string, ...parts: string[]): string {
   const root = base.replace(/\/+$/, "");
@@ -53,22 +58,22 @@ export async function fetchChangedFiles(
   files: readonly { path: string; hash: string }[],
   known: ReadonlyMap<string, string> = new Map(),
   signal?: AbortSignal,
-): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
+): Promise<Map<string, Uint8Array>> {
+  const out = new Map<string, Uint8Array>();
   for (const f of files) {
     const want = f.hash.toLowerCase();
     if (known.get(f.path) === want) continue;
-    let text: string;
+    let body: Uint8Array;
     try {
-      text = await getText(joinUrl(base, "blobs", want), signal);
+      body = await getBytes(joinUrl(base, "blobs", want), signal);
     } catch {
       if (f.path === "content.json") {
-        text = await getText(joinUrl(base, String(number), "content.json"), signal);
+        body = await getBytes(joinUrl(base, String(number), "content.json"), signal);
       } else {
         throw new Error(`Could not download ${f.path}`);
       }
     }
-    out.set(f.path, text);
+    out.set(f.path, body);
   }
   return out;
 }

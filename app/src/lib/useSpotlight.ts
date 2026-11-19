@@ -14,9 +14,10 @@ export function useSpotlight() {
     let px = 0;
     let py = 0;
 
+    // Only the cards' own --x, --y and --on change. Nothing may be set on <html> here: an inherited variable there
+    // restyles the whole page on every mouse move (the perk tree's 10,000 SVG elements made each drag frame ~130 ms).
     const paint = () => {
       raf = 0;
-      document.documentElement.style.setProperty("--xp", (px / window.innerWidth).toFixed(3));
       for (const el of document.querySelectorAll<HTMLElement>(".t")) {
         const r = el.getBoundingClientRect();
         const near = px > r.left - NEAR && px < r.right + NEAR && py > r.top - NEAR && py < r.bottom + NEAR;

@@ -15,7 +15,7 @@ export function CreatorSettings() {
       setCode("");
       setNote({ kind: "ok", text: "Creator unlock is on for this PC." });
     } else if (result === "reset") {
-      if (!window.confirm("Factory reset this PC? Credits, quests, draws, unlocked looks, the creator unlock, themes, layouts and every saved setting go back to a fresh install. This cannot be undone.")) {
+      if (!window.confirm("Factory reset this PC? Income, quests, draws, unlocked themes, the creator unlock, themes, layouts and every saved setting go back to a fresh install. This cannot be undone.")) {
         setNote({ kind: "ok", text: "Reset cancelled. Nothing was changed." });
         return;
       }
@@ -35,8 +35,8 @@ export function CreatorSettings() {
           <h3>Creator code</h3>
           <p className="hint">
             {unlocked
-              ? "Creator unlock is on for this PC. Locked looks and the brand editor are open."
-              : "A code opens locked looks and the brand editor on this PC. It does not add Credits. The reset code puts this PC back to a fresh install."}
+              ? "Creator unlock is on for this PC. Locked themes, card skins and the brand editor are open."
+              : "A code opens locked themes, card skins and the brand editor on this PC. It does not add Income. The reset code puts this PC back to a fresh install."}
           </p>
         </div>
         <form className="vault-field" onSubmit={submit}>

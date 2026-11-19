@@ -1,10 +1,12 @@
 import type { CardId } from "./layouts";
 import { KEYS } from "../lib/storageKeys";
+import { GAME_IDS } from "../lib/games";
 
 /** Storage keys that belong to one copy of a card. They go away when that copy is removed. */
 export function instanceKeys(id: string, type: CardId): string[] {
   if (type === "notes") return [`${KEYS.checklist}.${id}`, `${KEYS.note}.${id}`];
-  if (type === "heroprofile") return [`${KEYS.metaHero}.${id}`];
+  // The hero is saved per game (`cs.meta.hero.<game>.<id>`); the key without a game is from before games were split.
+  if (type === "heroprofile") return [...GAME_IDS.map((g) => `${KEYS.metaHero}.${g}.${id}`), `${KEYS.metaHero}.${id}`];
   return [];
 }
 

@@ -22,6 +22,23 @@ Open **http://localhost:1430**
 | `publish:check` | —    | CLI publish smoke test (API agent store)            |
 | `build`         | —    | `tsc --noEmit` + Vite build                         |
 | `preview`       | 1430 | Production preview (API plugin still mounts)        |
+| `serve`         | 1430 | Stand-alone server (no Vite): built UI + API        |
+| `desktop:build` | —    | Builds the **Command CMS** Windows installer        |
+
+## Desktop app (Command CMS.exe)
+
+```bash
+cd cms
+npm run desktop:build
+```
+
+Installer: `cms/src-tauri/target/release/bundle/nsis/Command CMS_<version>_x64-setup.exe`
+
+- The app bundles Node and runs `server/standalone.mjs` (the built UI plus the same `/api`, `/releases` and `/uploads` routes) on **127.0.0.1:1430**, then moves its window onto it. Quitting the app stops the server.
+- Data lives in `%APPDATA%\CommandCMS\data` (draft, releases, signing keys, uploads); the log is `%APPDATA%\CommandCMS\cms.log`. The installer never carries keys or releases.
+- First start: the draft is copied from the one the app was built with, and a **new signing key** is made unless you copy `data/keys/*.pem` into `%APPDATA%\CommandCMS\data\keys\` first (the app's dev key in `app/src/content/devPublicKey.ts` matches the repo key).
+- If something else holds port 1430 (for example `npm run dev`), the window uses that server instead of starting its own.
+- `COMMAND_CMS_DATA` points `serve` (or `dev`) at another data folder.
 
 ## Routes
 

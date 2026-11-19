@@ -1,0 +1,298 @@
+/* Profile panel (from the top bar) and Profile page. The emblem's ring fills toward the next rank; the station card
+   on the page wears the equipped card skin through .skin-swatch. Theme tokens only. */
+
+/* ---- Emblem ---- */
+.pf-emblem { position: relative; display: inline-grid; place-items: center; flex: none; width: var(--s); height: var(--s); }
+.pf-emblem svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.pf-emblem-track { fill: none; stroke: color-mix(in srgb, var(--text) 16%, transparent); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.pf-emblem-core { fill: color-mix(in srgb, var(--accent) 14%, var(--bg)); stroke: color-mix(in srgb, var(--text) 10%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.pf-emblem b { position: relative; font-size: calc(var(--s) * 0.32); font-weight: 600; letter-spacing: -0.02em; color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+
+/* ---- Top bar name ---- */
+.meta-name { padding: 2px 6px; margin: -2px -6px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; transition: background-color 0.15s, color 0.15s; }
+.meta-name:hover { background: var(--wash); color: var(--text); }
+
+/* ---- Panel ---- */
+.pf-scrim { position: fixed; inset: 0; z-index: 105; background: color-mix(in srgb, var(--bg) 45%, transparent); animation: pf-fade 200ms ease-out both; }
+.pf-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 18px;
+  width: min(380px, 100vw); padding: 22px 20px 20px; overflow-y: auto; outline: none;
+  background: var(--glass-solid); box-shadow: -1px 0 0 var(--edge), -24px 0 48px -24px rgb(0 0 0 / 0.55);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  animation: pf-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.pf-head { display: flex; align-items: center; gap: 14px; }
+.pf-who { flex: 1; min-width: 0; }
+.pf-who h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
+.pf-who h2.pf-noname { color: var(--mute); }
+.pf-who p { margin-top: 2px; color: var(--dim); font-size: 13px; }
+.pf-x { align-self: flex-start; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 999px; background: none; color: var(--dim); }
+.pf-x:hover { background: var(--wash); color: var(--text); }
+.pf-x svg { width: 18px; height: 18px; }
+
+
+.pf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--edge); }
+.pf-stats div { padding: 10px 12px; }
+.pf-stats div + div { box-shadow: -1px 0 0 var(--edge); }
+.pf-stats dt { color: var(--mute); font-size: 11.5px; }
+.pf-stats dd { margin: 2px 0 0; font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.pf-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.pf-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 10px; border: 0; border-radius: 12px; background: var(--wash); color: var(--text); font-size: 12px; transition: background-color 0.15s, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.pf-tile:hover { background: var(--wash-2); transform: translateY(-1px); }
+.pf-tile svg { width: 22px; height: 22px; color: color-mix(in srgb, var(--accent) 65%, var(--text)); }
+.pf-tile-count { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--on-text); font-size: 10px; font-weight: 600; }
+
+.pf-foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.pf-primary, .pfp-action { min-height: 42px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 600; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.pf-primary { flex: 1; }
+.pf-primary:hover, .pfp-action:hover { transform: translateY(-1px); }
+
+@keyframes pf-fade { from { opacity: 0; } }
+@keyframes pf-in { from { transform: translateX(40px); opacity: 0; } }
+
+/* ---- Page ---- */
+.pfp { display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(300px, 360px); gap: 20px; align-items: start; padding-top: 18px; min-height: calc(100vh - 140px); }
+/* The perk tree's own page: the tree and its details panel, no Profile rail. */
+.pt-page { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }
+.pfp-rail { position: sticky; top: 112px; display: flex; flex-direction: column; gap: 4px; }
+.pfp-title { margin-bottom: 10px; font-size: 22px; font-weight: 500; }
+.pfp-sec { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--dim); font-size: 14px; text-align: left; transition: background-color 0.15s, color 0.15s; }
+.pfp-sec svg { width: 18px; height: 18px; }
+.pfp-sec:hover { color: var(--text); background: var(--wash); }
+.pfp-sec[aria-current] { color: var(--text); font-weight: 500; background: var(--wash-2); }
+
+.pfp-stage { position: sticky; top: 112px; display: grid; place-items: center; min-height: min(620px, calc(100vh - 160px)); padding: 24px 0 40px; }
+.pfp-floor { position: absolute; left: 50%; bottom: 0; width: min(100%, 620px); transform: translateX(-50%); overflow: visible; }
+.pfp-floor ellipse { fill: none; stroke: color-mix(in srgb, var(--text) 14%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.pfp-floor ellipse:first-child { stroke-dasharray: 2 6; }
+.pfp-floor ellipse:last-child { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: color-mix(in srgb, var(--accent) 40%, transparent); }
+.pfp-card.skin-swatch {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; grid-template-rows: none;
+  width: clamp(250px, 26vw, 320px); min-height: 0; aspect-ratio: 5 / 7; padding: 18px 18px 20px; border: 1px solid; border-radius: 18px;
+  transform: rotate(-3deg); animation: pfp-card-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both, var(--sk-card-anim, none);
+}
+.pfp-card-top { display: flex; justify-content: space-between; align-self: stretch; color: var(--dim); font-size: 11.5px; }
+.pfp-card .pf-emblem { margin-top: auto; }
+.pfp-card-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.pfp-card-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: stretch; margin-top: auto; padding-top: 12px; box-shadow: 0 -1px 0 var(--edge); text-align: center; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.pfp-card-facts small { display: block; color: var(--mute); font-size: 10.5px; font-weight: 400; }
+
+.pfp-panel { display: flex; flex-direction: column; gap: 14px; padding: 22px 20px; border-radius: var(--r); background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge); }
+.pfp-head h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.pfp-head p { margin-top: 2px; color: var(--dim); font-size: 13px; }
+.pfp-sub { margin: 6px 0 -6px; color: var(--dim); font-size: 12.5px; font-weight: 500; }
+.pfp-list { display: grid; margin: 0; }
+.pfp-list div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; box-shadow: 0 1px 0 var(--edge); font-size: 13.5px; }
+.pfp-list dt { color: var(--dim); }
+.pfp-list dd { margin: 0; font-variant-numeric: tabular-nums; }
+.pfp-action { align-self: stretch; margin-top: 6px; }
+.pfp-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.pfp-acts .pfp-action { flex: 1; margin: 0; }
+.pfp-look { width: 100%; }
+.pfp-skin { min-height: 130px; }
+.pfp-note { color: var(--dim); font-size: 13px; line-height: 1.5; }
+.pfp-note b { color: var(--text); font-weight: 500; }
+
+@keyframes pfp-card-in { from { opacity: 0; transform: translateY(16px) rotate(-6deg); } }
+
+@media (max-width: 1000px) {
+  .pfp { grid-template-columns: minmax(0, 1fr); }
+  .pfp-rail { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .pfp-title { margin: 0 12px 0 0; }
+  .pfp-stage { position: relative; top: 0; min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-scrim, .pf-panel, .pfp-card.skin-swatch { animation: none; }
+}
+
+/* ---- Perk tree (Profile → Perks) ----
+   The whole tree on a pannable stage: eight classes in their own colours around Station Core. Taken links use the
+   theme accent; a class colour (--rc0, set per node) is deepened on light pages so pale classes stay visible. */
+.pt-stage { position: sticky; top: 112px; display: block; height: min(780px, calc(100vh - 150px)); min-height: 460px; padding: 0; overflow: hidden; border-radius: var(--r); background: radial-gradient(60% 60% at 50% 50%, color-mix(in srgb, var(--accent) 7%, var(--bg)), var(--bg) 78%); box-shadow: 0 0 0 1px var(--edge); cursor: grab; outline: none; }
+.pt-stage:focus-visible { box-shadow: 0 0 0 1px var(--edge), inset 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.pt-stage.dragging { cursor: grabbing; }
+/* Full page: the tree covers the whole app window (under toasts, so "Took ..." still shows). */
+.pt-stage.is-full { position: fixed; inset: 0; z-index: 98; height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
+.pt-stage.is-full:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.pt-tools button[aria-pressed="true"] { color: var(--text); box-shadow: 0 0 0 1px var(--edge-2); }
+.pt-fullbar { position: absolute; top: 12px; right: 12px; display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 8px; row-gap: 4px; max-width: min(360px, calc(100% - 300px)); padding: 10px 14px; border-radius: 12px; background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge); cursor: auto; }
+.pt-fullbar b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--accent) 75%, var(--text)); }
+.pt-fullbar span { font-size: 13px; }
+.pt-fullbar small { grid-column: 1 / -1; color: var(--dim); font-size: 12px; line-height: 1.45; }
+@media (max-width: 640px) { .pt-fullbar { top: auto; bottom: 60px; left: 12px; right: 12px; max-width: none; } }
+/* Twice the stage each way; moved and scaled on the GPU during a drag or wheel (see PerkTree.tsx). */
+.pt-svg { position: absolute; left: -50%; top: -50%; display: block; width: 200%; height: 200%; transform-origin: 0 0; will-change: transform; touch-action: none; user-select: none; }
+.pt-k { --k: 1; --fs: calc(12.5px / var(--k)); --rs: calc(15px / var(--k)); }
+.pt-node, .pt-region, .pt-tip, .pt-chip, .pt-detail, .pt-hits button, .pt-slot { --rc: var(--rc0, var(--accent)); }
+html[data-scheme="light"] :is(.pt-node, .pt-region, .pt-tip, .pt-chip, .pt-detail, .pt-hits button, .pt-slot) { --rc: color-mix(in srgb, var(--rc0, var(--accent)) 62%, #1b1b20); }
+
+/* ---- Slot board: what you hold, like a loadout bar. The pentagons in a row with their names; then the squares in two
+   rows of four that interlock: each row is a grid of (4 × 2 + 1) columns, every square spans two, and the second row
+   starts one column over (half a slot) and tucks up between the first. A held slot is the node as it looks taken on
+   the tree (its class colour, the icon in dark ink); an empty slot is only its outline. The caption names the slot
+   you point at, so squares need no labels of their own. */
+.pt-slots { display: grid; gap: 8px; }
+.pt-slot-pents { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); justify-items: center; align-items: start; }
+.pt-slot-squares { display: grid; grid-template-columns: repeat(var(--cols, 9), minmax(0, 1fr)); justify-items: center; }
+.pt-slot-caption { display: -webkit-box; min-height: calc(2 * 1.4em); margin: 0; overflow: hidden; color: var(--mute); font-size: 12.5px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.pt-slot-caption b { color: var(--rc, var(--text)); font-weight: 600; }
+.pt-slot-caption[style] { --rc: var(--rc0); color: var(--dim); }
+html[data-scheme="light"] .pt-slot-caption[style] { --rc: color-mix(in srgb, var(--rc0) 62%, #1b1b20); }
+.pt-slot {
+  --ink: var(--bg); --pa: var(--ink); --pk: var(--rc); --pw: 0.14;
+  --pb: color-mix(in srgb, var(--rc) 40%, var(--ink)); --pc: color-mix(in srgb, var(--rc) 68%, var(--ink));
+  display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; min-width: 0; padding: 3px 2px; border: 0; border-radius: 10px; background: none; color: var(--text); font: inherit; text-align: center;
+}
+button.pt-slot { cursor: pointer; transition: background-color 0.15s; }
+button.pt-slot:hover { background: var(--wash); }
+button.pt-slot:focus-visible { background: var(--wash); outline: 1.5px solid color-mix(in srgb, var(--rc) 70%, transparent); outline-offset: 1px; }
+.pt-slot small { overflow: hidden; max-width: 100%; font-size: 12px; font-weight: 500; line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; }
+.pt-slot-shape { flex: none; overflow: visible; }
+.pt-slot[data-shape="pentagon"] .pt-slot-shape { width: 46px; height: 46px; }
+.pt-slot[data-shape="diamond"] .pt-slot-shape { width: 38px; height: 38px; }
+.pt-slot-shape polygon { fill: var(--rc); stroke: var(--rc); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+/* Empty: a dashed outline clear enough to read as a slot; pentagons (the scarcer slot) a step stronger. */
+.pt-slot[data-empty] .pt-slot-shape polygon { fill: color-mix(in srgb, var(--text) 3%, transparent); stroke: color-mix(in srgb, var(--text) 30%, transparent); stroke-dasharray: 4 3; }
+.pt-slot[data-empty][data-shape="pentagon"] .pt-slot-shape polygon { stroke: color-mix(in srgb, var(--text) 40%, transparent); }
+.pt-slot-key { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+
+.pt-edges path { fill: none; stroke: color-mix(in srgb, var(--text) 13%, transparent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.pt-edges path.open { stroke: color-mix(in srgb, var(--text) 34%, transparent); }
+.pt-edges path.taken { stroke: var(--accent); stroke-width: 3.5; }
+.pt-edges path.closed { stroke-dasharray: 3 7; stroke-opacity: 0.45; }
+
+.pt-node { cursor: pointer;
+  --disc: color-mix(in srgb, var(--text) 5%, var(--bg)); --ink: var(--bg);
+  --pk: var(--disc); --pw: 0.1;
+  --pa: color-mix(in srgb, var(--rc) 52%, var(--disc));
+  --pb: color-mix(in srgb, var(--rc) 32%, var(--disc));
+  --pc: color-mix(in srgb, var(--rc) 19%, var(--disc)); }
+.pt-node[data-state="open"], .pt-node:hover {
+  --pa: var(--rc); --pw: 0.42;
+  --pb: color-mix(in srgb, var(--rc) 58%, var(--disc));
+  --pc: color-mix(in srgb, var(--rc) 32%, var(--disc)); }
+.pt-node[data-state="taken"], .pt-node[data-state="idle"] {
+  --pa: var(--ink); --pk: var(--rc); --pw: 0.14;
+  --pb: color-mix(in srgb, var(--rc) 40%, var(--ink));
+  --pc: color-mix(in srgb, var(--rc) 68%, var(--ink)); }
+.pt-disc { fill: var(--disc); stroke: var(--rc); stroke-opacity: 0.45; stroke-width: 2; vector-effect: non-scaling-stroke; transition: fill 0.15s; }
+.pt-core { fill: color-mix(in srgb, var(--rc) 18%, var(--bg)); }
+.pt-node[data-state="taken"] .pt-disc { fill: var(--rc); fill-opacity: 0.92; stroke-opacity: 1; }
+.pt-node[data-state="idle"] .pt-disc { fill: var(--rc); fill-opacity: 0.4; stroke-opacity: 1; stroke-dasharray: 4 3; }
+.pt-node[data-state="open"] .pt-disc { stroke-opacity: 1; stroke-width: 2.5; }
+.pt-node:hover .pt-disc { stroke: var(--text); stroke-opacity: 1; }
+/* Inactive nodes are dimmed part by part: opacity on the group would paint ~860 groups one by one. */
+.pt-node[data-dead][data-state="far"] { --pa: color-mix(in srgb, var(--rc) 30%, var(--disc)); --pb: color-mix(in srgb, var(--rc) 20%, var(--disc)); --pc: color-mix(in srgb, var(--rc) 12%, var(--disc)); }
+.pt-node[data-dead][data-state="far"] :is(.pt-disc, .pt-ring, .pt-key) { stroke-opacity: 0.22; }
+.pt-ring { fill: none; stroke: var(--rc); stroke-opacity: 0.35; stroke-width: 1.5; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.pt-node[data-state="taken"] .pt-ring { stroke-opacity: 0.9; }
+.t-gate .pt-disc, .t-special .pt-disc, .t-pentagon .pt-disc { stroke-width: 2.5; }
+.pt-key { fill: none; stroke: var(--rc); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.pt-node[data-state="taken"] .pt-key { stroke: var(--ink); }
+.pt-name { fill: var(--dim); font-size: var(--fs); font-weight: 500; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; transform: translateY(calc(var(--nr) * 1px + 4px / var(--k) + var(--fs))); }
+.pt-name[data-state="taken"] { fill: var(--text); }
+.pt-svg.far .pt-name:is([data-type="notable"], [data-type="start"], [data-type="gate"], [data-type="special"]) { display: none; }
+.pt-svg.far .pt-name[data-type="notable"][data-state="taken"] { display: inline; }
+.pt-svg.tiny .pt-name { display: none; }
+.pt-svg.far .pt-name[data-type="pentagon"] { display: none; }
+/* Keystones and pentagons: their passive effect under the name, once zoomed in enough to read. */
+/* Icons come in once they are about 12px wide on screen: keystones and the core first, then notables, then the rest. */
+.pt-icon { display: none; pointer-events: none; }
+.t-special .pt-icon, .t-pentagon .pt-icon, .pt-svg.wide :is(.t-keystone, .t-start) .pt-icon, .pt-svg.mid .t-notable .pt-icon, .pt-svg.near .pt-icon { display: inline; }
+.pki-ta { fill: var(--pa); } .pki-tb { fill: var(--pb); } .pki-tc { fill: var(--pc); } .pki-tk { fill: var(--pk); }
+.pki-la, .pki-lb, .pki-lc, .pki-lk, .pki-hl { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.pki-la { stroke: var(--pa); } .pki-lb { stroke: var(--pb); } .pki-lc { stroke: var(--pc); } .pki-lk { stroke: var(--pk); }
+.pki-oa, .pki-ob, .pki-ok { stroke-linejoin: round; }
+.pki-oa { stroke: var(--pa); } .pki-ob { stroke: var(--pb); }
+.pki-ok { stroke: var(--pk); paint-order: stroke; }
+.pki-hl { stroke: #fff; stroke-opacity: var(--pw); }
+.pki-butt { stroke-linecap: butt; }
+
+.pt-region { fill: var(--rc); fill-opacity: 0.6; font-size: var(--rs); font-weight: 600; letter-spacing: 0.04em; text-anchor: middle; pointer-events: none; transform: translateY(calc(40px + 10px / var(--k) + var(--fs) + var(--rs))); }
+.pt-region[data-up] { transform: translateY(calc(-40px - 12px / var(--k) - var(--rs) * 0.85)); }
+.pt-region-sub { font-size: 0.6em; font-weight: 400; letter-spacing: 0.02em; fill-opacity: 0.85; }
+
+.pt-overlay { pointer-events: none; }
+.pt-way { stroke: var(--text); stroke-width: 3; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; }
+.pt-step { fill: none; stroke: var(--text); stroke-opacity: 0.7; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.pt-aim { fill: none; stroke: var(--text); stroke-opacity: 0.5; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.pt-picked { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.pt-found { fill: none; stroke: var(--text); stroke-opacity: 0.6; stroke-width: 2; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+
+.pt-find { position: absolute; top: 12px; left: 12px; display: grid; gap: 6px; width: min(260px, calc(100% - 24px)); cursor: auto; }
+.pt-search { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 999px; background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge); }
+.pt-search:focus-within { box-shadow: 0 0 0 1px var(--edge-2); }
+.pt-search svg { flex: none; width: 15px; height: 15px; color: var(--dim); }
+.pt-search input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--text); font: inherit; font-size: 13px; }
+.pt-search input::placeholder { color: var(--mute); }
+.pt-hits { display: grid; padding: 6px; border-radius: 12px; background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge), 0 14px 30px -18px rgb(0 0 0 / 0.6); }
+.pt-hits button { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; min-height: 34px; padding: 0 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 13px; }
+.pt-hits button:hover, .pt-hits button:focus-visible { background: var(--wash); outline: none; }
+.pt-hits i, .pt-chip i, .pt-meta i { width: 8px; height: 8px; border-radius: 999px; background: var(--rc); }
+.pt-hits b { overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pt-hits span { color: var(--dim); font-size: 12px; }
+.pt-hits p { margin: 4px 8px; color: var(--mute); font-size: 12px; }
+
+.pt-tools { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; cursor: auto; }
+.pt-tools button { display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 999px; background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge); color: var(--dim); transition: color 0.15s, box-shadow 0.15s; }
+.pt-tools button:hover { color: var(--text); box-shadow: 0 0 0 1px var(--edge-2); }
+.pt-tools svg { width: 16px; height: 16px; }
+
+.pt-tip { position: absolute; z-index: 2; display: grid; gap: 4px; max-width: 260px; padding: 10px 12px; border-radius: 12px; background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge-2), 0 16px 32px -18px rgb(0 0 0 / 0.7); transform: translate(14px, 14px); pointer-events: none; animation: pt-tip-in 0.14s var(--ease); }
+.pt-tip b { color: var(--rc); font-size: 13.5px; font-weight: 600; }
+.pt-tip span { font-size: 12.5px; line-height: 1.4; white-space: pre-line; }
+.pt-tip small { color: var(--dim); font-size: 12px; }
+@keyframes pt-tip-in { from { opacity: 0; transform: translate(14px, 18px); } }
+
+/* ---- Panel: information only; nodes are taken on the tree ---- */
+.pt-points { display: flex; flex-direction: column; gap: 6px; padding-bottom: 14px; box-shadow: 0 1px 0 var(--edge); }
+.pt-points div { display: flex; align-items: baseline; gap: 10px; }
+.pt-points b { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--accent) 75%, var(--text)); }
+.pt-points span { font-size: 14px; }
+.pt-points small { color: var(--mute); font-size: 12px; line-height: 1.5; }
+.pt-points .pt-warn { color: var(--mid); }
+.pt-block { display: grid; gap: 10px; }
+.pt-block .pfp-sub { display: flex; justify-content: space-between; margin: 0; }
+.pt-block .pfp-sub span { color: var(--mute); font-weight: 400; }
+.pt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pt-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 12px; border-radius: 999px; background: color-mix(in srgb, var(--rc) 15%, transparent); font-size: 13px; font-weight: 500; }
+.pt-chip small { color: var(--dim); font-weight: 400; }
+button.pt-chip { border: 0; color: var(--text); cursor: pointer; }
+button.pt-chip:hover { background: color-mix(in srgb, var(--rc) 26%, transparent); }
+.pt-note { margin: 0; color: var(--mute); font-size: 12.5px; line-height: 1.5; }
+.pt-detail { display: flex; flex-direction: column; gap: 8px; padding: 16px 0 6px; box-shadow: 0 -1px 0 var(--edge); }
+.pt-detail h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.pt-meta { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); font-size: 12.5px; }
+.pt-detail p { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-line; }
+.pt-detail .pfp-list { margin-top: 2px; }
+.pt-detail .pt-later { padding: 8px 10px; border-radius: 10px; background: var(--wash); color: var(--dim); font-size: 12.5px; }
+.pt-detail .pt-state { color: var(--dim); font-size: 13px; }
+.pt-detail .pt-state small { display: block; margin-top: 2px; color: var(--dim); font-size: 12px; font-weight: 400; }
+/* The status line (hover tip and panel): can you take it, and if not, why. Words carry it; colour backs them up. */
+.pt-st { font-weight: 600; }
+.pt-st[data-kind="ok"] { color: var(--good); }
+.pt-st[data-kind="no"] { color: color-mix(in srgb, var(--red) 72%, var(--text)); }
+.pt-st[data-kind="own"] { color: var(--rc, var(--text)); }
+.pt-empty p { color: var(--dim); }
+.pt-waiting dt, .pt-waiting dd { color: var(--mute); }
+.pt-key summary { color: var(--dim); font-size: 12.5px; cursor: pointer; }
+.pt-key summary:hover { color: var(--text); }
+.pt-key ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.pt-key li { display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 10px; color: var(--dim); font-size: 12.5px; line-height: 1.4; }
+.pt-key svg { width: 24px; height: 24px; overflow: visible; }
+.pt-key svg :is(circle, polygon) { fill: color-mix(in srgb, var(--text) 5%, var(--bg)); stroke: var(--text); stroke-width: 1.4; }
+.pt-key svg .dash { fill: none; stroke-opacity: 0.45; stroke-dasharray: 2 2; }
+.pt-key svg .dim { opacity: 0.5; }
+.pt-key p { margin: 10px 0 0; color: var(--mute); font-size: 12px; }
+.pt-reset { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.pt-reset svg { width: 15px; height: 15px; }
+
+@media (max-width: 1000px) {
+  .pt-stage { position: relative; top: 0; height: 64vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-tip { animation: none; }
+}
+.pt-passive b { color: var(--accent); }
+.pt-down { color: #ff6b6b; }

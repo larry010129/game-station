@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatMdyHm, maskMdyHm, parseMdyHm, untilText } from "../../../cms/src/lib/schedule.ts";
+import { formatMdyHm, maskMdyHm, overtakenReleases, parseMdyHm, untilText } from "../../../cms/src/lib/schedule.ts";
 import { scheduleErrors, SCHEDULE_GRACE_MS } from "../../../cms/server/store.mjs";
 import { goLiveTime, runContentUpdate } from "../../src/content/updateContent.ts";
 import { clearAppliedRelease, currentReleaseNumber } from "../../src/content/contentStore.ts";
@@ -38,12 +38,13 @@ function mockHost(current, manifests) {
   globalThis.fetch = async (url) => {
     seen.push(String(url));
     const path = String(url).slice(HOST.length + 1);
-    const ok = (text) => ({ ok: true, status: 200, text: async () => text });
+    // Real Response objects, so both text() and arrayBuffer() behave like a browser fetch.
+    const ok = (text) => new Response(text, { status: 200 });
     if (path === "current") return ok(JSON.stringify({ number: current }));
     const m = path.match(/^(\d+)\/manifest\.json$/);
     if (m && manifests[m[1]]) return ok(JSON.stringify(manifests[m[1]]));
     if (/content\.json$/.test(path) || path.startsWith("blobs/")) return ok(contentV2);
-    return { ok: false, status: 404, text: async () => "" };
+    return new Response("", { status: 404 });
   };
   return seen;
 }
@@ -105,4 +106,31 @@ test("once its time has passed, a scheduled release is applied like any other", 
   mockHost(2, { 2: past });
   const status = await runContentUpdate(undefined, HOST);
   assert.deepEqual(status, { state: "updated", number: 2 });
+});
+
+test("A1: a binary release file (banner PNG) is downloaded as its exact bytes, so its hash matches", async () => {
+  const { fetchChangedFiles } = await import("../../src/content/fetchRelease.ts");
+  const { sha256Hex } = await import("../../src/content/verifyRelease.ts");
+  // PNG signature plus bytes that are not valid UTF-8 (0x89, 0xff, 0xfe, 0x80).
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x80, 0x00, 0x01]);
+  const want = await sha256Hex(png);
+  globalThis.fetch = async (url) => (String(url).endsWith(`/blobs/${want}`) ? new Response(png) : new Response("", { status: 404 }));
+  const files = await fetchChangedFiles(HOST, 4, [{ path: "assets/uploads/banners/b.png", hash: want }]);
+  const body = files.get("assets/uploads/banners/b.png");
+  assert.equal(await sha256Hex(body), want);
+});
+
+test("A4 (mitigation): a push timed before a still-scheduled release is flagged, naming that release", () => {
+  const now = new Date(2026, 10, 16, 12, 0);
+  const releases = [
+    { number: 11, effectiveAt: new Date(2026, 10, 10, 9, 0).toISOString() },
+    { number: 12, effectiveAt: new Date(2026, 10, 20, 9, 0).toISOString() },
+    { number: 10, effectiveAt: null }, // an older release without a time: live at once
+  ];
+  assert.deepEqual(overtakenReleases(new Date(2026, 10, 17, 9, 0), releases, now), [12], "#12 is still scheduled and goes live after this push");
+  assert.deepEqual(overtakenReleases(new Date(2026, 10, 21, 9, 0), releases, now), [], "after #12: nothing overtaken");
+  assert.deepEqual(overtakenReleases(now, releases.slice(0, 1), now), [], "a release already live is not overtaken");
+  // #12 is still scheduled, but #14 (a higher number) is already live: apps will never apply #12, so it is not named.
+  const superseded = [...releases, { number: 14, effectiveAt: new Date(2026, 10, 15, 9, 0).toISOString() }];
+  assert.deepEqual(overtakenReleases(new Date(2026, 10, 17, 9, 0), superseded, now), []);
 });

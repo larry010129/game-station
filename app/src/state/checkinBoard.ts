@@ -5,25 +5,19 @@
  * - Each local day the station is opened (the quest check-in) lets the user claim the next box, once that day.
  * - A missed day costs nothing: the board waits on the next box. There is no catch-up for missed days.
  * - Day 7 stays shown as claimed for the rest of that day; the next local day the board starts again at Day 1.
- * - Boxes pay Draw Tickets: Regular Tickets (one Regular Pack draw each) and Special Tickets (one draw each in the
- *   packs the CMS gives Special, by default Brand and Region). Tickets are never a gacha prize and never Credits.
+ * - What each box pays is set per day in the CMS (`checkinPrizes`): Regular or Special Draw Tickets, or an item, and
+ *   how many. By default every box pays Special Tickets. Tickets are never a gacha prize and never Credits. An item
+ *   prize is handed out by the caller (useCheckinBoard); this module only counts tickets.
+ * - The CMS can run the board as an event with a start and an end (`checkinEvent`); outside it nothing can be claimed.
  */
 
-import type { TicketKind } from "./gachaContent.ts";
+import { CHECKIN_DAYS, DEFAULT_CHECKIN_PRIZES, type CheckinPrize, type TicketKind } from "./gachaContent.ts";
 
-export type { TicketKind };
+export type { CheckinPrize, TicketKind };
 
-/** What Day 1 to Day 7 pay. */
-export const BOARD_PRIZES: readonly { kind: TicketKind; count: number }[] = [
-  { kind: "regular", count: 1 },
-  { kind: "regular", count: 1 },
-  { kind: "special", count: 2 },
-  { kind: "regular", count: 1 },
-  { kind: "regular", count: 1 },
-  { kind: "regular", count: 1 },
-  { kind: "special", count: 3 },
-];
-export const BOARD_DAYS = BOARD_PRIZES.length;
+/** What Day 1 to Day 7 pay when the release does not say (the CMS sets `checkinPrizes`). */
+export const BOARD_PRIZES: readonly CheckinPrize[] = DEFAULT_CHECKIN_PRIZES;
+export const BOARD_DAYS = CHECKIN_DAYS;
 
 export type TicketWallet = Record<TicketKind, number>;
 
@@ -51,9 +45,12 @@ export function shownClaimed(s: BoardState, now: Date): number {
 /** True once a box was claimed today (or the clock was set back behind the last claim). */
 export const claimedToday = (s: BoardState, now: Date): boolean => s.lastDay != null && dayKey(now) <= s.lastDay;
 
-/** The next box can be claimed: checked in today, nothing claimed today, and the run is not finished. */
-export function canClaimBoard(s: BoardState, checkedInToday: boolean, now: Date): boolean {
-  return checkedInToday && !claimedToday(s, now) && shownClaimed(s, now) < BOARD_DAYS;
+/**
+ * The next box can be claimed: the check-in event is open (`open`, default true when there is no event), checked in
+ * today, nothing claimed today, and the run is not finished.
+ */
+export function canClaimBoard(s: BoardState, checkedInToday: boolean, now: Date, open = true): boolean {
+  return open && checkedInToday && !claimedToday(s, now) && shownClaimed(s, now) < BOARD_DAYS;
 }
 
 /** Claims the next box. Returns the new state and what it paid, or null when nothing can be claimed. */
@@ -61,12 +58,15 @@ export function claimBoard(
   s: BoardState,
   checkedInToday: boolean,
   now: Date,
-): { state: BoardState; kind: TicketKind; count: number; day: number } | null {
-  if (!canClaimBoard(s, checkedInToday, now)) return null;
+  open = true,
+  prizes: readonly CheckinPrize[] = BOARD_PRIZES,
+): { state: BoardState; prize: CheckinPrize; kind: CheckinPrize["kind"]; count: number; day: number } | null {
+  if (!canClaimBoard(s, checkedInToday, now, open)) return null;
   const base = shownClaimed(s, now);
-  const { kind, count } = BOARD_PRIZES[base];
-  const tickets = { ...s.tickets, [kind]: s.tickets[kind] + count };
-  return { state: { ...s, claimed: base + 1, lastDay: dayKey(now), tickets }, kind, count, day: base + 1 };
+  const prize = prizes[base] ?? BOARD_PRIZES[base];
+  // Tickets are counted here; an item prize leaves the wallet as it is (the caller grants the item).
+  const tickets = prize.kind === "item" ? s.tickets : { ...s.tickets, [prize.kind]: s.tickets[prize.kind] + prize.count };
+  return { state: { ...s, claimed: base + 1, lastDay: dayKey(now), tickets }, prize, kind: prize.kind, count: prize.count, day: base + 1 };
 }
 
 /** Spends `n` tickets of one kind. Returns null when fewer are held. */

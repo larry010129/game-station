@@ -142,3 +142,43 @@ test("createApexMeta keeps full catalog when weapons scrape fails", async () => 
   assert.match(snap.note, /full BR roster catalog|rates omitted/i);
   assert.equal(snap.guns.every((g) => g.pickRate == null), true);
 });
+
+const sampleFetch = (calls) => async (url) => {
+  calls?.push(String(url));
+  if (String(url).includes("weaponsmeta")) return { ok: true, json: async () => WEAPONS_SAMPLE };
+  return { ok: true, text: async () => SAMPLE };
+};
+
+test("C3: Apex has no per-rank pick rates, so a chosen rank answers empty instead of showing all ranks under its name", async () => {
+  const meta = createApexMeta(null, { fetch: sampleFetch(), file: `${process.env.TEMP}/apex-meta-rank-${Date.now()}.json` });
+  await meta.refresh();
+  const all = await meta.rank("All");
+  assert.equal(all.empty, false);
+  const diamond = await meta.rank("Diamond");
+  assert.equal(diamond.empty, true);
+  assert.deepEqual(diamond.tiers, []);
+});
+
+test("C9: Apex meta re-scrapes once its data is a day old while the app stays open", async () => {
+  const calls = [];
+  let clock = Date.parse("2026-11-16T12:00:00Z");
+  const ticks = [];
+  const meta = createApexMeta(null, {
+    fetch: sampleFetch(calls),
+    file: `${process.env.TEMP}/apex-meta-stale-${Date.now()}.json`,
+    now: () => clock,
+    setInterval: (fn) => (ticks.push(fn), { unref() {} }),
+    clearInterval: () => {},
+  });
+  await meta.refresh();
+  meta.start();
+  assert.equal(ticks.length, 1, "start() sets up a staleness check");
+  const before = calls.length;
+  clock += 2 * 3600_000;
+  await ticks[0]();
+  assert.equal(calls.length, before, "two hours old: no new scrape");
+  clock += 24 * 3600_000;
+  await ticks[0]();
+  assert.ok(calls.length > before, "a day old: scraped again");
+  meta.stop();
+});

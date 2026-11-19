@@ -133,7 +133,7 @@ On first run the service writes `%APPDATA%\CommandStation\config.json` with the 
 | `host` | `127.0.0.1` | Bind address. Leave as is. The port is fixed at 8787 (a `port` key in an old config is ignored and the `PORT` environment variable is not used). |
 | `allowedOrigins` | `[]` | Extra browser origins allowed to call the service (added to the four built-in ones) |
 | `regionHost` | `battle.net` | Host pinged for the latency reading |
-| `games` | `["Overwatch.exe"]` | Processes treated as the game |
+| `games` | `["Overwatch.exe", "r5apex.exe", "r5apex_dx12.exe"]` | Processes treated as the game (Overwatch and Apex Legends) |
 | `disabledSteps` | `[]` | Game-mode step ids skipped in every profile |
 | `closeApps` | OneDrive, ArmouryCrate, ASUSSoftwareManager (.exe) | Closed by the game-mode "close" step |
 | `feed.newsUrl`, `feed.patchUrl` | Blizzard news and patch notes pages | Feed sources |
@@ -155,11 +155,14 @@ On first run the service writes `%APPDATA%\CommandStation\config.json` with the 
 - `journal.json`: undo journal for game mode. If it cannot be read, a copy is kept as `journal.json.bad` and game mode refuses to start steps (409) until it is fixed or deleted
 - `gamemode-history.json`: game-mode steps applied and undone
 - `sessions.json`: play sessions
-- `feed-cache.json`: last fetched news
-- `counterwatch.json`: cached hero stats
-- `players.json`: players-online history
+- `feed-cache.json`, `feed-cache-apex.json`: last fetched news (Overwatch, Apex)
+- `counterwatch.json`: cached Overwatch hero stats
+- `apex-meta-cache.json`: cached Apex legend pick rates and weapon tiers
+- `players.json`, `players-apex.json`: players-online history (Overwatch, Apex)
 - `ai-research.json`, `ai-auto.json`: saved AI answers and the hourly-check setting
 - `discord.json`, `spotify.json`: your own app ids and sign-in tokens (never included in backups)
+- `patreon.json`, `patreon-app.json`: Patreon sign-in and its last tier check, and the Patreon app settings
+- `media.ps1`: the now-playing helper script, rewritten each time the helper starts
 - `service.log`: the service log
 
 Set `COMMAND_STATION_DATA` to use another folder (the tests use a temporary one).
@@ -213,14 +216,42 @@ This PC's Application Control policy blocks Rollup's native `.node` binary, so `
 | Path | What it holds |
 | --- | --- |
 | `service/` | Local API, one module per concern, wired in `index.mjs`: `server.mjs` (guards), `sensors.mjs`, `gamemode.mjs`, `feed.mjs`, `counterwatch.mjs`, `media.mjs`, `spotify.mjs`, `discord.mjs`, `toasts.mjs`, `library.mjs`, `settings.mjs`, `config.mjs`, `spawn.mjs`, and more |
-| `src/lib/types.ts` | `Sample`, `FeedItem`, `Profile`, `Provider` interface |
-| `src/providers/` | `live.ts` talks to the service (the only provider) |
+| `src/lib/types.ts` | `Sample`, `FeedItem`, `Profile`, `StationInfo` |
+| `src/lib/api.ts` | Plain functions that call the service (the old `Provider` interface and `src/providers/` are gone) |
 | `src/state/useStation.ts` | Samples once a second (3 s in game mode, 5 s when hidden), keeps 60 readings |
 | `src/state/useGameMode.ts` | Applies a profile step by step, journal first, restores on exit or after a crash |
 | `src/state/useEnvironment.ts` | Drops blur and motion when hidden or when a game is running and this window is not in front |
 | `src/layout/` | Grid, card catalogue (`layouts.ts`) and card registry (`registry.tsx`) |
+| `src/pages/` | Page tabs: Quests, Check-in, Pass, Perks, Draw, Wiki, News, Profile, Achievements, Themes, Calendar, Credits, Support, Vault (see "Pages") |
 | `src/cards/`, `src/components/`, `src/pages/`, `src/boot/`, `src/styles/` | Cards, shared UI, full pages (Vault, themes, credits), boot screen, CSS |
 | `src-tauri/` | Desktop shell |
+
+## Languages
+
+English and Traditional Chinese (Taiwan usage). The switch is in Vault > This PC > Language and is saved as `cs.lang`
+(backups carry it). With nothing saved, the app starts in Chinese only when the system's first language is zh-TW, zh-HK,
+zh-MO or zh-Hant.
+
+- `src/lib/i18n.ts`: `useT()` in components, `tr()` outside React, `spanText()` for "5h 12m" / 「5 小時 12 分」. No library.
+- `src/i18n/en.ts` and `src/i18n/zhTW.ts`: flat dictionaries keyed by dotted ids with `{name}` placeholders. A key missing
+  in Chinese falls back to English. `service/test/i18n.test.mjs` fails when the two files' keys or placeholders differ.
+- Translated so far: the top bar, page tabs and game-mode label, every "N Income" amount (`formatCredits`), the Vault
+  language row, Check-in (page and board) and Quests (including every quest's title and description). Every other page,
+  item names and CMS content (themes, items, Wiki) are still English.
+- Terms: check-in 簽到, quest 任務, Income 收入, Payroll 薪資, Draw 抽卡, Draw Ticket 抽卡券, theme 主題, perk 天賦,
+  Vault 保險庫, Season Pass 賽季通行證, Wiki 圖鑑, Credits 製作群.
+
+## Pages
+
+Page tabs are listed in `TABS` (`src/layout/layouts.ts`) and rendered from the `pages` record in `src/App.tsx`. Themes, Vault, Support, Profile and Achievements are reached by control and kept off the tab row.
+
+- **Quests** (`pages/QuestsPage.tsx`, `styles/quests.css`): laid out after a pass Missions screen. A Payroll strip (Income per counted hour plus any perk bonus, today's claimed count, the balance, Claim all), period tabs down the left (Today, This week, This month, One-time, each with its reset time and ready count, plus a Daily check-in link), and one band per quest with progress, pay and an action column (Claim, Go to the page that finishes it, or a tick). Ranks are gone: play pays one flat rate. The weekly "Theme pick" quest waits for you to choose the theme on Themes.
+- **Check-in** (`pages/CheckinPage.tsx`, `components/CheckinBoard.tsx`, `styles/checkin.css`): the 7-day board as its own page. A "Station log" rail of picture tiles (Daily check-in with a Ready badge, Quests, Season Pass), a right-aligned title block with a kicker chip, a clock countdown (event end, or the next local midnight) and a "days claimed" count; the board sits in one panel. Claim logic is in `state/checkinBoard.ts` (pure) and `state/useCheckinBoard.ts`. The tab shows a dot while a box is claimable. Prizes (`checkinPrizes`) and an optional event window (`checkinEvent`) come from the CMS release; without them every box pays Special Tickets (1, 1, 2, 1, 1, 1, 3). An item prize is granted before the claim is saved.
+- **Wiki** (`pages/WikiPage.tsx`, `state/wikiData.ts`): built from the live release, never from `GACHA REDESIGN.md`. Opens on the collection hub (`components/CollectionHub.tsx`); each prize has details and a Showcase (`components/CardShowcase.tsx`). `wikiHiddenIds` in a release keeps prizes off it.
+- **Wiki: Skill tree section** (`state/perkWiki.ts`, tested in `service/test/perk-wiki.test.mjs`): built from the perk tree data, never the workbook, so it always matches the Perks page. A "How the skill tree works" page (points by player level, node kinds and costs, slot limits, rules, which effects work today), one page per class, one per named node (keystones, Season Keys, specials, pentagons, notables) and the small nodes grouped by name and effect. "How it works" opens from the rail as a full page in the Wiki panel (not a tile): the numbers that define the tree in one row, then its sections side by side. Nodes you have taken count as collected; each page has an "Open skill tree" button. Small-node tiles carry no counter. It is grid only and sorts by Kind, Class, Cost or Name; the arrow button next to the sort reverses any sort, in every section. The hub has a Skill tree node.
+- **News, Profile, Achievements, Pass, Perks:** see `../UI REFERENCE PLAN.md`.
+
+`GET /api/gamemode/active` now waits (up to 5 s) for start-up crash recovery and returns `recovering: true` if it is still running, so game mode is never reported on while it is being undone.
 
 ## Next
 

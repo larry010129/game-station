@@ -101,6 +101,118 @@ function regularExtraErrors(v, themes) {
   return errors;
 }
 
+/** `wikiHiddenIds` is optional: unique non-empty ids (themes, card skins or items). An id that no longer exists is harmless. */
+function wikiHiddenErrors(v) {
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v) || !v.every((id) => typeof id === "string" && id)) return ["wikiHiddenIds must be a list of ids"];
+  return new Set(v).size !== v.length ? ["wikiHiddenIds has duplicate ids"] : [];
+}
+
+const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/** `checkinEvent` is optional; when set, both local date-times are given and the end is after the start. */
+function checkinEventErrors(e) {
+  if (e == null) return [];
+  if (typeof e !== "object") return ["checkinEvent must be an object"];
+  if (!LOCAL_DATETIME.test(e.start || "") || !LOCAL_DATETIME.test(e.end || "")) return ["Check-in event: start and end must be YYYY-MM-DDTHH:mm"];
+  if (e.start >= e.end) return ["Check-in event: the end must be after the start"];
+  return [];
+}
+
+/** The two card packs share every setting; only the prize list and its statuses differ. */
+const CARD_PACK_KIND = { key: "cardPack", label: "Card Pack", listKey: "skins", noun: "skin", statuses: ["Hidden", "Available", "Archived"] };
+const WIDGET_PACK_KIND = { key: "widgetPack", label: "Widget Pack", listKey: "widgets", noun: "widget", statuses: ["Free", "Hidden", "Available", "Archived"] };
+
+/**
+ * `cardPack` / `widgetPack` are optional. `scale` is 100 for a draft (percent rows) and 1 for a release (fractions).
+ * Mirrors app validCardPack (gachaContent.ts) and cms/src/types/draft.ts cardAndCheckinErrors / widgetPackErrors.
+ * The Card Pack needs an Available skin while on; the Widget Pack may be on with none (the app just shows no tab),
+ * but an Available widget while it is off is a block: no one could win it, and it would stay locked.
+ */
+function packErrors(cp, scale, kind) {
+  const { key, label, listKey, noun, statuses } = kind;
+  if (cp == null) return [];
+  if (typeof cp !== "object") return [`${key} must be an object`];
+  const errors = [];
+  if (typeof cp.enabled !== "boolean") errors.push(`${key}.enabled must be true or false`);
+  if (cp.ticket !== "regular" && cp.ticket !== "special") errors.push(`${key}.ticket must be "regular" or "special"`);
+  // Numbers must be real numbers, as the app checks them (validCardPack): a "0.01" string would pass here and fail there.
+  const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+  if (!isNum(cp.priceOne) || !isNum(cp.priceTen) || !(cp.priceOne > 0) || !(cp.priceTen > 0)) errors.push(`${label} prices must be positive numbers`);
+  const w = cp.weights || {};
+  const rows = ["five", "four", "better", "common"].map((k) => w[k]);
+  if (rows.some((v) => !isNum(v) || v < 0)) errors.push(`${label}: row chances must be numbers from 0`);
+  const sum = rows.reduce((s, v) => s + (isNum(v) ? v : 0), 0);
+  // Exact (within rounding) at both scales, so a draft that passes here also passes as a release.
+  if (Math.abs(sum - scale) > scale * 1e-9) errors.push(`${label} row chances must total ${scale === 100 ? "100%" : "1"} (got ${sum})`);
+  for (const k of ["fourPityAfter", "fivePityAfter"]) if (!(Number.isInteger(cp[k]) && cp[k] >= 0)) errors.push(`${key}.${k} must be a whole number from 0`);
+  const sp = cp.softPity;
+  if (sp !== undefined) {
+    if (!sp || typeof sp !== "object") errors.push(`${label}: softPity must be an object or left out`);
+    else {
+      if (!(Number.isInteger(sp.from) && sp.from >= 1)) errors.push(`${label}: soft pity must start at draw 1 or later`);
+      else if (Number.isInteger(cp.fivePityAfter) && sp.from > cp.fivePityAfter) errors.push(`${label}: soft pity must start before the guaranteed draw ${cp.fivePityAfter + 1}`);
+      if (!(typeof sp.curve === "number" && sp.curve >= 0.2 && sp.curve <= 5)) errors.push(`${label}: the soft pity curve must be 0.2 to 5`);
+    }
+  }
+  if (cp.buy !== undefined) {
+    const b = cp.buy;
+    const price = (v) => v === null || (Number.isInteger(v) && v > 0);
+    if (!b || typeof b !== "object") errors.push(`${key}.buy must be an object`);
+    else {
+      if (!price(b.fourPrice) || !price(b.fivePrice)) errors.push(`${label}: buy prices must be whole numbers above 0, or null for draw-only`);
+      if (typeof b.crystalPick !== "boolean") errors.push(`${key}.buy.crystalPick must be true or false`);
+    }
+  }
+  const cv = cp.crystalValues || {};
+  if (!(Number.isInteger(cv.four) && cv.four >= 0) || !(Number.isInteger(cv.five) && cv.five >= 0)) errors.push(`${label}: repeat crystals must be whole numbers from 0`);
+  const list = cp[listKey];
+  const at = `${key}.${listKey}`;
+  if (!Array.isArray(list)) errors.push(`${at} must be a list`);
+  else {
+    const seen = new Set();
+    for (const s of list) {
+      if (!s || typeof s.id !== "string" || !s.id) errors.push(`${at}: every ${noun} needs an id`);
+      else if (seen.has(s.id)) errors.push(`${at}: ${s.id} is listed twice`);
+      else seen.add(s.id);
+      if (s && s.stars !== 4 && s.stars !== 5) errors.push(`${at}: ${s?.id} must be 4 or 5 stars`);
+      if (s && !statuses.includes(s.status)) errors.push(`${at}: ${s?.id} has an unknown status`);
+    }
+    const available = list.filter((s) => s?.status === "Available");
+    if (kind === CARD_PACK_KIND && cp.enabled === true && available.length === 0) errors.push("Card Pack is on but no skin is Available");
+    if (kind === WIDGET_PACK_KIND && cp.enabled === false && available.length > 0) {
+      errors.push(`Widget Pack is off but ${available.map((s) => s.id).join(", ")} ${available.length === 1 ? "is" : "are"} Available (drawable)`);
+    }
+    for (const s of list) if (s && s.locked !== undefined && typeof s.locked !== "boolean") errors.push(`${at}: ${s.id} locked must be true or false`);
+  }
+  return errors;
+}
+
+const cardPackErrors = (cp, scale) => packErrors(cp, scale, CARD_PACK_KIND);
+const widgetPackErrors = (wp, scale) => packErrors(wp, scale, WIDGET_PACK_KIND);
+
+/**
+ * `checkinPrizes` is optional: exactly 7 boxes, each tickets ("regular"/"special") or an item from `items`, with an
+ * amount from 1 to 99 (a one-time item pays exactly 1). Mirrors app validCheckinPrizes (gachaContent.ts).
+ */
+function checkinPrizeErrors(list, items) {
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) return ["checkinPrizes must be a list"];
+  const errors = [];
+  if (list.length !== 7) errors.push(`Check-in prizes: there must be exactly 7 days (has ${list.length})`);
+  list.forEach((p, i) => {
+    const at = `Check-in Day ${i + 1}`;
+    if (!p || typeof p !== "object") return void errors.push(`${at}: missing`);
+    if (!(Number.isInteger(p.count) && p.count >= 1 && p.count <= 99)) errors.push(`${at}: the amount must be a whole number from 1 to 99`);
+    if (p.kind === "item") {
+      const item = Array.isArray(items) ? items.find((x) => x?.id === p.id) : null;
+      if (!item) errors.push(`${at}: "${p.id}" is not an item`);
+      else if (!item.stackable && p.count !== 1) errors.push(`${at}: ${p.id} is a one-time item, so the amount must be 1`);
+    } else if (p.kind !== "regular" && p.kind !== "special") errors.push(`${at}: kind must be "regular", "special" or "item"`);
+  });
+  return errors;
+}
+
 /** Brand list must hold 2+ unique ids. */
 function brandListErrors(ids) {
   if (!Array.isArray(ids)) return ["brandThemeIds must be an array"];
@@ -185,9 +297,11 @@ export function validateCmsDraft(draft) {
   errors.push(...regionPackFlagErrors(draft.regionPackEnabled));
   errors.push(...packTicketErrors(draft.packTickets));
   errors.push(...regularExtraErrors(draft.regularExtraIds, draft.themes || []));
+  errors.push(...wikiHiddenErrors(draft.wikiHiddenIds));
   errors.push(...rainbowErrors(draft.rainbowThemeIds, draft.themes || []));
   const e = draft.economy || {};
   if (e.rainbowPityAfter !== undefined && !(e.rainbowPityAfter >= 0)) errors.push("rainbowPityAfter must be >= 0");
+  if (e.creditBigAmount !== undefined && !(Number.isFinite(e.creditBigAmount) && e.creditBigAmount >= 0)) errors.push("creditBigAmount must be >= 0");
   errors.push(...softPityErrors(e.softPity));
   for (const [key, label, after] of [
     ["regular", "Regular Pack", e.rainbowPityAfter ?? 89],
@@ -198,6 +312,10 @@ export function validateCmsDraft(draft) {
   }
 
   errors.push(...specialQueueErrors(specialQueueOf(draft), brandPool, draft.themes || []));
+  errors.push(...cardPackErrors(draft.cardPack, 100));
+  errors.push(...widgetPackErrors(draft.widgetPack, 100));
+  errors.push(...checkinEventErrors(draft.checkinEvent));
+  errors.push(...checkinPrizeErrors(draft.checkinPrizes, draft.items));
 
   return errors;
 }
@@ -215,6 +333,7 @@ export function validateGacha(raw) {
   if (!(c.lookPityAfter >= 0)) errors.push("lookPityAfter must be >= 0");
   if (!(c.brandPityAfter >= 0)) errors.push("brandPityAfter must be >= 0");
   if (c.rainbowPityAfter !== undefined && !(c.rainbowPityAfter >= 0)) errors.push("rainbowPityAfter must be >= 0");
+  if (c.creditBigAmount !== undefined && !(Number.isFinite(c.creditBigAmount) && c.creditBigAmount >= 0)) errors.push("creditBigAmount must be >= 0");
   errors.push(...softPityErrors(c.softPity));
   if (!(c.weeklyPickCap >= 0)) errors.push("weeklyPickCap must be >= 0");
   if (!(c.regularCrystalCost > 0)) errors.push("regularCrystalCost must be > 0");
@@ -228,7 +347,12 @@ export function validateGacha(raw) {
   errors.push(...regionPackFlagErrors(c.regionPackEnabled));
   errors.push(...packTicketErrors(c.packTickets));
   errors.push(...regularExtraErrors(c.regularExtraIds, null));
+  errors.push(...wikiHiddenErrors(c.wikiHiddenIds));
   errors.push(...rainbowErrors(c.rainbowThemeIds, null));
+  errors.push(...cardPackErrors(c.cardPack, 1));
+  errors.push(...widgetPackErrors(c.widgetPack, 1));
+  errors.push(...checkinEventErrors(c.checkinEvent));
+  errors.push(...checkinPrizeErrors(c.checkinPrizes, c.items));
   if (Array.isArray(c.rainbowThemeIds) && Array.isArray(c.brandThemeIds)) {
     for (const id of c.rainbowThemeIds) if (c.brandThemeIds.includes(id)) errors.push(`rainbowThemeIds: ${id} is a Brand theme`);
   }

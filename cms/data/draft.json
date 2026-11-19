@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-16T06:55:11.289Z",
+  "updatedAt": "2026-11-17T23:36:49.353Z",
   "releaseNotes": "Rainbow 5-star themes: 8 Regular themes are now rainbow (5★) and can only be won from draws. Regular Pack: a rainbow is guaranteed within 90 draws. Brand and Region packs: a rainbow is a featured theme or a rainbow Regular theme, guaranteed within 70 draws. Open Published odds in any pack to see every chance.",
   "economy": {
     "lookCost": 120,
@@ -3064,7 +3064,7 @@
       "id": "intel-blue",
       "name": "Intel Blue",
       "group": "Brand",
-      "status": "Hidden",
+      "status": "Available",
       "palette": {
         "bg": "#0c1317",
         "card": "#151d23",
@@ -5893,7 +5893,7 @@
   "releases": [],
   "weeklySpecial": null,
   "regionWeek": null,
-  "regionPackEnabled": true,
+  "regionPackEnabled": false,
   "rainbowThemeIds": [
     "retro-arcade",
     "neon-magenta",
@@ -5927,5 +5927,328 @@
         "amd-red"
       ]
     }
-  ]
+  ],
+  "cardPack": {
+    "enabled": true,
+    "ticket": "special",
+    "priceOne": 120,
+    "priceTen": 1080,
+    "weights": {
+      "five": 1,
+      "four": 10,
+      "better": 25,
+      "common": 64
+    },
+    "fourPityAfter": 9,
+    "fivePityAfter": 79,
+    "softPity": {
+      "from": 60,
+      "curve": 2.99
+    },
+    "crystalValues": {
+      "four": 2,
+      "five": 5
+    },
+    "skins": [
+      {
+        "id": "carbon-weave",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "brushed-steel",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "blueprint",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "velvet-night",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "circuit-trace",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "frosted-glass",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "scanline",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "gilded-edge",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "topo-lines",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "hex-mesh",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "paper-grain",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "neon-rim",
+        "stars": 4,
+        "status": "Available"
+      },
+      {
+        "id": "holo-foil",
+        "stars": 5,
+        "status": "Available"
+      },
+      {
+        "id": "aurora-drift",
+        "stars": 5,
+        "status": "Available"
+      },
+      {
+        "id": "solar-flare",
+        "stars": 5,
+        "status": "Available"
+      },
+      {
+        "id": "prism-glass",
+        "stars": 5,
+        "status": "Available"
+      },
+      {
+        "id": "molten-core",
+        "stars": 5,
+        "status": "Available"
+      },
+      {
+        "id": "starfield",
+        "stars": 5,
+        "status": "Available"
+      }
+    ]
+  },
+  "widgetPack": {
+    "enabled": true,
+    "ticket": "special",
+    "priceOne": 120,
+    "priceTen": 1080,
+    "weights": {
+      "five": 1,
+      "four": 10,
+      "better": 25,
+      "common": 64
+    },
+    "fourPityAfter": 9,
+    "fivePityAfter": 69,
+    "softPity": {
+      "from": 60,
+      "curve": 2.99
+    },
+    "crystalValues": {
+      "four": 2,
+      "five": 5
+    },
+    "buy": {
+      "fourPrice": 300,
+      "fivePrice": null,
+      "crystalPick": true
+    },
+    "widgets": [
+      {
+        "id": "gpu",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "load",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "uplink",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "chart",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "alerts",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "gamemode",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "feed",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "media",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "calendar",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "spotify",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "wavelink",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "memory",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "power",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "regionping",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "jitter",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "wifi",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "verdict",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "trend",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "patch",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "season",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "steam",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "queue",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "airesearch",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "tierlist",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "mappicks",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "bestpicks",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "heroprofile",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "session",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "playhistory",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "report",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "gmhistory",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "clocks",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "cost",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "library",
+        "stars": 4,
+        "status": "Free"
+      },
+      {
+        "id": "discord",
+        "stars": 5,
+        "status": "Free"
+      },
+      {
+        "id": "notes",
+        "stars": 4,
+        "status": "Free"
+      }
+    ]
+  }
 }

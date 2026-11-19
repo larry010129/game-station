@@ -1,0 +1,41 @@
+/* Daily check-in page, after the "Travel Log" window of a game's login rewards: a rail of entries on the left; on the
+   right a big right-aligned title with a clock countdown, and the board in one raised panel.
+   Layout pattern only; every colour is a :root token so themes and card skins carry over. */
+.ckp { display: grid; grid-template-columns: 188px minmax(0, 1fr); gap: 20px; align-items: start; }
+.ckp-rail { position: relative; display: flex; flex-direction: column; gap: 10px; padding-left: 12px; }
+/* The thin line down the rail's left edge, as in the reference. */
+.ckp-rail::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: var(--edge); }
+.ckp-rail-title { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; color: var(--text); font-size: 15px; font-weight: 400; }
+.ckp-rail-title svg { width: 20px; height: 20px; color: var(--accent); }
+.ckp-tiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ckp-tile {
+  position: relative; display: block; width: 100%; aspect-ratio: 16 / 6.4; overflow: hidden; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 26%, var(--glass-solid)), var(--glass-solid) 70%);
+  box-shadow: 0 0 0 1px var(--edge); color: var(--text); font: inherit; text-align: left; transition: box-shadow 0.15s, transform 0.2s var(--ease);
+}
+.ckp-tile-art { position: absolute; right: -6px; top: -8px; width: 72%; height: auto; aspect-ratio: 1; opacity: 0.16; stroke-width: 1.2; }
+.ckp-tile-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 10px 6px; background: linear-gradient(transparent, color-mix(in srgb, var(--bg, #000) 70%, transparent)); font-size: 13px; font-weight: 500; }
+.ckp-tile-badge { position: absolute; top: 6px; right: 6px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--on-text); font-size: 11px; font-weight: 600; }
+.ckp-tile:hover { transform: translateX(2px); }
+.ckp-tile[aria-current="page"] { cursor: default; transform: translateX(8px); box-shadow: 0 0 0 1px var(--text), 0 0 0 3px color-mix(in srgb, var(--text) 18%, transparent); }
+.ckp-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .ckp-tile { transition: none; } .ckp-tile:hover { transform: none; } }
+.ckp-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ckp-head { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; }
+.ckp-head h2 { margin: 0; font-size: 30px; font-weight: 300; letter-spacing: -0.01em; }
+.ckp-meta { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--dim); }
+.ckp-time { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--text); color: var(--on-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ckp-time svg { width: 14px; height: 14px; }
+.ckp-day strong { color: var(--text); font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ckp-panel { padding: 18px; border-radius: var(--r); background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge); }
+.ckp .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 760px) {
+  .ckp { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ckp-rail { padding-left: 0; }
+  .ckp-rail::before { display: none; }
+  .ckp-tiles { flex-direction: row; overflow-x: auto; padding: 4px 2px 6px; }
+  .ckp-tiles li { flex: 0 0 150px; }
+  .ckp-tile[aria-current="page"] { transform: none; }
+  .ckp-head { align-items: flex-start; text-align: left; }
+}
+@media (max-width: 560px) { .ckp-panel { padding: 12px; } .ckp-head h2 { font-size: 22px; } }

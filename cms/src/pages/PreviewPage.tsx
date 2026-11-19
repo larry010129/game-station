@@ -64,7 +64,7 @@ export function PreviewPage() {
 
           <div className="px-4 py-3">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge tone="info">{table.priceOne} Credits</Badge>
+              <Badge tone="info">{table.priceOne} Income</Badge>
               <Badge tone="neutral">10 draws · {table.priceTen}</Badge>
               <Badge tone="neutral">
                 Look pity after {draft.economy.lookPityAfter}
@@ -99,7 +99,7 @@ export function PreviewPage() {
             </table>
 
             <p className="mt-4 text-xs text-muted">
-              Chosen look still costs {draft.economy.lookCost} Credits. Odds
+              Chosen look still costs {draft.economy.lookCost} Income. Odds
               shown are the current draft — publish to push to the app.
             </p>
           </div>

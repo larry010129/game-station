@@ -1,10 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { CreditBalance } from "../components/CreditIcon";
 import { createPortal } from "react-dom";
 import { Icon } from "../components/Icon";
 import { gachaBannerIsNew } from "./DrawPage";
 import { ShimmerButton } from "../components/ShimmerButton";
 import { ThemeTune } from "../components/ThemeTune";
 import { ThemePanel } from "../components/ThemePanel";
+import { CardSkinPicker } from "../components/CardSkinPicker";
+import { BootStylePicker } from "../components/BootStylePicker";
 import { FONTS, fontOf, fontStack, moduleJson, toHex, type FontKey, type Palette, type ThemeDef } from "../state/palette";
 import {
   CREDIT_NAME,
@@ -423,10 +426,10 @@ function UnlockThemeDialog({
             <h2 id={titleId}>{name}</h2>
             <p id={descId}>
               {brandOnly && rainbow
-                ? "Rainbow look. Win it from a draw: the Regular Pack's rainbow row, or a rainbow from the Brand or Region Pack. Credits, weekly unlocks and Regular crystals cannot open it."
+                ? "Rainbow theme. Win it from a draw: the Regular Pack's rainbow row, or a rainbow from the Brand or Region Pack. Income, weekly unlocks and Regular fragments cannot open it."
                 : brandOnly
-                ? "Brand look. Win it from the Brand Pack (draw, pity, or Special crystals). Credits and weekly unlocks cannot open it."
-                : `Locked. Use a weekly unlock, or spend ${CREDIT_NAME.toLowerCase()}. Every locked look costs the same.`}
+                ? "Brand theme. Win it from the Brand Pack (draw, pity, or Special fragments). Income and weekly unlocks cannot open it."
+                : `Locked. Use a weekly unlock, or spend ${CREDIT_NAME}. Every locked theme costs the same.`}
             </p>
           </div>
           <button type="button" className="theme-unlock-x" aria-label="Close" onClick={onClose}>
@@ -443,7 +446,10 @@ function UnlockThemeDialog({
         ) : (
           <>
             <p className="theme-unlock-balance" aria-live="polite">
-              Balance <strong>{formatCredits(balance)}</strong>
+              Balance{" "}
+              <strong>
+                <CreditBalance amount={balance} />
+              </strong>
             </p>
 
             <div className="theme-unlock-paths" role="group" aria-label="Unlock options">
@@ -454,7 +460,7 @@ function UnlockThemeDialog({
                 </div>
                 <p>
                   {waiting > 0
-                    ? "Pick this look with a weekly unlock. It costs nothing."
+                    ? "Pick this theme with a weekly unlock. It costs nothing."
                     : "Check in on 5 different days in one week to earn one. Find it under Quests."}
                 </p>
                 <button type="button" className="pill-btn" disabled={waiting < 1} aria-disabled={waiting < 1} onClick={useWeekly}>
@@ -467,10 +473,10 @@ function UnlockThemeDialog({
                   <h3 id="unlock-credits-title">Spend {CREDIT_NAME}</h3>
                   <span className="theme-unlock-price">{formatCredits(LOOK_COST)}</span>
                 </div>
-                <p>Spending {CREDIT_NAME.toLowerCase()} never uses up a waiting weekly unlock.</p>
+                <p>Spending {CREDIT_NAME} never uses up a waiting weekly unlock.</p>
                 {(!canAfford || short) && (
                   <p className="theme-unlock-short" role="alert">
-                    Not enough {CREDIT_NAME.toLowerCase()}: need {LOOK_COST}, you have {balance}.
+                    Not enough {CREDIT_NAME}: need {LOOK_COST}, you have {balance}.
                   </p>
                 )}
                 <button
@@ -657,7 +663,7 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
       <header className="themes-head">
         <h2>Themes</h2>
         <p>
-          {freeCount + shopLocked} looks on the floor now: the first {freeCount} are free and {shopLocked} are locked. Hidden Brand looks stay off the list until announced. You can also make or upload your own.
+          {freeCount + shopLocked} themes on the floor now: the first {freeCount} are free and {shopLocked} are locked. Hidden Brand themes stay off the list until announced. You can also make or upload your own.
         </p>
       </header>
 
@@ -686,7 +692,7 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
           />
           <ShimmerButton className="theme-draw-btn" onClick={onOpenDraw}>
             <Icon name="sparkles" small />
-            Draw Theme
+            Draw
             {gachaBannerIsNew() && <span className="gacha-new">New</span>}
           </ShimmerButton>
         </div>
@@ -698,6 +704,10 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
           ))}
         </div>
       </div>
+
+      <CardSkinPicker onOpenDraw={onOpenDraw} />
+
+      <BootStylePicker image={look.image} onOpenDraw={onOpenDraw} />
 
       {themes.length === 0 && !showRandom && pastThemes.length === 0 ? (
         <p className="hint">No themes match that.</p>
@@ -731,7 +741,7 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
                 Locked <span>{lockedThemes.length}</span>
               </h3>
               <p className="hint">
-                Open a regular look with a weekly unlock or {CREDIT_NAME.toLowerCase()}, or win it in a draw. Brand looks come only from the Brand Pack.
+                Open a regular theme with a weekly unlock or {CREDIT_NAME}, or win it in a draw. Brand themes come only from the Brand Pack.
               </p>
               <div className="theme-grid">
                 {lockedThemes.map((t) => (
@@ -745,7 +755,7 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
               <h3 id="themes-past" className="theme-section-title">
                 Past themes <span>{pastThemes.length}</span>
               </h3>
-              <p className="hint">These left the shop. They are not for sale and cannot be drawn. A look you already own stays under Unlocked.</p>
+              <p className="hint">These left the shop. They are not for sale and cannot be drawn. A theme you already own stays under Unlocked.</p>
               <div className="theme-grid">
                 {pastThemes.map((t) => (
                   <PastThemeCard key={t.id} theme={t} />
@@ -783,10 +793,10 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
       <div className="themes-split">
         <section className="vault-card" aria-label="Create a theme">
           <h3>Create</h3>
-          <p className="hint">Build a look on this PC. It stays in Yours.</p>
+          <p className="hint">Build a theme on this PC. It stays in Yours.</p>
           {!brandEditor ? (
             <p className="hint" role="status">
-              The brand-colour editor comes with the Silver tier and above, and with Creator access. Credits and weekly unlocks cannot open it. Log in with Patreon on the Support page.
+              The brand-colour editor comes with the Silver tier and above, and with Creator access. Income and weekly unlocks cannot open it. Log in with Patreon on the Support page.
             </p>
           ) : !making ? (
             <button type="button" className="pill-btn" onClick={startCreate}>

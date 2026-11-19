@@ -1,16 +1,18 @@
 import { memo } from "react";
 import { clockTime } from "../lib/format";
 import type { GameId } from "../lib/games";
-import { formatCredits, useStationCredits } from "../state/stationCredits";
+import { useStationCredits } from "../state/stationCredits";
 import { useClock } from "../state/useEnvironment";
 import type { TabId } from "../layout/layouts";
+import { CreditIcon } from "./CreditIcon";
 import { Icon } from "./Icon";
 import { PatronMenu } from "./PatronMenu";
+import { useT } from "../lib/i18n";
 import { Segmented } from "./Segmented";
 
 interface Props {
   tab: TabId;
-  tabs: readonly { id: TabId; label: string }[];
+  tabs: readonly { id: TabId; label: string; count?: number }[];
   onTab: (tab: TabId) => void;
   game: GameId;
   games: readonly { id: GameId; label: string }[];
@@ -25,6 +27,8 @@ interface Props {
   onEdit: () => void;
   onTheme: () => void;
   onVault: () => void;
+  /** Opens the profile panel. */
+  onProfile: () => void;
   /** Opens the Support page. A tip does not change Credits. */
   onBuyCredits: () => void;
   /** Opens another pane beside this one. */
@@ -43,9 +47,10 @@ function Clock() {
   return <b>{clockTime(now)}</b>;
 }
 
-export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGame, displayName, modeLabel, calm, onCalm, stopped, onKill, editing, onEdit, onTheme, onVault, onBuyCredits, onSplit, panes, maxPanes, onTrim, trimming }: Props) {
+export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGame, displayName, modeLabel, calm, onCalm, stopped, onKill, editing, onEdit, onTheme, onVault, onProfile, onBuyCredits, onSplit, panes, maxPanes, onTrim, trimming }: Props) {
   const name = displayName.trim();
-  const shown = name || "Your name";
+  const T = useT();
+  const shown = name || T("top.yourName");
   const credits = useStationCredits();
   return (
     <header className="top">
@@ -54,35 +59,46 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
       </div>
       <div className="game-switch">
         <Segmented
-          label="Game"
+          label={T("top.game")}
           value={game}
           options={games.map((g) => ({ value: g.id, label: g.label }))}
           onChange={onGame}
         />
       </div>
-      <nav className="nav" aria-label="Pages">
+      <nav className="nav" aria-label={T("top.pages")}>
         {tabs.map((s) => (
           <button key={s.id} type="button" aria-current={tab === s.id ? "page" : undefined} onClick={() => onTab(s.id)}>
             {s.label}
+            {s.count ? (
+              <span className="nav-count" aria-label={T("top.unread", { n: s.count })}>
+                {s.count > 99 ? "99+" : s.count}
+              </span>
+            ) : null}
           </button>
         ))}
       </nav>
       <div className="sp" />
-      <div className="top-credits" role="group" aria-label="Credits balance">
-        <span className="top-credits-bal">{formatCredits(credits)}</span>
+      <div className="top-credits" role="group" aria-label={T("top.balance")}>
+        <span className="top-credits-bal">
+          <CreditIcon className="" />
+          {credits}
+        </span>
         <button
           type="button"
           className="top-credits-add"
           aria-pressed={tab === "buy-credits"}
-          title="Support. Credits stay the same."
+          title={T("top.supportTitle")}
           onClick={onBuyCredits}
         >
-          Support
+          {T("top.support")}
         </button>
       </div>
       <PatronMenu />
       <span className="meta">
-        <span className={name ? undefined : "name-ph"}>{shown}</span> · <b>{modeLabel}</b>
+        <button type="button" className={`meta-name${name ? "" : " name-ph"}`} aria-haspopup="dialog" title={T("top.openProfile")} onClick={onProfile}>
+          {shown}
+        </button>{" "}
+        · <b>{modeLabel}</b>
       </span>
       <div className="status">
         <span className="meta">
@@ -91,14 +107,14 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
       </div>
       <button className="pill-btn edit-toggle" aria-pressed={editing} onClick={onEdit}>
         <Icon name="layout" small />
-        {editing ? "Done" : "Edit layout"}
+        {editing ? T("top.done") : T("top.editLayout")}
       </button>
-      <div className="tools" role="toolbar" aria-label="Tools">
+      <div className="tools" role="toolbar" aria-label={T("top.tools")}>
       <button
         className="ib"
         aria-busy={trimming}
-        aria-label="Clean up this app's memory"
-        title="Clean up this app's memory"
+        aria-label={T("top.trim")}
+        title={T("top.trim")}
         disabled={trimming}
         onClick={onTrim}
       >
@@ -106,19 +122,22 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
       </button>
       <button
         className="ib split-add"
-        aria-label={panes < maxPanes ? `Split view: open another pane (${panes} of ${maxPanes})` : `Split view is full (${maxPanes} panes)`}
-        title={panes < maxPanes ? `Split view: open another pane (${panes} of ${maxPanes})` : `Split view is full (${maxPanes} panes)`}
+        aria-label={panes < maxPanes ? T("top.splitOpen", { n: panes, max: maxPanes }) : T("top.splitFull", { max: maxPanes })}
+        title={panes < maxPanes ? T("top.splitOpen", { n: panes, max: maxPanes }) : T("top.splitFull", { max: maxPanes })}
         disabled={panes >= maxPanes}
         onClick={onSplit}
       >
         <Icon name="split" />
       </button>
+      <button className="ib" aria-haspopup="dialog" aria-label={T("top.profile")} title={T("top.profile")} onClick={onProfile}>
+        <Icon name="user" />
+      </button>
       <button
         className="ib"
         data-theme-toggle
         aria-pressed={tab === "themes"}
-        aria-label="Themes"
-        title="Themes"
+        aria-label={T("top.themes")}
+        title={T("top.themes")}
         onClick={onTheme}
       >
         <Icon name="palette" />
@@ -126,8 +145,8 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
       <button
         className="ib"
         aria-pressed={tab === "vault"}
-        aria-label="Vault settings"
-        title="Vault settings"
+        aria-label={T("top.vault")}
+        title={T("top.vault")}
         onClick={onVault}
       >
         <Icon name="settings" />
@@ -136,8 +155,8 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
         className="ib"
         role="switch"
         aria-checked={calm}
-        aria-label="Reduce motion"
-        title="Reduce motion"
+        aria-label={T("top.calm")}
+        title={T("top.calm")}
         onClick={onCalm}
       >
         <Icon name="motion" />
@@ -145,8 +164,8 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
       <button
         className="ib kill"
         aria-pressed={stopped}
-        aria-label={stopped ? "Resume monitoring" : "Kill switch: stop all monitoring"}
-        title={stopped ? "Resume monitoring" : "Kill switch"}
+        aria-label={stopped ? T("top.resume") : T("top.kill")}
+        title={stopped ? T("top.resume") : T("top.killShort")}
         onClick={onKill}
       >
         <Icon name="power" />

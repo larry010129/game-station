@@ -15,7 +15,7 @@ function run(dates, s = emptyBoard()) {
   return s;
 }
 
-test("a run pays 5 Regular Tickets (Days 1, 2, 4, 5, 6) and 5 Special Tickets (2 on Day 3, 3 on Day 7)", () => {
+test("a run pays only Special Tickets: 1 a day, 2 on Day 3 and 3 on Day 7 (10 in all)", () => {
   assert.equal(BOARD_PRIZES.length, 7);
   const paid = [];
   let s = emptyBoard();
@@ -24,8 +24,8 @@ test("a run pays 5 Regular Tickets (Days 1, 2, 4, 5, 6) and 5 Special Tickets (2
     paid.push([r.day, r.kind, r.count]);
     s = r.state;
   }
-  assert.deepEqual(paid, [[1, "regular", 1], [2, "regular", 1], [3, "special", 2], [4, "regular", 1], [5, "regular", 1], [6, "regular", 1], [7, "special", 3]]);
-  assert.deepEqual(s.tickets, { regular: 5, special: 5 });
+  assert.deepEqual(paid, [[1, "special", 1], [2, "special", 1], [3, "special", 2], [4, "special", 1], [5, "special", 1], [6, "special", 1], [7, "special", 3]]);
+  assert.deepEqual(s.tickets, { regular: 0, special: 10 });
 });
 
 test("a claim needs today's check-in", () => {
@@ -54,8 +54,17 @@ test("Day 7 shows claimed for the rest of that day, then the board restarts at D
   assert.equal(shownClaimed(s, at(2026, 11, 9)), 0);
   const r = claimBoard(s, true, at(2026, 11, 9));
   assert.equal(r.day, 1);
-  assert.deepEqual([r.kind, r.count], ["regular", 1]);
-  assert.deepEqual(r.state.tickets, { regular: 6, special: 5 });
+  assert.deepEqual([r.kind, r.count], ["special", 1]);
+  assert.deepEqual(r.state.tickets, { regular: 0, special: 11 });
+});
+
+test("outside the CMS check-in event nothing can be claimed; Regular Tickets held before stay spendable", () => {
+  const closed = emptyBoard();
+  assert.equal(canClaimBoard(closed, true, at(2026, 11, 15), false), false);
+  assert.equal(claimBoard(closed, true, at(2026, 11, 15), false), null);
+  assert.ok(claimBoard(closed, true, at(2026, 11, 15), true));
+  const old = { ...emptyBoard(), tickets: { regular: 2, special: 0 } };
+  assert.deepEqual(spendBoardTickets(old, "regular", 2).tickets, { regular: 0, special: 0 });
 });
 
 test("setting the clock back cannot claim again", () => {
@@ -83,16 +92,35 @@ test("tickets saved before the Regular/Special split become Special Tickets", ()
 
 test("each pack takes its ticket kind: defaults, and a release can change them", async () => {
   const { BUNDLED_CONTENT, ticketFor, regularExtraIds, validateContent, setContent, resetContent, getContent } = await import("../../src/state/gachaContent.ts");
-  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p)), ["regular", "special", "special"]);
+  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p)), ["special", "special", "special"]);
   assert.deepEqual(regularExtraIds(), []);
   const release = { ...BUNDLED_CONTENT, packTickets: { brand: "regular" }, regularExtraIds: ["spotify-night"] };
   assert.equal(validateContent(release), true);
   assert.equal(setContent(release), true);
-  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p, getContent())), ["regular", "regular", "special"]);
+  assert.deepEqual(["regular", "brand", "region"].map((p) => ticketFor(p, getContent())), ["special", "regular", "special"]);
   assert.deepEqual(regularExtraIds(getContent()), ["spotify-night"]);
   resetContent();
   assert.equal(validateContent({ ...BUNDLED_CONTENT, packTickets: { brand: "gold" } }), false);
   assert.equal(validateContent({ ...BUNDLED_CONTENT, packTickets: { mystery: "special" } }), false);
   assert.equal(validateContent({ ...BUNDLED_CONTENT, regularExtraIds: ["a", "a"] }), false);
   assert.equal(validateContent({ ...BUNDLED_CONTENT, regularExtraIds: "a" }), false);
+});
+
+test("each day pays what the CMS set: tickets of either kind, or an item that leaves the wallet as it is", () => {
+  const prizes = [
+    { kind: "regular", count: 2 },
+    { kind: "item", id: "streak-freeze", count: 3 },
+    { kind: "special", count: 1 },
+    { kind: "special", count: 1 },
+    { kind: "special", count: 1 },
+    { kind: "special", count: 1 },
+    { kind: "special", count: 5 },
+  ];
+  const d1 = claimBoard(emptyBoard(), true, at(2026, 11, 2), true, prizes);
+  assert.deepEqual([d1.kind, d1.count], ["regular", 2]);
+  assert.deepEqual(d1.state.tickets, { regular: 2, special: 0 });
+  const d2 = claimBoard(d1.state, true, at(2026, 11, 3), true, prizes);
+  assert.deepEqual(d2.prize, { kind: "item", id: "streak-freeze", count: 3 });
+  assert.deepEqual(d2.state.tickets, { regular: 2, special: 0 });
+  assert.equal(d2.state.claimed, 2);
 });

@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Perk Node Icons</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg: #0a0a0b; --panel: #151518; --edge: rgba(255,255,255,.1); --text: #efefef; --dim: #9a9a9e; --ui: "Outfit", system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 300 14px/1.5 var(--ui); padding: 32px 24px 64px; }
+  h1 { margin: 0 0 4px; font-size: 26px; font-weight: 600; }
+  h2 { margin: 40px 0 6px; font-size: 18px; font-weight: 500; }
+  p.lead { margin: 0; color: var(--dim); max-width: 75ch; }
+  p.note { margin: 0 0 16px; color: var(--dim); max-width: 75ch; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 10px 12px; border-radius: 14px; background: var(--panel); box-shadow: 0 0 0 1px var(--edge); text-align: center; }
+  .card b { font-size: 13px; font-weight: 500; }
+  .card small { color: var(--dim); font-size: 11.5px; line-height: 1.35; }
+  .card code { color: #8c8c91; font-size: 10.5px; }
+  .row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; }
+  .frame-demo { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--dim); font-size: 12px; }
+  .regions { display: flex; flex-wrap: wrap; gap: 22px 28px; }
+  .reg { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+  .reg .set { display: flex; gap: 10px; align-items: center; }
+  .tones { display: flex; gap: 4px; }
+  .tones i { width: 22px; height: 8px; border-radius: 2px; }
+  .tones i:nth-child(1) { background: var(--ta); }
+  .tones i:nth-child(2) { background: var(--tb); }
+  .tones i:nth-child(3) { background: var(--tc); }
+  .tree { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; }
+  .tree-label { margin: 20px 0 8px; color: var(--dim); font-size: 12.5px; }
+  .tree div { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; max-width: 720px; }
+
+  /* ---- Tone system -------------------------------------------------------------------------------------------
+     Every icon is drawn in three tones of ONE colour, plus a cut tone. The tones are mixed from the region colour
+     (--rc) down toward the surface the icon sits on, so light regions (Station, Check-in) keep a full ramp.
+       --ta  lit faces, the main shape          --tb  planes turned away from the light
+       --tc  recesses and far layers            --tk  cuts: holes, marks, gaps (the surface behind the icon)
+       --tw  strength of the one white glint
+     Modelled on the currency icons in the app (.cur-ic in app.css), but the variables are not the same ones:
+     there --tc is the base colour, here it is the recess. */
+  .perk, .ic {
+    --rc: #e6ebf3; --disc: #17171a;
+    --ta: var(--rc);
+    --tb: color-mix(in srgb, var(--rc) 58%, var(--disc));
+    --tc: color-mix(in srgb, var(--rc) 32%, var(--disc));
+    --tk: var(--disc);
+    --tw: .42;
+  }
+  .ic { --disc: var(--panel); width: 40px; height: 40px; }
+  /* Not reachable yet: the same ramp in grey. */
+  .perk[data-state="locked"] { --ta: #6c6c72; --tb: #4b4b50; --tc: #323236; --tw: .1; }
+  /* Taken: the disc fills with the region colour, so the ramp flips to dark ink on colour. */
+  .perk[data-state="taken"] {
+    --ink: #131316;
+    --ta: var(--ink);
+    --tb: color-mix(in srgb, var(--rc) 40%, var(--ink));
+    --tc: color-mix(in srgb, var(--rc) 68%, var(--ink));
+    --tk: var(--rc);
+    --tw: .14;
+  }
+  .perk[data-type="start"] { --tk: color-mix(in srgb, var(--rc) 20%, var(--bg)); }
+
+  /* build.py copies the classes between tones:start and tones:end into the tree sample. Keep both markers. */
+  /* tones:start */
+  .ta { fill: var(--ta); } .tb { fill: var(--tb); } .tc { fill: var(--tc); } .tk { fill: var(--tk); }
+  .la, .lb, .lc, .lk, .hl { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .la { stroke: var(--ta); } .lb { stroke: var(--tb); } .lc { stroke: var(--tc); } .lk { stroke: var(--tk); }
+  .oa, .ob, .ok { stroke-linejoin: round; }
+  .oa { stroke: var(--ta); } .ob { stroke: var(--tb); }
+  .ok { stroke: var(--tk); paint-order: stroke; }
+  .hl { stroke: #fff; stroke-opacity: var(--tw); }
+  .butt { stroke-linecap: butt; }
+  /* tones:end */
+</style>
+</head>
+<body>
+<h1>Perk node icons</h1>
+<p class="lead">One icon per <i>kind of effect</i>, reused on every node with that effect, so 500 nodes need only 25 icons. The node's <b>frame</b> says what type it is (small, notable, keystone, bridge), and its <b>colour</b> says which region it belongs to. All drawn as shaded icons in three tones of the region colour, lit from the top left like the currency icons, with no gold.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- build.py copies everything between icons:start and icons:end into the tree sample. Keep both markers. -->
+    <!-- icons:start -->
+    <!-- Credits -->
+    <symbol id="i-coin" viewBox="0 0 24 24">
+      <circle class="tc" cx="12" cy="13.2" r="9"/>
+      <circle class="ta" cx="12" cy="11.4" r="9"/>
+      <circle class="tb" cx="12" cy="11.4" r="6.4"/>
+      <path class="la" stroke-width="2" d="M12 8.4v6M9 11.4h6"/>
+      <path class="hl" stroke-width="1.1" d="M4.56 9.41A7.7 7.7 0 0 1 8.75 4.42"/>
+    </symbol>
+    <symbol id="i-clock-coin" viewBox="0 0 24 24">
+      <circle class="ta" cx="10.4" cy="10.6" r="8.2"/>
+      <circle class="tc" cx="10.4" cy="10.6" r="5.9"/>
+      <path class="la" stroke-width="1.9" d="M10.4 7.1v3.5l2.4 1.7"/>
+      <path class="hl" stroke-width="1" d="M3.7 8.6a7 7 0 0 1 3.9-4.4"/>
+      <circle class="tk" cx="17.6" cy="17.4" r="5.5"/>
+      <circle class="ta" cx="17.6" cy="17.4" r="4.1"/>
+      <path class="lk" stroke-width="1.3" d="M17.6 15.6v3.6M15.8 17.4h3.6"/>
+    </symbol>
+    <symbol id="i-stack" viewBox="0 0 24 24">
+      <path class="tc" d="M3.6 9v8.4a7 2.8 0 0 0 14 0V9Z"/>
+      <path class="tb" d="M3.6 9v5.6a7 2.8 0 0 0 14 0V9Z"/>
+      <path class="lk" stroke-width="1" d="M3.6 11.8a7 2.8 0 0 0 14 0M3.6 14.6a7 2.8 0 0 0 14 0"/>
+      <ellipse class="ta" cx="10.6" cy="9" rx="7" ry="2.8"/>
+      <ellipse class="tb" cx="10.6" cy="9" rx="4.2" ry="1.5"/>
+      <path class="ta" d="M19 1.6 20.1 3.7 22.2 4.8 20.1 5.9 19 8 17.9 5.9 15.8 4.8 17.9 3.7Z"/>
+    </symbol>
+    <symbol id="i-percent" viewBox="0 0 24 24">
+      <rect class="tb" x="4.8" y="4.8" width="14.4" height="14.4" rx="3.2"/>
+      <rect class="tb" x="4.8" y="4.8" width="14.4" height="14.4" rx="3.2" transform="rotate(45 12 12)"/>
+      <circle class="ta" cx="12" cy="12" r="6.7"/>
+      <path class="lk" stroke-width="1.7" d="M14.9 9.1 9.1 14.9"/>
+      <circle class="tk" cx="9.4" cy="9.4" r="1.45"/>
+      <circle class="tk" cx="14.6" cy="14.6" r="1.45"/>
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <path class="la" stroke-width="2" d="M12 3v2.1M12 18.9V21M3 12h2.1M18.9 12H21"/>
+      <path class="lb" stroke-width="2" d="M5.64 5.64l1.48 1.48M16.88 16.88l1.48 1.48M5.64 18.36l1.48-1.48M16.88 7.12l1.48-1.48"/>
+      <circle class="ta" cx="12" cy="12" r="4.6"/>
+      <path class="hl" stroke-width="1" d="M9.3 11.3a2.9 2.9 0 0 1 2-2"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <circle class="tc" cx="11.65" cy="12.35" r="8"/>
+      <path class="ta" d="M19.5 13.9A8 8 0 1 1 10.1 4.5a6.9 6.9 0 0 0 9.4 9.4Z"/>
+      <path class="ta" d="M15.7 5.9 16.6 7.6 18.3 8.5 16.6 9.4 15.7 11.1 14.8 9.4 13.1 8.5 14.8 7.6Z"/>
+    </symbol>
+    <!-- Season Pass -->
+    <symbol id="i-xp" viewBox="0 0 24 24">
+      <path class="ta oa" stroke-width="1" d="M12 2.8 14.53 8.92 21.13 9.43 16.09 13.73 17.64 20.17 12 16.7 6.36 20.17 7.91 13.73 2.87 9.43 9.47 8.92Z"/>
+      <path class="tb" d="M12 12.4V2.8l2.53 6.12ZM12 12.4l9.13-2.97-5.04 4.3ZM12 12.4l5.64 7.77L12 16.7ZM12 12.4 6.36 20.17l1.55-6.44ZM12 12.4 2.87 9.43l6.6-.51Z"/>
+    </symbol>
+    <symbol id="i-cap" viewBox="0 0 24 24">
+      <rect class="ta" x="3.5" y="3" width="17" height="3" rx="1.5"/>
+      <rect class="tb" x="3.2" y="15.8" width="2.9" height="5.2" rx="1"/>
+      <rect class="tb" x="17.9" y="15.8" width="2.9" height="5.2" rx="1"/>
+      <path class="ta oa" stroke-width="1.2" d="M12 9.2l4.6 5h-2.9v6.2h-3.4v-6.2H7.4Z"/>
+    </symbol>
+    <symbol id="i-book" viewBox="0 0 24 24">
+      <path class="ta" d="M2.8 6.1C5.6 4.6 8.7 4.7 11.3 6.3v13.6c-2.6-1.5-5.7-1.6-8.5-.2Z"/>
+      <path class="tb" d="M21.2 6.1c-2.8-1.5-5.9-1.4-8.5.2v13.6c2.6-1.5 5.7-1.6 8.5-.2Z"/>
+      <path class="lk" stroke-width="1.2" d="M5.2 9.6c1.3-.4 2.5-.3 3.7.1M5.2 12.8c1.3-.4 2.5-.3 3.7.1"/>
+      <path class="ta" d="M15.6 4.4h2.8v7l-1.4-1.2-1.4 1.2Z"/>
+    </symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24">
+      <g transform="translate(1.4 -1.4) rotate(45 12 12)">
+        <path class="tb" d="M9.8 17.6h4.4c0 2-.9 3.7-2.2 4.9-1.3-1.2-2.2-2.9-2.2-4.9Z"/>
+        <path class="tb" d="M7.6 11.6 4.9 15v4l2.7-1.6ZM16.4 11.6l2.7 3.4v4l-2.7-1.6Z"/>
+        <path class="ta" d="M12 1.8c3 2.5 4.4 5.9 4.4 9.6v6.2H7.6v-6.2c0-3.7 1.4-7.1 4.4-9.6Z"/>
+        <circle class="tk" cx="12" cy="9.4" r="2.1"/>
+      </g>
+    </symbol>
+    <!-- Check-in -->
+    <symbol id="i-calendar" viewBox="0 0 24 24">
+      <rect class="ta" x="3.5" y="4.8" width="17" height="16.2" rx="3"/>
+      <path class="tb" d="M3.5 7.8a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v2.4h-17Z"/>
+      <path class="lk" stroke-width="3.6" d="M8 3v3.4M16 3v3.4"/>
+      <path class="la" stroke-width="1.9" d="M8 3v3.4M16 3v3.4"/>
+      <path class="lk" stroke-width="2" d="M8.4 15.4l2.5 2.5 4.7-4.9"/>
+    </symbol>
+    <!-- The Draw Ticket: the pass on a lanyard (option T5). No star, a star means Special. -->
+    <symbol id="i-ticket" viewBox="0 0 24 24">
+      <path class="lb butt" stroke-width="2.2" d="M6.9 .5 11.3 6.8M17.1 .5 12.7 6.8"/>
+      <path class="ta" d="M7 7.2h10a2 2 0 0 1 2 2v11.3a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9.2a2 2 0 0 1 2-2Z"/>
+      <path class="tb" d="M7 7.2h10a2 2 0 0 1 2 2v2.5H5V9.2a2 2 0 0 1 2-2Z"/>
+      <rect class="tk" x="9.75" y="9" width="4.5" height="1.4" rx=".7"/>
+      <rect class="tc" x="7.6" y="13.9" width="8.8" height="1.7" rx=".85"/>
+      <rect class="tb" x="7.6" y="17" width="5.8" height="1.7" rx=".85"/>
+      <rect class="ta ok" stroke-width="1.6" x="10.2" y="4.9" width="3.6" height="3.1" rx=".9"/>
+    </symbol>
+    <symbol id="i-streak" viewBox="0 0 24 24">
+      <path class="ta" d="M12.9 2c.5 3.5 5.6 5.7 5.6 11.7a6.5 6.5 0 0 1-13 0c0-2.7 1.2-4.7 2.9-6.2.1 1.9.9 3.2 2.3 3.6-.4-3.7.3-6.5 2.2-9.1Z"/>
+      <path class="tb" d="M12 19.4a3.4 3.4 0 0 1-3.4-3.4c0-1.8 1.6-2.7 2.5-4.5 1 1.5 4.3 2.3 4.3 4.7a3.3 3.3 0 0 1-3.4 3.2Z"/>
+    </symbol>
+    <symbol id="i-snow" viewBox="0 0 24 24">
+      <path class="tc ob" stroke-width="1.3" d="M12 2.9l7.88 4.55v9.1L12 21.1l-7.88-4.55v-9.1Z"/>
+      <g class="la" stroke-width="1.6">
+        <path d="M12 12V5.7M10.4 6.6 12 8.2l1.6-1.6"/>
+        <path d="M12 12V5.7M10.4 6.6 12 8.2l1.6-1.6" transform="rotate(60 12 12)"/>
+        <path d="M12 12V5.7M10.4 6.6 12 8.2l1.6-1.6" transform="rotate(120 12 12)"/>
+        <path d="M12 12V5.7M10.4 6.6 12 8.2l1.6-1.6" transform="rotate(180 12 12)"/>
+        <path d="M12 12V5.7M10.4 6.6 12 8.2l1.6-1.6" transform="rotate(240 12 12)"/>
+        <path d="M12 12V5.7M10.4 6.6 12 8.2l1.6-1.6" transform="rotate(300 12 12)"/>
+      </g>
+    </symbol>
+    <!-- Draws -->
+    <!-- The fragment: two floppy disks, one on the other (option F4), same geometry as the app's drawing. -->
+    <symbol id="i-disk" viewBox="0 0 24 24">
+      <g transform="scale(.5)">
+        <g transform="translate(9 1.5) rotate(13 20 20) scale(.8)">
+          <path class="tc" d="M9 6H36L42 12V39a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z"/>
+          <rect class="tk" x="14" y="6" width="18" height="13"/>
+          <rect class="tb" x="25.4" y="8.6" width="4" height="8" rx="1"/>
+        </g>
+        <g transform="translate(1.5 9.5) rotate(-8 20 20) scale(.8)">
+          <path class="tb ok" stroke-width="5" d="M9 6H36L42 12V39a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z"/>
+          <rect class="tc" x="14" y="6" width="18" height="13"/>
+          <rect class="ta" x="25.4" y="8.6" width="4" height="8" rx="1"/>
+          <path class="ta" d="M13 25h22a2 2 0 0 1 2 2v15H11V27a2 2 0 0 1 2-2Z"/>
+          <rect class="tc" x="14.5" y="29.4" width="15" height="2.8" rx="1.4"/>
+          <rect class="tc" x="14.5" y="34.6" width="10" height="2.8" rx="1.4"/>
+        </g>
+      </g>
+    </symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24">
+      <rect class="tb" x="3.6" y="5.6" width="10.4" height="14" rx="2.2" transform="rotate(-10 8.8 12.6)"/>
+      <g transform="rotate(9 15.2 11.8)">
+        <rect class="ta ok" stroke-width="2.4" x="10" y="4.6" width="10.4" height="14.4" rx="2.2"/>
+        <path class="tk" d="M15.2 8 16.55 10.45 19 11.8 16.55 13.15 15.2 15.6 13.85 13.15 11.4 11.8 13.85 10.45Z"/>
+      </g>
+    </symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24">
+      <path class="ta" d="M3.2 4.8a1.6 1.6 0 0 1 1.6-1.6h7a2 2 0 0 1 1.42.59l7.6 7.6a2 2 0 0 1 0 2.82l-6.6 6.6a2 2 0 0 1-2.82 0l-7.6-7.6A2 2 0 0 1 3.2 11.8Z"/>
+      <path class="tb" d="M19.6 10.17l1.22 1.22a2 2 0 0 1 0 2.82l-6.6 6.6a2 2 0 0 1-2.82 0l-1.22-1.22Z"/>
+      <circle class="tk" cx="7.7" cy="7.7" r="1.75"/>
+      <path class="lk" stroke-width="1.7" d="M10.4 14.2l3.8-3.8"/>
+    </symbol>
+    <symbol id="i-clover" viewBox="0 0 24 24">
+      <path class="lb" stroke-width="1.8" d="M12 12c1.4 3.6 3.4 6.4 6.8 8.8"/>
+      <path class="tb ok" stroke-width="1.2" d="M12 11.6 8 8.3a2.65 2.65 0 1 1 4-3.3 2.65 2.65 0 1 1 4 3.3Z" transform="rotate(90 12 12)"/>
+      <path class="tb ok" stroke-width="1.2" d="M12 11.6 8 8.3a2.65 2.65 0 1 1 4-3.3 2.65 2.65 0 1 1 4 3.3Z" transform="rotate(270 12 12)"/>
+      <path class="ta ok" stroke-width="1.2" d="M12 11.6 8 8.3a2.65 2.65 0 1 1 4-3.3 2.65 2.65 0 1 1 4 3.3Z"/>
+      <path class="ta ok" stroke-width="1.2" d="M12 11.6 8 8.3a2.65 2.65 0 1 1 4-3.3 2.65 2.65 0 1 1 4 3.3Z" transform="rotate(180 12 12)"/>
+    </symbol>
+    <!-- Quests -->
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <rect class="ta" x="4.5" y="4.2" width="15" height="17.3" rx="2.6"/>
+      <rect class="tb ok" stroke-width="2" x="8.4" y="2.4" width="7.2" height="4.2" rx="1.6"/>
+      <path class="lk" stroke-width="1.7" d="M7.5 11.6l1.5 1.5 2.5-2.8M7.5 16.6l1.5 1.5 2.5-2.8"/>
+      <rect class="tc" x="13.2" y="11" width="3.8" height="1.7" rx=".85"/>
+      <rect class="tc" x="13.2" y="16" width="3.8" height="1.7" rx=".85"/>
+    </symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24">
+      <path class="ta" d="M7 3.6h12.6a.6.6 0 0 1 .5.94L17.4 8.4l2.7 3.86a.6.6 0 0 1-.5.94H7Z"/>
+      <path class="tb" d="M7 8.4h10.4l2.7 3.86a.6.6 0 0 1-.5.94H7Z"/>
+      <path class="la" stroke-width="2.1" d="M5.6 3.2v17"/>
+      <rect class="tb" x="2.8" y="19.4" width="5.6" height="2.1" rx="1.05"/>
+    </symbol>
+    <symbol id="i-target" viewBox="0 0 24 24">
+      <circle class="ta" cx="11.4" cy="12.6" r="8.9"/>
+      <circle class="tc" cx="11.4" cy="12.6" r="6.1"/>
+      <circle class="ta" cx="11.4" cy="12.6" r="3.1"/>
+      <path class="lk" stroke-width="4" d="M11.4 12.6 18.8 5.2"/>
+      <path class="la" stroke-width="1.8" d="M11.4 12.6 18.8 5.2"/>
+      <path class="ta ok" stroke-width="1.6" d="M17.4 3.6l.5 2.5 2.5.5 1.7-2.1-2.2-.5-.5-2.2Z"/>
+    </symbol>
+    <!-- Station -->
+    <symbol id="i-chip" viewBox="0 0 24 24">
+      <path class="lb" stroke-width="2" d="M9.4 3v3M14.6 3v3M9.4 18v3M14.6 18v3M3 9.4h3M3 14.6h3M18 9.4h3M18 14.6h3"/>
+      <rect class="ta" x="5.4" y="5.4" width="13.2" height="13.2" rx="2.6"/>
+      <rect class="tk" x="8.3" y="8.3" width="7.4" height="7.4" rx="1.3"/>
+      <path class="la" stroke-width="1.25" d="M8.9 12.3h1.5l.9-1.9 1.4 3.4.8-1.5h1.6"/>
+    </symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24">
+      <rect class="tc" x="2.9" y="15.5" width="3.6" height="5.5" rx="1.2"/>
+      <rect class="tb" x="7.9" y="11.5" width="3.6" height="9.5" rx="1.2"/>
+      <rect class="ta" x="12.9" y="7.5" width="3.6" height="13.5" rx="1.2"/>
+      <rect class="ta" x="17.9" y="3" width="3.6" height="18" rx="1.2"/>
+    </symbol>
+    <symbol id="i-house" viewBox="0 0 24 24">
+      <path class="tb" d="M5.4 10.4h13.2v8.4a2.2 2.2 0 0 1-2.2 2.2H7.6a2.2 2.2 0 0 1-2.2-2.2Z"/>
+      <path class="ta" d="M10.9 3.1a1.7 1.7 0 0 1 2.2 0l8.2 7.1a1.1 1.1 0 0 1-.72 1.93H3.42a1.1 1.1 0 0 1-.72-1.93Z"/>
+      <path class="ta" d="M9.9 21v-4.6a2.1 2.1 0 0 1 4.2 0V21Z"/>
+    </symbol>
+    <symbol id="i-news" viewBox="0 0 24 24">
+      <path class="tb" d="M17 8.4h2.2a1.8 1.8 0 0 1 1.8 1.8v8.3a2.5 2.5 0 0 1-2.5 2.5H17Z"/>
+      <path class="ta" d="M5.2 3.6h10.6a2.2 2.2 0 0 1 2.2 2.2V21H5.5A2.5 2.5 0 0 1 3 18.5V5.8a2.2 2.2 0 0 1 2.2-2.2Z"/>
+      <rect class="tk" x="5.6" y="6.4" width="4.6" height="4.2" rx=".9"/>
+      <rect class="tc" x="11.6" y="6.6" width="4" height="1.6" rx=".8"/>
+      <rect class="tc" x="11.6" y="9.2" width="4" height="1.6" rx=".8"/>
+      <rect class="tc" x="5.6" y="13" width="10" height="1.6" rx=".8"/>
+      <rect class="tc" x="5.6" y="16.2" width="6.6" height="1.6" rx=".8"/>
+    </symbol>
+    <!-- Keystone / core marks -->
+    <symbol id="i-keystone" viewBox="0 0 24 24">
+      <path class="tb ob" stroke-width="1" d="M12 2.7l8.05 4.65v9.3L12 21.3l-8.05-4.65v-9.3Z"/>
+      <path class="ta" d="M12 5.4l5.72 3.3v6.6L12 18.6l-5.72-3.3V8.7Z"/>
+      <path class="lk" stroke-width="1.8" d="M12 8.3v7.4M8.8 10.15l6.4 3.7M15.2 10.15l-6.4 3.7"/>
+    </symbol>
+    <symbol id="i-core" viewBox="0 0 24 24">
+      <circle class="lb" stroke-width="1.8" cx="12" cy="12" r="7.6"/>
+      <circle class="ta" cx="12" cy="12" r="3.7"/>
+      <g class="ta ok" stroke-width="2">
+        <circle cx="12" cy="4.4" r="1.9"/><circle cx="19.6" cy="12" r="1.9"/><circle cx="12" cy="19.6" r="1.9"/><circle cx="4.4" cy="12" r="1.9"/>
+      </g>
+    </symbol>
+    <!-- Added 2026-11-18: icons for effects that were borrowing a near miss. -->
+    <!-- Rig: temperature, load, power -->
+    <symbol id="i-thermo" viewBox="0 0 24 24">
+      <path class="tb" d="M9.4 5.2a2.6 2.6 0 0 1 5.2 0v8.6a4.6 4.6 0 1 1-5.2 0Z"/>
+      <path class="ta" d="M11 8.6a1 1 0 0 1 2 0v6.9a2.9 2.9 0 1 1-2 0Z"/>
+      <path class="lc" stroke-width="1.3" d="M16.4 6.2h2.2M16.4 9h2.2M16.4 11.8h1.4"/>
+      <path class="hl" stroke-width="1" d="M10.6 5.3v3"/>
+    </symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24">
+      <path class="tb" d="M3 16a9 9 0 0 1 18 0v1.4a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 17.4Z"/>
+      <path class="ta" d="M5.6 16a6.4 6.4 0 0 1 12.8 0Z"/>
+      <path class="lk" stroke-width="1.4" d="M7.6 11.6l.9.9M12 9.6v1.3M16.4 11.6l-.9.9"/>
+      <path class="lk" stroke-width="2" d="M12 16l3.4-4"/>
+      <circle class="tk" cx="12" cy="16" r="1.7"/>
+      <path class="hl" stroke-width="1" d="M5 13.4a7.4 7.4 0 0 1 3-4.6"/>
+    </symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24">
+      <path class="ta" d="M13.6 2.2 5.4 13.4h5.4l-1.6 8.4 8.6-11.6h-5.6Z"/>
+      <path class="tb" d="M12.2 10.2h5.6L9.2 21.8l1.6-8.4Z"/>
+      <path class="hl" stroke-width="1" d="M12.2 4.6 7.8 10.6"/>
+    </symbol>
+    <!-- Protection and rewards -->
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path class="ta" d="M12 2.4 19.6 5.4v6.2c0 4.6-3.2 8.3-7.6 10-4.4-1.7-7.6-5.4-7.6-10V5.4Z"/>
+      <path class="tb" d="M12 2.4 19.6 5.4v6.2c0 4.6-3.2 8.3-7.6 10Z"/>
+      <path class="lk" stroke-width="2" d="M8.6 12l2.4 2.4 4.6-4.8"/>
+    </symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24">
+      <rect class="tb" x="4.2" y="11" width="15.6" height="10.4" rx="1.8"/>
+      <rect class="ta" x="3" y="7.4" width="18" height="4.6" rx="1.4"/>
+      <rect class="tc" x="10.6" y="7.4" width="2.8" height="14"/>
+      <path class="ta ok" stroke-width="1.2" d="M12 7.2c-1.6-3.6-5.6-3.6-5.2-.8.3 1.8 3.4 1.6 5.2.8Zm0 0c1.6-3.6 5.6-3.6 5.2-.8-.3 1.8-3.4 1.6-5.2.8Z"/>
+    </symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24">
+      <path class="lb" stroke-width="1.8" d="M7 5.2H4.6v1.6a3.2 3.2 0 0 0 3.2 3.2M17 5.2h2.4v1.6a3.2 3.2 0 0 1-3.2 3.2"/>
+      <path class="ta" d="M7 3h10v5.4a5 5 0 0 1-10 0Z"/>
+      <path class="tb" d="M12 3h5v5.4a5 5 0 0 1-5 5Z"/>
+      <rect class="tb" x="10.8" y="13" width="2.4" height="4.6"/>
+      <rect class="ta" x="7" y="17.4" width="10" height="3.6" rx="1.2"/>
+      <path class="tk" d="M12 5.1l.85 1.7 1.85.27-1.35 1.3.32 1.85L12 9.35l-1.67.87.32-1.85-1.35-1.3 1.85-.27Z"/>
+    </symbol>
+    <!-- Background and time -->
+    <symbol id="i-ghost" viewBox="0 0 24 24">
+      <path class="ta" d="M5 20.6V11a7 7 0 0 1 14 0v9.6l-2.3-1.8-2.4 1.8-2.3-1.8-2.3 1.8-2.4-1.8Z"/>
+      <path class="tb" d="M12 4a7 7 0 0 1 7 7v9.6l-2.3-1.8-2.4 1.8L12 18.8Z"/>
+      <ellipse class="tk" cx="9.4" cy="10.8" rx="1.3" ry="1.8"/>
+      <ellipse class="tk" cx="14.6" cy="10.8" rx="1.3" ry="1.8"/>
+      <path class="hl" stroke-width="1" d="M7.1 9.4a5 5 0 0 1 2.6-3.4"/>
+    </symbol>
+    <symbol id="i-hourglass" viewBox="0 0 24 24">
+      <path class="tb" d="M7 5h10c0 3.6-2.2 5.4-4 7 1.8 1.6 4 3.4 4 7H7c0-3.6 2.2-5.4 4-7-1.8-1.6-4-3.4-4-7Z"/>
+      <path class="ta" d="M9.2 7.4h5.6c-.5 1.6-1.6 2.6-2.8 3.4-1.2-.8-2.3-1.8-2.8-3.4Z"/>
+      <path class="ta" d="M8.6 18.4c.4-1.8 1.8-3 3.4-3.6 1.6.6 3 1.8 3.4 3.6Z"/>
+      <rect class="ta" x="5" y="2.6" width="14" height="2.4" rx="1.2"/>
+      <rect class="ta" x="5" y="19" width="14" height="2.4" rx="1.2"/>
+    </symbol>
+    <symbol id="i-power" viewBox="0 0 24 24">
+      <circle class="tc" cx="12" cy="13.4" r="4.2"/>
+      <path class="la" stroke-width="2.6" d="M7.2 6.6a8 8 0 1 0 9.6 0"/>
+      <path class="la" stroke-width="2.6" d="M12 3v8"/>
+    </symbol>
+    <!-- Income: saving and paying -->
+    <symbol id="i-vault" viewBox="0 0 24 24">
+      <rect class="tc" x="5.4" y="19" width="3" height="2.4" rx=".6"/>
+      <rect class="tc" x="15.6" y="19" width="3" height="2.4" rx=".6"/>
+      <rect class="ta" x="3.4" y="3.4" width="17.2" height="16.4" rx="2.4"/>
+      <path class="tb" d="M17 3.4h1.2a2.4 2.4 0 0 1 2.4 2.4v11.6a2.4 2.4 0 0 1-2.4 2.4H17Z"/>
+      <circle class="tk" cx="10.4" cy="11.6" r="4.4"/>
+      <circle class="tb" cx="10.4" cy="11.6" r="2.4"/>
+      <path class="lk" stroke-width="1.8" d="M18.4 9.4v4.4"/>
+    </symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24">
+      <path class="ta" d="M5.4 2.8h13.2v18.4l-2.2-1.4-2.2 1.4-2.2-1.4-2.2 1.4-2.2-1.4-2.2 1.4Z"/>
+      <path class="tb" d="M15 2.8h3.6v18.4l-2.2-1.4L15 20.7Z"/>
+      <rect class="tc" x="8" y="6.4" width="6" height="1.6" rx=".8"/>
+      <rect class="tc" x="8" y="9.8" width="4.4" height="1.6" rx=".8"/>
+      <rect class="tk" x="8" y="14" width="6" height="2.4" rx="1.2"/>
+    </symbol>
+    <!-- Sessions -->
+    <symbol id="i-gamepad" viewBox="0 0 24 24">
+      <path class="ta" d="M7.4 7h9.2c2.6 0 4.2 1.8 4.7 4.4l.9 4.8c.4 2.2-1.9 3.6-3.6 2.2L15.8 16H8.2l-2.8 2.4c-1.7 1.4-4 0-3.6-2.2l.9-4.8C3.2 8.8 4.8 7 7.4 7Z"/>
+      <path class="tb" d="M8.2 16h7.6l2.8 2.4c1.7 1.4 4 0 3.6-2.2l-.6-3.2c-.4 1.6-2 2.4-3.4 1.4L16 13H8l-2.2 1.4c-1.4 1-3 .2-3.4-1.4l-.6 3.2c-.4 2.2 1.9 3.6 3.6 2.2Z"/>
+      <path class="lk" stroke-width="1.7" d="M7.6 9.6v3.4M5.9 11.3h3.4"/>
+      <circle class="tk" cx="15.6" cy="10.4" r="1.15"/>
+      <circle class="tk" cx="17.7" cy="12.4" r="1.15"/>
+    </symbol>
+    <symbol id="i-comeback" viewBox="0 0 24 24">
+      <circle class="tc" cx="12" cy="13.2" r="3.2"/>
+      <path class="la" stroke-width="2.6" d="M19 13.2a7 7 0 1 1-2.1-5"/>
+      <path class="ta" d="M20.6 3.8v6.6H14Z"/>
+    </symbol>
+    <!-- The Season Key: the same key the tree draws inside the Key's diamond, so tips and slots match the node. -->
+    <symbol id="i-key" viewBox="0 0 24 24">
+      <path class="lb butt" stroke-width="3" d="M12.4 12.4 20.6 20.6M16.4 16.4l2.3-2.3M19.2 19.2l1.9-1.9"/>
+      <circle class="ta" cx="8.4" cy="8.4" r="5.6"/>
+      <circle class="tk" cx="7.4" cy="7.4" r="1.9"/>
+      <path class="hl" stroke-width="1" d="M4.4 7.3a4.2 4.2 0 0 1 2.6-3"/>
+    </symbol>
+    <!-- Class emblems: one per class, on the class node next to Station Core. A crest frame marks them apart from effect icons. -->
+    <symbol id="i-class-payroll" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><circle class="tc" cx="12" cy="13.6" r="4.6"/><circle class="ta" cx="12" cy="12.4" r="4.6"/><path class="lk" stroke-width="1.7" d="M12 14.8v-4.6M9.9 12.2l2.1-2.1 2.1 2.1"/><path class="lk" stroke-width="1.5" d="M8.6 6.4l3.4-1.7 3.4 1.7"/></symbol>
+    <symbol id="i-class-pass" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="tc" d="M5.6 17.4l4.6-7.6 2.6 3.9 1.8-2.5 3.8 6.2Z"/><path class="ta" d="M5.6 17.4l4.6-7.6 3.3 5Z"/><path class="lk" stroke-width="1.5" d="M14.6 11.2V5.6"/><path class="ta ok" stroke-width=".8" d="M14.6 5.6l3.2 1.1-3.2 1.2Z"/></symbol>
+    <symbol id="i-class-sessions" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="ta" d="M5.4 12.2c1.9-3.1 4.1-4.6 6.6-4.6s4.7 1.5 6.6 4.6c-1.9 3.1-4.1 4.6-6.6 4.6s-4.7-1.5-6.6-4.6Z"/><circle class="tc" cx="12" cy="12.2" r="2.7"/><circle class="tb" cx="12" cy="12.2" r="1.1"/><path class="lk" stroke-width="1.3" d="M12 4.6v1.4M7.2 6.2l.8 1.1M16.8 6.2l-.8 1.1"/></symbol>
+    <symbol id="i-class-streaks" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="ta" d="M12 4.8c.6 2.6 4.4 4.4 4.4 8.5a4.4 4.4 0 0 1-8.8 0c0-2 1-3.2 2-4.1.2 1.3.8 2 1.6 2.3-.6-2.4.1-4.7.8-6.7Z"/><path class="tc" d="M12 18.5a2.2 2.2 0 0 1-2.2-2.2c0-1.4 1.2-2.2 2.2-3.6 1 1.4 2.2 2.2 2.2 3.6a2.2 2.2 0 0 1-2.2 2.2Z"/></symbol>
+    <symbol id="i-class-loot" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="lk" stroke-width="1.8" d="M8 16.8l7.4-8.6"/><path class="ta" d="M9.6 6.2c3.1-1 6.4-.4 8.6 1.4-2.6-.3-4.9.3-6.4 1.5Z"/><path class="tc" d="M15.4 8.2l1.3 1.2c-.6.6-1.3.9-2 .9Z"/><circle class="tc" cx="7.6" cy="16.6" r="1.6"/></symbol>
+    <symbol id="i-class-quests" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="ta" d="M7.2 5.6h8.6v9.6c0 1.6-1 2.6-2.4 2.6H8.6c1-.4 1.4-1.2 1.4-2.2V7.2c0-.8-.6-1.6-2.8-1.6Z"/><path class="tc" d="M7.2 5.6c1.2 0 2 .6 2 1.6v.8H6V6.8c0-.6.5-1.2 1.2-1.2Z"/><path class="lk" stroke-width="1.2" d="M11.2 9h3M11.2 11.2h3"/><circle class="tb ok" stroke-width=".8" cx="13.2" cy="14.6" r="1.6"/></symbol>
+    <symbol id="i-class-background" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="ta" d="M12 5.2c3.2 0 5.4 2.4 5.4 5.6v6.8l-1.8-1.3-1.8 1.3-1.8-1.3-1.8 1.3-1.8-1.3-1.8 1.3v-6.8c0-3.2 2.2-5.6 5.4-5.6Z"/><circle class="tb" cx="10.1" cy="10.6" r="1.1"/><circle class="tb" cx="13.9" cy="10.6" r="1.1"/></symbol>
+    <symbol id="i-class-rig" viewBox="0 0 24 24"><path class="tb ob" stroke-width="1" d="M12 1.8l8.4 3.1v6.5c0 5.1-3.5 8.9-8.4 10.8-4.9-1.9-8.4-5.7-8.4-10.8V4.9Z"/><path class="hl" stroke-width="1" d="M5.4 6.3v4.9c0 2.2.7 4.1 1.9 5.6"/><path class="ta" d="M10.9 4.9h2.2l.4 1.8 1.4.6 1.6-1 1.6 1.6-1 1.6.6 1.4 1.8.4v2.2l-1.8.4-.6 1.4 1 1.6-1.6 1.6-1.6-1-1.4.6-.4 1.8h-2.2l-.4-1.8-1.4-.6-1.6 1-1.6-1.6 1-1.6-.6-1.4-1.8-.4v-2.2l1.8-.4.6-1.4-1-1.6 1.6-1.6 1.6 1 1.4-.6Z"/><circle class="tb" cx="12" cy="12" r="2.6"/><circle class="tc" cx="12" cy="12" r="1.1"/></symbol>
+    <!-- icons:end -->
+  </defs>
+</svg>
+
+<h2>1. Node frames (type)</h2>
+<p class="note">The same icon sits inside a different frame for each node type. Shown with the coin icon in the Credits colour.</p>
+<div class="row" id="frames"></div>
+
+<h2>2. Icon set (effect)</h2>
+<p class="note">38 effect icons and the keystone mark (13 added on 2026-11-18, in their class colours). Each one covers a family of stats, listed under it, and is shown here in its home region's colour. Every small node uses its region's main icon; notables and keystones pick the icon of their stat.</p>
+<div class="grid" id="icons"></div>
+
+<h2>3. How it reads per region</h2>
+<p class="note">Small, notable and keystone side by side, in each region's colour. The three bars under each set are that region's tones: lit, turned away, recessed.</p>
+<div class="regions" id="regions"></div>
+
+<h2>4. States</h2>
+<p class="note">A locked node drops to grey. A taken node fills with the region colour and the icon flips to dark ink, keeping its three tones.</p>
+<div class="row" id="states"></div>
+
+<h2>5. At tree size</h2>
+<p class="note">Every icon inside nodes of the size the tree sample uses: small nodes 30px across, notables 54px, keystones 80px at 100% zoom. The tree opens fitted to the window, at about a quarter of that, where small-node icons are far too small to read, so the tree brings icons in as you zoom closer: keystones from 30%, notables from 40%, small nodes from 70%.</p>
+<div id="tree"></div>
+
+<script>
+const ICONS = [
+  ["coin", "Credits", "playCreditPct, allCreditPct, creditsPer…"],
+  ["clock-coin", "Credits per hour", "creditsPerHour, skinCreditsPerHour"],
+  ["stack", "Bonus Credits", "fullBoardCredits, perfectWeekCredits, weeklyInterestPct"],
+  ["percent", "Discount", "tenDrawDiscountPct, singleDrawDiscountPct"],
+  ["sun", "Daytime", "morningCreditPct, earlyCreditPct, morningQuestCreditPct"],
+  ["moon", "Night time", "lateCreditPct, nightPassXpPct, darkThemeCreditPct"],
+  ["xp", "Pass XP", "passXpPct, questPassXp, dailyQuestPassXp"],
+  ["cap", "Weekly cap", "passCap, passOverflowPct"],
+  ["book", "Study / long session", "longSessionPassXpPct, catchUpPassXpPct"],
+  ["rocket", "Head start", "passStartXp, level30SpecialTicket"],
+  ["calendar", "Check-in", "creditsPerCheckin, weekendCheckinDouble, missedDayGraceMonthly"],
+  ["ticket", "Tickets", "boardDay…Regular, weeklyRegularTicket, ticketPer20Draws, ticketRefundPct"],
+  ["streak", "Streak", "checkinBonusPct, longSessionCreditPct"],
+  ["snow", "Streak freeze", "streakFreezeMonthly"],
+  ["disk", "Fragments", "fragmentPct, fragmentPerRepeat, fragmentPer4Star, specialFragmentPer5Star"],
+  ["cards", "Draws", "dryStreakFragment, draw keystones"],
+  ["tag", "Price", "themeChangeCredits"],
+  ["clover", "Luck", "chance-based effects"],
+  ["check", "Quests", "questCreditPct, dailyQuestCreditPct, allDailiesCredits"],
+  ["flag", "Weekly / monthly goal", "weeklyQuestCreditPct, monthlyQuestCreditPct, allWeekliesTicket"],
+  ["target", "One-time goal", "onceQuestCreditPct, creditsPer5Quests"],
+  ["chip", "PC health", "coolPcCreditPct, gameModeCreditPct"],
+  ["signal", "Connection", "lowPingCreditPct"],
+  ["house", "Station", "welcomeBackPct, creditPctPer3Skins"],
+  ["news", "News", "creditsPer10News"],
+  ["thermo", "Temperature", "coolPcCreditPct, coolSessionIncome, noOverheatWeekIncome, coolStartCredits", "#5fd4d6"],
+  ["gauge", "Load and steadiness", "gpuHeadroomCreditPct, quietRigCreditPct, steadyFrameCreditPct, lowJitterCreditPct, rigCreditPct", "#5fd4d6"],
+  ["bolt", "Power", "acPowerCreditPct", "#5fd4d6"],
+  ["shield", "Protection", "streakShieldMonthly, streakGraceMonthly, silentRigCreditPct, stableSessionsTicket", "#ff7a6b"],
+  ["gift", "Items", "itemChoicePer25h, itemPer10Hours", "#c9a2ff"],
+  ["trophy", "Milestones", "level60SpecialTicket, finaleSpecialTickets, milestoneTicket, quest25SpecialFragment, uptime30Special", "#8fc3ff"],
+  ["ghost", "Out of sight", "ghostGameMode, minimisedCreditPct, idleCredits", "#e6ebf3"],
+  ["hourglass", "More time", "seasonArchiveDays, passOverflowPct", "#8fc3ff"],
+  ["power", "Always on", "alwaysOnCreditPct, uptimeCredits, weekUptimeTicket", "#e6ebf3"],
+  ["vault", "Savings", "vaultInterestPct, pensionPct, xpBankCap", "#f0893a"],
+  ["receipt", "Pay", "paySlipPct, chequePer1000Income", "#f0893a"],
+  ["gamepad", "Sessions and game mode", "gameModeCreditPct, gameModeStintIncome, autoGameMode, sessionCredits, encoreCredits, tenthSessionIncome, doubleHeaderTicket", "#9ef0b5"],
+  ["comeback", "Comeback", "comebackCreditPct, comebackDoubleDays, streakRestartHalf, retroRowClaims", "#ff7a6b"],
+  ["keystone", "Keystone mark", "every keystone (with its own stat icon inside on hover)"],
+];
+const REGIONS = [
+  ["Credits", "#f0893a", "coin", "clock-coin"], ["Season Pass", "#8fc3ff", "xp", "cap"], ["Check-in", "#9ef0b5", "calendar", "ticket"],
+  ["Draws", "#c9a2ff", "disk", "cards"], ["Quests", "#ff9db0", "check", "flag"], ["Station", "#e6ebf3", "house", "chip"],
+];
+/** How many icons in ICONS belong to each region, in REGIONS order. The keystone mark at the end belongs to none. */
+const HOME_SPANS = [6, 4, 4, 4, 3, 4];
+const NEUTRAL = "#e6ebf3";
+function homeColor(index) {
+  let end = 0;
+  for (let r = 0; r < HOME_SPANS.length; r++) { end += HOME_SPANS[r]; if (index < end) return REGIONS[r][1]; }
+  return NEUTRAL;
+}
+const use = (id) => `<use href="#i-${id}"/>`;
+
+/** Frame size on this sheet, and how much of the frame the icon fills. */
+const FRAME = { small: 44, notable: 64, keystone: 84, bridge: 44, start: 84 };
+const FILL = { small: 0.56, bridge: 0.46, notable: 0.55, keystone: 0.52, start: 0.5 };
+
+/** One node, drawn as it would be on the tree. `size` overrides the frame's width in pixels. */
+function node(type, icon, color, state = "idle", size = FRAME[type]) {
+  const S = size;
+  const r = S / 2 - 3, c = S / 2;
+  const filled = state === "taken";
+  const stroke = state === "locked" ? "#55555b" : color;
+  const fill = filled ? color : "#17171a";
+  let frame;
+  if (type === "keystone") {
+    const pts = [...Array(6)].map((_, i) => { const a = Math.PI / 6 + i * Math.PI / 3; return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`; }).join(" ");
+    frame = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="2.5"/><polygon points="${pts}" fill="none" stroke="${stroke}" stroke-opacity=".35" stroke-width="1" transform="translate(${c} ${c}) scale(1.12) translate(${-c} ${-c})"/>`;
+  } else if (type === "notable") {
+    frame = `<circle cx="${c}" cy="${c}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="2.5"/><circle cx="${c}" cy="${c}" r="${r - 5}" fill="none" stroke="${stroke}" stroke-opacity=".4"/>`;
+  } else if (type === "bridge") {
+    frame = `<rect x="4" y="4" width="${S - 8}" height="${S - 8}" rx="7" transform="rotate(45 ${c} ${c})" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+  } else if (type === "start") {
+    frame = `<circle cx="${c}" cy="${c}" r="${r}" fill="${color}" fill-opacity=".2" stroke="${color}" stroke-width="2.5"/><circle cx="${c}" cy="${c}" r="${r + 1}" fill="none" stroke="${color}" stroke-dasharray="3 4" stroke-opacity=".6"/>`;
+  } else {
+    frame = `<circle cx="${c}" cy="${c}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+  }
+  const is = S * FILL[type];
+  const glow = state === "ready" ? `<circle cx="${c}" cy="${c}" r="${r + 5}" fill="none" stroke="${color}" stroke-opacity=".45" stroke-width="2" stroke-dasharray="4 4"/>` : "";
+  return `<svg class="perk" data-type="${type}" data-state="${state}" width="${S + 14}" height="${S + 14}" viewBox="-7 -7 ${S + 14} ${S + 14}" style="--rc:${color};overflow:visible">${glow}${frame}<svg x="${c - is / 2}" y="${c - is / 2}" width="${is}" height="${is}" viewBox="0 0 24 24">${use(icon)}</svg></svg>`;
+}
+
+document.getElementById("frames").innerHTML = [
+  ["small", "Small node"], ["notable", "Notable"], ["keystone", "Keystone (hexagon)"], ["bridge", "Bridge / Crosswalk (diamond)"],
+].map(([t, l]) => `<div class="frame-demo">${node(t, "coin", "#f0893a")}${l}</div>`).join("")
+  + `<div class="frame-demo">${node("start", "core", "#f0893a")}Station Core</div>`;
+
+document.getElementById("icons").innerHTML = ICONS.map(([id, name, stats, color], i) =>
+  `<div class="card"><svg class="ic" viewBox="0 0 24 24" style="--rc:${color || homeColor(i)}">${use(id)}</svg><b>${name}</b><small>${stats}</small><code>#i-${id}</code></div>`).join("");
+
+document.getElementById("regions").innerHTML = REGIONS.map(([name, col, a, b]) =>
+  `<div class="reg"><div class="set">${node("small", a, col)}${node("notable", b, col)}${node("keystone", "keystone", col)}</div><div class="tones perk" style="--rc:${col}"><i></i><i></i><i></i></div>${name}</div>`).join("");
+
+document.getElementById("states").innerHTML = [
+  ["locked", "Not reachable yet"], ["idle", "Reachable"], ["ready", "Next on your hovered path"], ["taken", "Taken"],
+].map(([s, l]) => `<div class="frame-demo"><div style="display:flex;gap:8px;align-items:center">${node("small", "xp", "#8fc3ff", s)}${node("notable", "cap", "#8fc3ff", s)}</div>${l}</div>`).join("");
+
+/* Sizes from the tree itself (template.html: small 15, notable 27, keystone 40 radius), times the zoom `k`. */
+const treeRow = (label, state, k = 1) => `<p class="tree-label">${label}</p><div class="tree"><div>${ICONS.slice(0, -1).map(([id, , , color], i) => node("small", id, color || homeColor(i), state, 30 * k)).join("")}</div><div>${node("notable", "ticket", "#9ef0b5", state, 54 * k)}${node("keystone", "keystone", "#c9a2ff", state, 80 * k)}</div></div>`;
+document.getElementById("tree").innerHTML = treeRow("100% zoom", "idle") + treeRow("100% zoom, taken", "taken") + treeRow("50% zoom, below where small-node icons show", "idle", 0.5);
+</script>
+</body>
+</html>

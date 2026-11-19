@@ -236,6 +236,50 @@ body:has(.gacha-stage[data-phase="revealed"]) { overflow: hidden; }
 }
 @keyframes bu-out-in { from { opacity: 0; } }
 
+/* Each 5-star has its own moment. The Brand one is above; these three share its dialog, words and timing. */
+.bu[data-variant="skin"], .bu[data-variant="widget"] { --bu-bg: var(--bg); --bu-text: var(--text); --bu-muted: var(--dim); }
+
+/* Rainbow theme: a spectrum turns once round the screen, then gives way to the look's own background. The "Aa" lands
+   inside a ring of every colour that keeps turning slowly. */
+.bu[data-variant="rainbow"]::before {
+  content: ""; position: fixed; inset: -40vmax; z-index: -1; pointer-events: none;
+  background: conic-gradient(from 0deg, #ff5f6d, #ffc371, #f9f871, #5ef3a7, #4fc3ff, #8f7bff, #ff6ad5, #ff5f6d);
+  animation: bu-spectrum 1300ms cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+.bu[data-variant="rainbow"] { isolation: isolate; }
+.bu[data-variant="rainbow"] .bu-ring {
+  border: 0; opacity: 1; padding: 3px; animation: bu-in 500ms var(--bu-ease) 700ms both, bu-turn 9s linear 700ms infinite;
+  background: conic-gradient(#ff5f6d, #ffc371, #f9f871, #5ef3a7, #4fc3ff, #8f7bff, #ff6ad5, #ff5f6d);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+}
+.bu[data-variant="rainbow"] .bu-mark-plain { color: var(--bu-mark); animation: bu-drop 620ms var(--bu-ease) 900ms both; }
+@keyframes bu-spectrum { 0% { opacity: 0; transform: rotate(-90deg) scale(0.6); } 35% { opacity: 1; } 75% { opacity: 1; transform: rotate(180deg) scale(1); } 100% { opacity: 0; transform: rotate(240deg) scale(1.05); } }
+@keyframes bu-turn { to { transform: rotate(1turn); } }
+@keyframes bu-drop { from { opacity: 0; transform: translateY(-28px) scale(1.3); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* 5-star card skin: dealt in face down from below, turned over as a light passes across it, then set straight. */
+.bu[data-variant="skin"] .bu-mark-wrap { width: min(280px, 76vw); aspect-ratio: auto; margin-bottom: 18px; perspective: 1000px; }
+.bu[data-variant="skin"] .bu-ring { display: none; }
+.bu-deal { position: relative; display: block; width: 100%; border-radius: 14px; overflow: hidden; transform-style: preserve-3d; box-shadow: 0 26px 50px -24px rgb(0 0 0 / 0.7); animation: bu-deal 1100ms var(--bu-ease) 200ms both; }
+.bu-skin { width: 100%; }
+.bu-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.55) 50%, transparent 65%); transform: translateX(-120%); animation: bu-sheen 900ms cubic-bezier(0.65, 0, 0.35, 1) 1050ms both; }
+@keyframes bu-deal { 0% { opacity: 0; transform: translateY(60vh) rotate(-14deg) rotateY(180deg); } 55% { opacity: 1; transform: translateY(-10px) rotate(3deg) rotateY(20deg); } 100% { transform: none; } }
+@keyframes bu-sheen { to { transform: translateX(120%); } }
+
+/* 5-star dashboard card: nine pieces fly in from around the screen, lock into a card, and the card lights up. */
+.bu-build { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; height: 100%; }
+.bu-build i { border-radius: 8px; background: color-mix(in srgb, var(--bu-mark) calc(30% + var(--i) * 6%), var(--wash-2, #222)); animation: bu-piece 760ms var(--bu-ease) calc(200ms + var(--i) * 70ms) both; }
+.bu-build b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.6em; font-weight: 600; letter-spacing: -0.03em; color: var(--bu-text); text-shadow: 0 2px 14px rgb(0 0 0 / 0.45); animation: bu-fill 420ms var(--bu-ease) 1100ms both; }
+.bu[data-variant="widget"] .bu-ring { border-radius: 18px; inset: -10px; animation-delay: 1050ms; }
+@keyframes bu-piece { from { opacity: 0; transform: translate(calc(var(--dx) * 2.2), calc(var(--dy) * 2.2)) rotate(calc((var(--i) - 4) * 18deg)) scale(0.4); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bu[data-variant="rainbow"]::before { display: none; }
+  .bu[data-variant="rainbow"] .bu-ring { animation: none; }
+  .bu-deal, .bu-build i, .bu-build b, .bu[data-variant="rainbow"] .bu-mark-plain { animation: bu-out-in 240ms ease-out both; }
+  .bu-sheen { display: none; }
+}
+
 /* The tag on a new look or item, and the crystal paid for a repeat. A pill with one solid underlay beneath it, after
    the Tag component (unlumen, 21st.dev): light fill, dark rim and ink from the badge colour. */
 .db-tag {

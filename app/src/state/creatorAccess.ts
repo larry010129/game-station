@@ -34,6 +34,11 @@ function subscribe(fn: () => void): () => void {
   };
 }
 
+/** The creator unlock right now, for code outside React. */
+export function isCreatorUnlocked(): boolean {
+  return unlocked;
+}
+
 /** True while this install's creator unlock is stored locally. */
 export function useCreatorUnlock(): boolean {
   return useSyncExternalStore(subscribe, () => unlocked, () => false);

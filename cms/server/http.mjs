@@ -62,7 +62,14 @@ export function createReleaseMiddleware() {
   ensureDataLayout();
 
   return function releaseMiddleware(req, res, next) {
-    const url = new URL(req.url || "/", "http://localhost");
+    let url;
+    try {
+      url = new URL(req.url || "/", "http://localhost");
+    } catch {
+      // A request path such as "//" is not a valid URL. Answer it instead of throwing, which would stop the
+      // standalone server (it has no error handler around this middleware).
+      return sendJson(res, 400, { error: "bad request URL" });
+    }
     const { pathname } = url;
     const method = (req.method || "GET").toUpperCase();
 

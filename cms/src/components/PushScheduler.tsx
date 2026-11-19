@@ -4,11 +4,27 @@ import { CalendarClock, Save, Send, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDraft } from "../state/DraftContext";
 import { Button } from "../ui/primitives";
-import { formatMdyHm, maskMdyHm, parseMdyHm, schedulePresets, untilText } from "../lib/schedule";
+import { formatMdyHm, maskMdyHm, overtakenReleases, parseMdyHm, schedulePresets, untilText } from "../lib/schedule";
+import { listReleases } from "../api/contentApi";
+import type { ReleaseMeta } from "../types/draft";
 import { cn } from "@/lib/utils";
 
 /** Fired after a push so lists (the Releases page) can reload. */
 export const RELEASES_CHANGED = "cms-releases-changed";
+
+/** "Release 12 (scheduled for …) has not gone live yet. …" for the releases a push would overtake. */
+function overtakenWarning(numbers: readonly number[], releases: readonly ReleaseMeta[]): string {
+  const named = numbers
+    .map((n) => {
+      const r = releases.find((x) => x.number === n);
+      return r?.effectiveAt ? `${n} (scheduled for ${longTime(new Date(r.effectiveAt))})` : String(n);
+    })
+    .join(", ");
+  const one = numbers.length === 1;
+  return `Release ${named} ${one ? "has" : "have"} not gone live yet. This push carries the whole draft, so ${
+    one ? "its" : "their"
+  } scheduled changes go live with it, earlier than planned.`;
+}
 
 const longTime = (d: Date) =>
   d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -36,11 +52,31 @@ export function SaveAndPush() {
   const titleId = useId();
   const hintId = useId();
 
+  // Releases already pushed, to warn when this push would overtake one that is still scheduled.
+  const [releases, setReleases] = useState<ReleaseMeta[]>([]);
+  // A push that overtakes a scheduled release takes a second click on "Schedule push" too.
+  const [earlyArmed, setEarlyArmed] = useState(false);
+
   const at = parseMdyHm(text);
   const past = at != null && at.getTime() < now.getTime() - 60_000;
   const blocked = publishErrors.length > 0;
   const canPush = at != null && !past && !blocked && !busy;
   const canPushNow = !blocked && !busy;
+  const overtakenLater = at != null && !past ? overtakenReleases(at, releases, now) : [];
+  const overtakenNow = overtakenReleases(now, releases, now);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    void listReleases()
+      .then((list) => alive && setReleases(list))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
+  useEffect(() => setEarlyArmed(false), [text]);
 
   useEffect(() => {
     if (!armed) return;
@@ -90,7 +126,9 @@ export function SaveAndPush() {
     if (!now) {
       if (!at) return setError("Type the go-live time as mm/dd/yy hh:mm, for example 11/17/26 09:00.");
       if (past) return setError("That time has passed. Pick now or a later time.");
+      if (overtakenLater.length && !earlyArmed) return setEarlyArmed(true);
     }
+    setEarlyArmed(false);
     if (!when) return;
     setBusy(now ? "now" : "schedule");
     setArmed(false);
@@ -217,6 +255,12 @@ export function SaveAndPush() {
                   {publishErrors.length > 1 ? ` (+${publishErrors.length - 1} more on Releases)` : ""}
                 </p>
               ) : null}
+              {(armed ? overtakenNow : overtakenLater).length ? (
+                <p role="alert" className="rounded-md bg-warning/15 px-2.5 py-2 text-xs text-foreground">
+                  {overtakenWarning(armed ? overtakenNow : overtakenLater, releases)}
+                  {earlyArmed ? " Click Schedule push again to push anyway." : ""}
+                </p>
+              ) : null}
               {error ? (
                 <p role="alert" className="rounded-md bg-destructive/15 px-2.5 py-2 text-xs text-destructive-foreground">
                   {error}
@@ -246,7 +290,7 @@ export function SaveAndPush() {
                 </Button>
                 <Button type="button" className="h-8 gap-1.5 px-3 text-xs" disabled={!canPush || done != null} onClick={() => void push()}>
                   <CalendarClock aria-hidden className="size-3.5" />
-                  {busy === "schedule" ? "Scheduling…" : "Schedule push"}
+                  {busy === "schedule" ? "Scheduling…" : earlyArmed ? "Push anyway" : "Schedule push"}
                 </Button>
               </div>
               {armed ? <p className="-mt-1 text-xs text-muted">Click again to make it live for everyone now.</p> : null}

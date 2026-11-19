@@ -1,0 +1,173 @@
+/* Celebrate overlay and Card Showcase.
+   Both share one motif: thin concentric rings around the thing that matters. Every colour is a theme token, so
+   both screens follow the active theme (dark or light) and sit under any card skin. */
+
+/* ---------------- Celebrate ---------------- */
+.cel {
+  --cel-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  position: fixed; inset: 0; z-index: 130; display: grid; grid-template-rows: 1fr auto; justify-items: center;
+  padding: 24px 16px 28px; overflow: auto; cursor: pointer; color: var(--text);
+  /* The page stays visible but steps back: dim plus a real blur, the way a held breath feels. */
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(0.8); backdrop-filter: blur(14px) saturate(0.8);
+  animation: cel-dim 380ms ease-out both;
+}
+.cel-stage { align-self: center; display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(560px, 100%); text-align: center; }
+.cel-emblem { position: relative; display: grid; place-items: center; width: clamp(150px, 26vmin, 220px); aspect-ratio: 1; margin-bottom: 18px; }
+/* A hairline running through the emblem to the edges of the stage, with a tick at each end. */
+.cel-axis { position: absolute; top: 50%; left: 50%; width: min(86vw, 640px); height: 1px; transform: translateX(-50%) scaleX(1);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 26%, transparent) 18%, transparent 36%, transparent 64%, color-mix(in srgb, var(--text) 26%, transparent) 82%, transparent);
+  animation: cel-axis 900ms var(--cel-ease) 120ms both; }
+.cel-axis::before, .cel-axis::after { content: ""; position: absolute; top: -3px; width: 7px; height: 7px; border: solid color-mix(in srgb, var(--text) 45%, transparent); border-width: 1px 1px 0 0; }
+.cel-axis::before { left: 10%; transform: rotate(-135deg); }
+.cel-axis::after { right: 10%; transform: rotate(45deg); }
+.cel-rings { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cel-rings circle { fill: none; vector-effect: non-scaling-stroke; transform-origin: 100px 100px; }
+.cel-ring-out { stroke: color-mix(in srgb, var(--accent) 70%, var(--text)); stroke-width: 1px; stroke-dasharray: 0.6 1.6; animation: cel-open 900ms var(--cel-ease) both, cel-turn 40s linear 900ms infinite; }
+.cel-ring-mid { stroke: color-mix(in srgb, var(--text) 30%, transparent); stroke-width: 1px; animation: cel-open 820ms var(--cel-ease) 80ms both; }
+.cel-rings .cel-ring-in { fill: color-mix(in srgb, var(--accent) 16%, var(--bg)); stroke: color-mix(in srgb, var(--accent) 55%, transparent); stroke-width: 1.5px; animation: cel-open 700ms var(--cel-ease) 160ms both; }
+.cel-icon { position: relative; display: grid; place-items: center; color: color-mix(in srgb, var(--accent) 80%, var(--text)); animation: cel-icon 620ms var(--cel-ease) 360ms both; }
+.cel-icon svg { width: clamp(40px, 7vmin, 60px); height: auto; }
+.cel-title { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.04; text-wrap: balance; }
+.cel-line { max-width: 40ch; font-size: 15px; line-height: 1.5; color: var(--dim); text-wrap: pretty; }
+.cel-art { margin-top: 14px; width: min(260px, 72vw); }
+.cel-title, .cel-line, .cel-art { animation: cel-rise 620ms var(--cel-ease) both; }
+.cel-title { animation-delay: 420ms; }
+.cel-line { animation-delay: 500ms; }
+.cel-art { animation-delay: 580ms; }
+.cel-go { align-self: end; min-height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: none; color: var(--mute); font-size: 13px; letter-spacing: 0.01em; animation: cel-rise 620ms var(--cel-ease) 760ms both; }
+.cel-go:hover { color: var(--text); }
+.cel-go:focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+@keyframes cel-dim { from { background: transparent; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); } }
+@keyframes cel-axis { from { transform: translateX(-50%) scaleX(0.2); opacity: 0; } }
+@keyframes cel-open { from { transform: scale(0.55); opacity: 0; filter: blur(6px); } }
+@keyframes cel-turn { to { transform: rotate(360deg); } }
+@keyframes cel-icon { from { transform: scale(0.7); opacity: 0; } }
+@keyframes cel-rise { from { opacity: 0; transform: translateY(12px); } }
+
+/* ---------------- Card Showcase ---------------- */
+.sc {
+  --sc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --sc-gold: #e2b64c;
+  position: fixed; inset: 0; z-index: 110; display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "top top top" "rail stage panel";
+  background: radial-gradient(70% 80% at 46% 52%, color-mix(in srgb, var(--accent) 9%, var(--bg)), var(--bg) 70%);
+  color: var(--text); outline: none;
+  animation: sc-in 320ms ease-out both;
+}
+.sc .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.sc-top { grid-area: top; display: flex; align-items: center; gap: 16px; padding: 14px 20px; box-shadow: 0 1px 0 var(--edge); }
+.sc-sets { display: flex; gap: 2px; min-width: 0; overflow-x: auto; }
+.sc-set { min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px 8px 0 0; background: none; color: var(--dim); font-size: 13.5px; white-space: nowrap; box-shadow: inset 0 -1px 0 transparent; transition: color 0.15s, box-shadow 0.15s; }
+.sc-set:hover { color: var(--text); }
+.sc-set[aria-selected="true"] { color: var(--text); font-weight: 500; box-shadow: inset 0 -1px 0 var(--text); }
+.sc-count { margin-left: auto; color: var(--dim); font-size: 13px; white-space: nowrap; }
+.sc-close { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 999px; background: none; color: var(--dim); transition: color 0.15s, background-color 0.15s; }
+.sc-close:hover { color: var(--text); background: var(--wash); }
+.sc-close svg { width: 20px; height: 20px; }
+
+/* Left: the set, one thumbnail per prize. */
+.sc-rail { grid-area: rail; display: flex; flex-direction: column; gap: 8px; padding: 16px 14px; overflow-y: auto; box-shadow: 1px 0 0 var(--edge); }
+.sc-thumb { position: relative; flex: none; width: 66px; height: 66px; padding: 4px; border: 1px solid var(--edge); border-radius: 12px; background: var(--wash); transition: border-color 0.15s, transform 0.2s var(--sc-ease), opacity 0.15s; }
+.sc-thumb:hover { border-color: var(--edge-2); transform: translateX(2px); }
+.sc-thumb:not([data-owned]) { opacity: 0.55; }
+.sc-thumb[aria-selected="true"] { opacity: 1; border-color: var(--text); box-shadow: 0 6px 16px -10px rgb(0 0 0 / 0.6); }
+.sc-thumb[data-stars="4"]::after, .sc-thumb[data-stars="5"]::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--sc-gold); }
+.sc-thumb[data-stars="5"]::after { background: linear-gradient(90deg, #ff9db0, #ffd27a 28%, #9ef0b5 52%, #8fc3ff 74%, #c9a2ff); }
+.sc-thumb-art { display: grid; place-items: center; width: 100%; height: 100%; border: 1px solid transparent; border-radius: 8px; overflow: hidden; font-weight: 600; font-size: 16px; }
+.sc-thumb-widget { padding: 4px; background: color-mix(in srgb, var(--text) 6%, var(--bg)); color: var(--text); font-size: 10px; font-weight: 500; line-height: 1.15; text-align: center; overflow-wrap: break-word; hyphens: auto; }
+.sc-thumb-icon { color: var(--dim); }
+.sc-thumb-icon svg { width: 26px; height: 26px; }
+.sc-thumb-lock { position: absolute; top: 4px; right: 4px; width: 13px; height: 13px; padding: 2px; border-radius: 999px; background: var(--bg); color: var(--dim); box-sizing: content-box; }
+
+/* Middle: the card, standing in its rings. */
+.sc-stage { grid-area: stage; display: grid; place-items: center; min-width: 0; padding: 24px; overflow: hidden; }
+.sc-tilt { position: relative; display: grid; place-items: center; width: 100%; height: 100%; perspective: 1400px; }
+.sc-halo { position: absolute; width: min(78%, 620px); aspect-ratio: 1; overflow: visible; pointer-events: none; }
+.sc-halo circle { fill: none; stroke: color-mix(in srgb, var(--text) 10%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.sc-halo circle:first-child { stroke: color-mix(in srgb, var(--accent) 22%, transparent); stroke-dasharray: 2 6; }
+.sc-card {
+  --rim: var(--edge-2);
+  position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  width: clamp(230px, 24vw, 330px); aspect-ratio: 5 / 7; padding: 10px; border-radius: 16px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--text) 9%, var(--bg)), color-mix(in srgb, var(--text) 3%, var(--bg)));
+  box-shadow: 0 0 0 1px var(--rim), 0 34px 60px -28px rgb(0 0 0 / 0.7);
+  transform: rotateZ(-5deg) rotateY(calc(var(--tx) * 16deg)) rotateX(calc(var(--ty) * -12deg));
+  transition: transform 0.5s var(--sc-ease);
+  animation: sc-card-in 720ms var(--sc-ease) both;
+}
+.sc-card[data-stars="4"] { --rim: color-mix(in srgb, var(--sc-gold) 70%, transparent); }
+.sc-card[data-stars="5"] { box-shadow: 0 0 0 1px transparent, 0 34px 60px -28px rgb(0 0 0 / 0.7); }
+.sc-card[data-stars="5"]::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: linear-gradient(140deg, #ff9db0, #ffd27a 28%, #9ef0b5 52%, #8fc3ff 74%, #c9a2ff);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.sc-card:not([data-owned]) .sc-window { filter: grayscale(0.6) brightness(0.8); }
+/* A live dashboard card stands straight and wide, so its controls can be used. */
+.sc-card[data-live] { width: clamp(300px, 34vw, 460px); aspect-ratio: 4 / 5; transform: rotateZ(0); }
+.sc-window { position: relative; min-height: 0; display: grid; place-items: stretch; overflow: hidden; border-radius: 10px; background: color-mix(in srgb, var(--text) 5%, var(--bg)); }
+.sc-window > * { min-width: 0; min-height: 0; }
+.sc-window .sc-skin { height: 100%; min-height: 0; border-radius: 10px; }
+.sc-lookart { position: relative; display: grid; grid-template-rows: 1fr auto auto; align-content: end; gap: 14px; height: 100%; padding: 18px; border-radius: 10px; overflow: hidden; }
+.sc-lookart > b { align-self: center; justify-self: center; font-size: clamp(4rem, 8vw, 6rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.sc-lookart-dots { display: flex; justify-content: center; gap: 8px; }
+.sc-lookart-dots i { width: 10px; height: 10px; border-radius: 999px; }
+.sc-lookart-card { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px 10px; padding: 10px 12px; border: 1px solid; }
+.sc-lookart-card small { font-size: 11px; }
+.sc-lookart-card strong { grid-row: 2; font-size: 22px; font-weight: 500; line-height: 1; }
+.sc-lookart-card strong small { margin-left: 2px; font-size: 11px; }
+.sc-lookart-card i { grid-row: 1 / 3; grid-column: 2; width: 44px; height: 4px; align-self: end; margin-bottom: 4px; border-radius: 2px; }
+.sc-lookart-by { position: absolute; top: 12px; right: 14px; font-size: 11px; }
+.sc-window .sc-widget { height: 100%; min-height: 0; border: 0; border-radius: 10px; justify-content: center; }
+.sc-live { display: flex; height: 100%; overflow: auto; }
+.sc-live > * { flex: 1; min-width: 0; }
+.sc-icon { display: grid; place-items: center; color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+.sc-icon svg { width: 34%; height: auto; }
+.sc-plate { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 6px 2px; }
+.sc-plate b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.sc-plate span { flex: none; color: var(--dim); font-size: 11.5px; }
+.sc-card[data-live] .sc-plate span { color: var(--good); }
+/* A foil sheen that slides with the lean, only on pictures. */
+.sc-sheen { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0.55; mix-blend-mode: soft-light;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.5) calc(48% + var(--tx) * 40%), transparent 66%); }
+.sc-card[data-live] .sc-sheen { display: none; }
+
+/* Right: what it is and does. */
+.sc-panel { grid-area: panel; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 28px 24px 24px; overflow-y: auto; box-shadow: -1px 0 0 var(--edge); background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.sc-name { font-size: clamp(1.4rem, 2.2vw, 1.9rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; }
+.sc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: -6px; color: var(--dim); font-size: 13px; }
+.sc-own { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid var(--edge-2); border-radius: 999px; font-size: 11px; font-weight: 500; }
+.sc-own[data-owned] { border-color: color-mix(in srgb, var(--good) 55%, transparent); color: var(--good); }
+.sc-sec { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; box-shadow: 0 -1px 0 var(--edge); }
+.sc-sec h3 { font-size: 12.5px; font-weight: 500; color: var(--dim); }
+.sc-sec p { font-size: 14px; line-height: 1.55; max-width: 60ch; }
+.sc-facts { display: grid; gap: 0; margin: 0; }
+.sc-facts div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; box-shadow: 0 1px 0 var(--edge); font-size: 13px; }
+.sc-facts dt { color: var(--dim); }
+.sc-facts dd { margin: 0; text-align: right; }
+.sc-action { margin-top: auto; min-height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 600; transition: transform 0.2s var(--sc-ease), opacity 0.15s; }
+.sc-action:hover:not(:disabled) { transform: translateY(-1px); }
+.sc-action:disabled { opacity: 0.45; }
+.sc-empty { grid-column: 2 / -1; align-self: center; justify-self: center; color: var(--dim); }
+
+@keyframes sc-in { from { opacity: 0; } }
+@keyframes sc-card-in { from { opacity: 0; transform: translateY(18px) rotateZ(-9deg) scale(0.96); filter: blur(4px); } }
+
+/* Narrow windows: the list runs along the bottom and the panel scrolls under the card. */
+@media (max-width: 860px) {
+  .sc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto; grid-template-areas: "top" "stage" "rail" "panel"; overflow-y: auto; }
+  .sc-stage { padding: 32px 16px; overflow: visible; }
+  .sc-halo { width: min(92%, 420px); }
+  .sc-sets { scrollbar-width: none; }
+  .sc-rail { flex-direction: row; min-height: 90px; overflow-x: auto; overflow-y: hidden; padding: 10px 16px; box-shadow: 0 -1px 0 var(--edge), 0 1px 0 var(--edge); }
+  .sc-panel { box-shadow: none; overflow: visible; }
+  .sc-card { width: min(240px, 58vw); }
+  .sc-card[data-live] { width: min(420px, 92vw); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cel, .cel *, .sc, .sc * { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; }
+  .sc-card { transition: none; }
+}

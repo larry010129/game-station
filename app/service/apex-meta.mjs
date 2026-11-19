@@ -31,6 +31,8 @@ const LEGEND_IMG = (slug) => `/api/img?kind=legend&slug=${encodeURIComponent(slu
 const GUN_IMG = (slug) => `/api/img?kind=weapon&slug=${encodeURIComponent(slug)}`;
 
 const now = () => Date.now();
+const CHECK_MS = 3600_000;
+const STALE_MS = 24 * 3600_000;
 
 function withGunImg(row) {
   return { ...row, img: GUN_IMG(row.imgSlug || row.slug) };
@@ -247,9 +249,13 @@ function unknownDetail(slug, mode, meta) {
 export function createApexMeta(log, deps = {}) {
   const doFetch = deps.fetch ?? ((...a) => fetch(...a));
   const cacheFile = deps.file ?? CACHE_FILE;
+  const clock = deps.now ?? now;
+  const every = deps.setInterval ?? setInterval;
+  const stopEvery = deps.clearInterval ?? clearInterval;
   let cache = readJson(cacheFile, null);
   let busy = null;
   let error = null;
+  let timer = null;
 
   log?.("apex-meta: ALS legend pick rates + ALGS weaponsmeta + Tracker/ALS portraits");
 
@@ -343,7 +349,7 @@ export function createApexMeta(log, deps = {}) {
     const [legends, weapons] = await Promise.all([legendP, weaponP]);
 
     cache = {
-      fetchedAt: now(),
+      fetchedAt: clock(),
       live: true,
       sampleLabel: legends.sampleLabel,
       error: null,
@@ -384,8 +390,20 @@ export function createApexMeta(log, deps = {}) {
 
   return {
     snapshot,
-    start() {},
-    stop() {},
+    start() {
+      // Same rule as counterwatch.mjs: check hourly, scrape again once the data is a day old, so an app left
+      // open keeps current pick rates. (The first scrape already ran at creation.)
+      if (timer) return;
+      timer = every(() => {
+        const at = cache?.fetchedAt;
+        if (!at || clock() - at > STALE_MS) return refresh();
+      }, CHECK_MS);
+      timer?.unref?.();
+    },
+    stop() {
+      if (timer) stopEvery(timer);
+      timer = null;
+    },
     refresh,
     async heroDetail(slug, { mode } = {}) {
       const m = mode === "mixtape" ? "mixtape" : "br";
@@ -404,16 +422,18 @@ export function createApexMeta(log, deps = {}) {
     },
     async rank(rankName, { mode } = {}) {
       const data = snapshot(mode);
-      // ALS public pick-rate page is not split by ranked division.
+      // The ALS public pick-rate page is not split by ranked division. A specific rank therefore has no data of
+      // its own: answer empty rather than showing the all-ranks list under that rank's name.
+      const all = !rankName || rankName === "All";
       return {
         rank: rankName || "All",
-        label: rankName && rankName !== "All" ? rankName : "All ranks",
+        label: all ? "All ranks" : rankName,
         mode: data.mode,
-        empty: !data.tiers.length,
+        empty: all ? !data.tiers.length : true,
         fetchedAt: data.fetchedAt,
         error: data.error,
-        tiers: data.tiers,
-        maps: data.maps.map((m) => ({ ...m, heroes: [] })),
+        tiers: all ? data.tiers : [],
+        maps: all ? data.maps.map((m) => ({ ...m, heroes: [] })) : [],
       };
     },
   };

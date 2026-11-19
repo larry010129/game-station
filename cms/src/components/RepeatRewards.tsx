@@ -11,7 +11,7 @@ const ROWS: { key: CrystalKey; label: string; hint: string }[] = [
   { key: "regularTheme", label: "Regular theme (4-star)", hint: "Regular crystals · a standard Regular theme" },
   { key: "rainbowTheme", label: "Rainbow Regular theme (5-star)", hint: "Regular crystals · defaults to the 4-star value" },
   { key: "customUpload", label: "Custom upload unlock", hint: "Regular crystals · Brand and Region packs only" },
-  { key: "brandTheme", label: "Featured theme (5-star)", hint: "Special crystals · a featured Brand or company look" },
+  { key: "brandTheme", label: "Featured theme (5-star)", hint: "Special crystals · a featured Brand or company theme" },
 ];
 
 const whole = (v: string) => Math.max(0, Math.floor(Number(v) || 0));

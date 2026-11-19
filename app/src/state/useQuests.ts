@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readJson, writeJson } from "../lib/storage";
 import { addCredits } from "./stationCredits";
+import { hourBonus } from "./perks";
+import { perkIncomeBonus, readPerkEffects } from "./perkStore";
 import {
   addMinutes,
   claim,
@@ -9,10 +11,12 @@ import {
   recordArmed,
   recordCheckin,
   recordOnce,
-  rankOf,
   recordSession,
+  startPlayClock,
   takeLookPick,
+  tickPlayClock,
   type OnceEvent,
+  type PlayClock,
   type QuestState,
 } from "./questEngine";
 
@@ -34,8 +38,7 @@ function update(f: (s: QuestState) => QuestState): void {
 export const trackQuest = {
   checkin: () => update((s) => recordCheckin(s, new Date())),
   armed: () => update((s) => recordArmed(s, new Date())),
-  // Star a theme only counts once Regular is reached (the quest is hidden until then).
-  once: (e: OnceEvent) => update((s) => (e === "star" && rankOf(s).id === "recruit" ? s : recordOnce(s, e))),
+  once: (e: OnceEvent) => update((s) => recordOnce(s, e)),
 };
 
 /** Pays a finished quest into the balance. Returns the Credits added, or null when it cannot be claimed. */
@@ -43,9 +46,11 @@ export function claimQuest(id: string): number | null {
   const r = claim(readQuests(), id, new Date());
   if (!r) return null;
   if (!writeJson(QUESTS_KEY, r.state)) return null;
-  if (r.credits > 0) addCredits(r.credits);
+  // Perk tree: percent more Income from quests (and on all Income).
+  const paid = r.credits + perkIncomeBonus("quest", r.credits);
+  if (paid > 0) addCredits(paid);
   window.dispatchEvent(new Event(EVENT));
-  return r.credits;
+  return paid;
 }
 
 /** Uses one waiting weekly-look pick. Returns false when none is waiting. */
@@ -89,11 +94,11 @@ export function useQuests(): { state: QuestState; now: Date } {
 
 /**
  * The counted-minute timer. While a watched game is the running session each whole minute is counted and, at the
- * rank rate, turns into Credits; leftover minutes stay banked. A session under 60 seconds adds nothing, and a
+ * Payroll rate, turns into Income; leftover minutes stay banked. A session under 60 seconds adds nothing, and a
  * finished session of 45 minutes or more is a long watch. Also records the daily check-in when the app opens.
  */
 export function useQuestTracking(game: string | null | undefined): void {
-  const session = useRef<{ game: string; startedAt: number; counted: number } | null>(null);
+  const session = useRef<{ game: string; clock: PlayClock } | null>(null);
 
   useEffect(() => {
     trackQuest.checkin();
@@ -105,22 +110,27 @@ export function useQuestTracking(game: string | null | undefined): void {
   const credit = useCallback(() => {
     const s = session.current;
     if (!s) return;
-    const whole = Math.floor((Date.now() - s.startedAt) / 60_000);
-    const due = whole - s.counted;
+    // Counted (awake) time, so hours the PC slept with a game open are not paid as play.
+    const { clock, due } = tickPlayClock(s.clock, Date.now());
+    s.clock = clock;
     if (due <= 0) return;
-    s.counted = whole;
-    const r = addMinutes(readQuests(), due, new Date());
+    const before = readQuests();
+    const r = addMinutes(before, due, new Date());
     if (writeJson(QUESTS_KEY, r.state)) {
-      if (r.credits > 0) addCredits(r.credits);
+      // Perk tree: extra Income for each whole counted hour these minutes complete, then percent more on all of it.
+      const earned = r.credits + hourBonus(before.minutesTotal, r.state.minutesTotal, readPerkEffects().creditsPerHour);
+      const paid = earned + perkIncomeBonus("play", earned);
+      if (paid > 0) addCredits(paid);
       window.dispatchEvent(new Event(EVENT));
     }
   }, []);
 
   useEffect(() => {
-    if (game && !session.current) session.current = { game, startedAt: Date.now(), counted: 0 };
+    if (game && !session.current) session.current = { game, clock: startPlayClock(Date.now()) };
     if (!game && session.current) {
       credit();
-      const seconds = (Date.now() - session.current.startedAt) / 1000;
+      // Session length for "Long watch" and the 60-second minimum uses the same counted time as the minutes.
+      const seconds = session.current.clock.activeMs / 1000;
       session.current = null;
       update((s) => recordSession(s, seconds, new Date()));
     }

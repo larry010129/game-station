@@ -1,0 +1,895 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="utf-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Player Level Curve</title>
+
+<style>
+
+:root {
+
+  --bg: #f4f6f9; --panel: #ffffff; --ink: #1b2230; --muted: #5d6778; --line: #dde2ea;
+
+  --accent: #3b7dd8; --accent2: #c2569b; --grid: #e8ecf2;
+
+}
+
+@media (prefers-color-scheme: dark) {
+
+  :root:not([data-theme="light"]) {
+
+    --bg: #11151c; --panel: #1a2029; --ink: #e6ebf3; --muted: #97a1b2; --line: #2a3340;
+
+    --accent: #7fb2ff; --accent2: #f08ccf; --grid: #232b36;
+
+  }
+
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, "Segoe UI", sans-serif; }
+
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+
+h1 { font-size: 22px; margin: 0 0 4px; }
+
+.sub { color: var(--muted); margin: 0 0 20px; }
+
+.grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; }
+
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; }
+
+.ctl { margin-bottom: 14px; }
+
+.ctl label { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 4px; }
+
+.ctl label output { font-variant-numeric: tabular-nums; color: var(--accent); }
+
+.ctl small { color: var(--muted); display: block; margin-top: 2px; }
+
+input[type=range] { width: 100%; accent-color: var(--accent); }
+
+select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; }
+
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+
+.presets button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+
+.presets button:hover { border-color: var(--accent); }
+
+.hide { display: none; }
+
+canvas { width: 100%; height: 260px; display: block; }
+
+.charts { display: grid; gap: 16px; }
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+
+td.num, th.num { text-align: right; }
+
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+
+.kpi small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+@media (max-width: 600px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+
+.kpi b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+
+.kpi span { color: var(--muted); font-size: 12px; }
+
+.warn { color: var(--accent2); font-weight: 600; }
+
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+
+.modes button { border: 0; border-radius: 6px; padding: 7px 8px; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+
+.modes button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
+
+.target { display: grid; grid-template-columns: 1fr 92px 54px; align-items: center; gap: 8px; margin-bottom: 10px; }
+
+.target label { font-weight: 600; }
+
+.target input { width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; text-align: right; font-variant-numeric: tabular-nums; }
+
+.target span { color: var(--muted); font-size: 12px; }
+
+.fit { margin: 4px 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: 12.5px; line-height: 1.6; }
+
+.fit b { font-variant-numeric: tabular-nums; }
+
+.fit .warn { display: block; margin-top: 6px; }
+
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+</style>
+
+</head>
+
+<body>
+
+<main>
+
+  <h1>Player level curve</h1>
+
+  <p class="sub">Set a curve and see the times, or set the times and get the curve. Times use counted app time: the hours the app is running, up to a daily cap. Points come from levels and are spent on the perk tree.</p>
+
+
+
+  <div class="grid">
+
+    <section class="panel">
+
+      <div class="modes" role="group" aria-label="Mode">
+
+        <button type="button" data-mode-btn="curve">Set the curve</button>
+
+        <button type="button" data-mode-btn="target">Set the targets</button>
+
+      </div>
+
+
+
+      <div data-mode="target">
+
+        <h2>Targets</h2>
+
+        <div class="ctl">
+
+          <label>Targets are for</label>
+
+          <select id="tBasis">
+
+            <option value="you">Your week (app hours per week)</option>
+
+            <option value="avg">The average PC player</option>
+
+          </select>
+
+        </div>
+
+        <div class="target"><label for="tFirst">First level takes</label><input id="tFirst" type="number" min="1" step="1"><span>minutes</span></div>
+
+        <div class="target"><label for="tC1">First class complete</label><input id="tC1" type="number" min="0.5" step="0.5"><span>days</span></div>
+
+        <div class="target"><label for="tC2">Second class complete</label><input id="tC2" type="number" min="0.1" step="0.1"><span>weeks</span></div>
+
+        <div class="target"><label for="tTree">Whole tree</label><input id="tTree" type="number" min="0.1" step="0.1"><span>years</span></div>
+
+        <div class="target"><label for="tMax">Max level</label><input id="tMax" type="number" min="0.1" step="0.1"><span>years</span></div>
+
+        <div class="fit" id="fit"></div>
+
+      </div>
+
+
+
+      <div data-mode="curve">
+
+      <h2>Presets</h2>
+
+      <div class="presets">
+
+        <button data-p="decided">Decided design</button>
+
+        <button data-p="flat">Flat 2.5 h</button>
+
+        <button data-p="fast">Fast start, then flat</button>
+
+        <button data-p="linear">Gentle rise</button>
+
+        <button data-p="exp">RPG curve</button>
+
+        <button data-p="class20">Class in 20 days</button>
+
+        <button data-p="class30">Class in 30 days</button>
+
+        <button data-p="power25">Power, class in 25 days</button>
+
+        <button data-p="tiers25">Tiers, class in 25 days</button>
+
+        <button data-p="cap25">Rise then flat, class in 25 days</button>
+
+        <button data-p="season">1 class in 0.7 season (10 h a week)</button>
+
+        <button data-p="apptime">App time baseline</button>
+
+        <button data-p="nocap">No cap, tree in 8 years at 9.7 h</button>
+
+      </div>
+
+
+
+      <h2>Curve</h2>
+
+      <div class="ctl">
+
+        <label>Curve type</label>
+
+        <select id="curve">
+
+          <option value="flat">Flat: every level the same XP</option>
+
+          <option value="fast">Fast start, then flat</option>
+
+          <option value="linear">Linear rise: + fixed % of base each level</option>
+
+          <option value="power">Power: base × level ^ power</option>
+
+          <option value="exp">Exponential rise: × (1 + %) each level</option>
+
+          <option value="tiers">Tiers: + base every few levels</option>
+
+          <option value="cap">Rise, then flat after a level</option>
+
+        </select>
+
+        <small id="curve-note"></small>
+
+      </div>
+
+      <div class="ctl"><label>Base XP per level <output id="o-base"></output></label><input id="base" type="range" min="200" max="60000" step="50"><small id="base-h"></small></div>
+
+      <div class="ctl" data-for="fast"><label>Fast levels at the start <output id="o-earlyN"></output></label><input id="earlyN" type="range" min="0" max="50" step="1"></div>
+
+      <div class="ctl" data-for="fast"><label>XP per fast level <output id="o-early"></output></label><input id="early" type="range" min="50" max="3000" step="50"><small id="early-h"></small></div>
+
+      <div class="ctl" data-for="linear exp cap"><label>Growth per level <output id="o-growth"></output></label><input id="growth" type="range" min="0" max="20" step="0.05"></div>
+
+      <div class="ctl" data-for="power"><label>Power <output id="o-pow"></output></label><input id="pow" type="range" min="1" max="3" step="0.05"><small>1 is a straight line; Pokémon's total XP is level³ (about 2 here).</small></div>
+
+      <div class="ctl" data-for="tiers"><label>Levels per tier <output id="o-tierN"></output></label><input id="tierN" type="range" min="2" max="50" step="1"><small>Every tier adds one more base XP per level (Steam: +100 every 10 levels).</small></div>
+
+      <div class="ctl" data-for="cap"><label>Rise stops at level <output id="o-capL"></output></label><input id="capL" type="range" min="2" max="150" step="1"><small>Levels after this all cost the same.</small></div>
+
+      </div>
+
+
+
+      <h2>Levels and points</h2>
+
+      <div class="ctl"><label>Max level <output id="o-max"></output></label><input id="max" type="range" min="50" max="500" step="10"></div>
+
+      <div class="ctl"><label>Points per level <output id="o-ppl"></output></label><input id="ppl" type="range" min="1" max="15" step="1"></div>
+
+      <div class="ctl"><label>Starting points <output id="o-start"></output></label><input id="start" type="range" min="0" max="10" step="1"></div>
+
+
+
+      <h2>Player and tree</h2>
+
+      <div class="ctl"><label>Average XP boost <output id="o-boost"></output></label><input id="boost" type="range" min="0" max="200" step="5"><small>A rough stand-in for every boost together: boost items, double XP events, perks, Patreon. All counted time earns this much more XP.</small></div>
+
+      <div class="ctl"><label>XP per counted minute <output id="o-xpm"></output></label><input id="xpm" type="range" min="1" max="30" step="1"></div>
+
+      <div class="ctl"><label>App hours per day <output id="o-hpd"></output></label><input id="hpd" type="range" min="0.5" max="24" step="0.1"></div>
+
+      <div class="ctl"><label>Days the app runs per week <output id="o-dpw"></output></label><input id="dpw" type="range" min="1" max="7" step="1"><small id="o-hpw"></small></div>
+
+      <div class="ctl"><label>Daily cap on counted time <output id="o-cap"></output></label><input id="cap" type="range" min="1" max="24" step="0.5"><small>App time past this many hours a day earns nothing, so leaving the app on all day cannot fill the tree. Drives the Always on column.</small></div>
+
+      <div class="ctl"><label>Average PC player, hours per week <output id="o-avg"></output></label><input id="avg" type="range" min="1" max="40" step="0.1"><small>From survey data: PC players average 9.7 h a week (MIDiA Research, Q4 2024). Drives the Average PC player column.</small></div>
+
+      <div class="ctl"><label>Lightest player, app hours per week <output id="o-low"></output></label><input id="low" type="range" min="1" max="20" step="0.5"><small>The least play you design for. Drives the Lightest player column.</small></div>
+
+      <div class="ctl"><label>Whole tree cost <output id="o-tree"></output></label><small id="tree-note">Fixed: every node of the perk tree (2,545 nodes, five bands) under 1-3-5 costs, squares free (2,864 under today's 1-2-3).</small></div>
+
+      <div class="ctl"><label>One full class cost <output id="o-cls"></output></label><input id="cls" type="range" min="50" max="800" step="1"><small id="cls-note">Every node of one class (318 nodes, up to its "V" keystone, bridges shared with its neighbours): 405 under 1-3-5, 358 under today's 1-2-3.</small></div>
+
+    </section>
+
+
+
+    <section>
+
+      <div class="kpis">
+
+        <div class="kpi"><b id="k-c1"></b><span>first class complete</span><small id="k-c1-avg"></small></div>
+
+        <div class="kpi"><b id="k-c2"></b><span>second class complete</span><small id="k-c2-avg"></small></div>
+
+        <div class="kpi"><b id="k-max"></b><span>to max level</span></div>
+
+        <div class="kpi"><b id="k-pts"></b><span>points at max level</span></div>
+
+        <div class="kpi"><b id="k-tree"></b><span>whole tree</span></div>
+
+        <div class="kpi"><b id="k-last"></b><span>hours for the last level</span></div>
+
+      </div>
+
+      <div class="charts">
+
+        <div class="panel">
+
+          <h2>Hours per level</h2>
+
+          <canvas id="c1"></canvas>
+
+        </div>
+
+        <div class="panel">
+
+          <h2>Level reached over time</h2>
+
+          <div class="legend"><span><i style="background:var(--accent)"></i>Level</span><span><i style="background:var(--accent2)"></i>Share of tree unlocked</span></div>
+
+          <canvas id="c2"></canvas>
+
+        </div>
+
+        <div class="panel">
+
+          <h2>Milestones</h2>
+
+          <table>
+
+            <thead><tr><th>Goal</th><th class="num">Points</th><th class="num">Level</th><th class="num">Counted hours</th><th class="num" id="th-you">Calendar time</th><th class="num" id="th-avg">Average PC player</th><th class="num" id="th-low">Lightest player</th><th class="num" id="th-on">Always on</th></tr></thead>
+
+            <tbody id="ms"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </div>
+
+</main>
+
+
+
+<script>
+
+const $ = (id) => document.getElementById(id);
+
+/*__PACING__*/
+// Written by build.py from the tree: do not edit by hand. Change the tree or PACING in build.py and rebuild.
+const PACING = {"rules": {"counted": "App running time, no daily cap", "ref_hours_per_week": 56, "first_class_weeks": 4.348333333333334, "quick_levels": 10, "quick_minutes": 30, "xp_per_minute": 30, "points_per_level": 8.55, "start_points": 4, "max_level": 300}, "classCost": 410, "treeCost": 3280, "reachCost": 2131, "topCost": 76, "topName": "VI\u25cfBoardroom", "classLevel": 49, "treeLevel": 250, "maxLevel": 300, "flatXp": 11300, "flatHours": 6.28, "quickXp": 900, "hours": {"firstClass": 243.6, "secondClass": 544.9, "tree": 1505.4}};
+/*__PACING_END__*/
+
+/** The real tree's costs (the costs the app charges): fixed, not sliders. */
+
+const TREE_COST = PACING.reachCost || PACING.treeCost;   // what a player can take (not the whole tree)
+
+const CLASS_COST = PACING.classCost;
+
+const TOP_COST = PACING.topCost;
+
+/**
+
+ * The decided design (2026-11-18): app running time counts, no cap; 10 quick levels of 30 minutes, then a flat XP per
+
+ * level sized so the reference player (8 h a day, 7 days) finishes one full class in one month. build.py works the
+
+ * numbers out from the tree, so they keep that timing when nodes are added or removed.
+
+ */
+
+const R = PACING.rules;
+
+const DECIDED = {
+
+  curve: "fast", earlyN: R.quick_levels, early: PACING.quickXp, base: PACING.flatXp, max: PACING.maxLevel,
+
+  ppl: R.points_per_level, start: R.start_points, xpm: R.xp_per_minute, hpd: R.ref_hours_per_week / 7, dpw: 7, cap: 24, boost: 0,
+
+};
+
+const DEF = { curve: "exp", base: 400, earlyN: 10, early: 600, growth: 2, max: 300, ppl: 7, start: 4, xpm: 30, hpd: 16 / 7, dpw: 7, avg: 9.7, low: 4, cap: 24, boost: 0, tree: TREE_COST, cls: CLASS_COST, pow: 1.1, tierN: 20, capL: 50,
+
+  ...DECIDED,
+
+  // Targets mode: the times you want; the curve is fitted to hit them.
+
+  mode: "curve", tBasis: "you", tFirst: 12, tC1: 7, tC2: 3.1, tTree: 7, tMax: 10 };
+
+const TARGETS = ["tFirst", "tC1", "tC2", "tTree", "tMax"];
+
+const WEEKS_PER_YEAR = 52.18;
+
+/** What each curve type is, and the real games that use it. */
+
+const CURVE_NOTES = {
+
+  flat: "Used by battle passes: Fortnite, Overwatch and Apex charge the same XP for every tier.",
+
+  fast: "Used by season ranks: a few quick levels to hook you, then a steady flat cost (Destiny's season rank).",
+
+  linear: "Each level costs a little more than the last, by the same amount. D&D 3.5: level n needs 1,000 × n XP.",
+
+  power: "Grows faster and faster without doubling. Pokémon's Medium Fast group: total XP to level n is n³ (made for 100 levels, too steep for 300).",
+
+  exp: "Each level costs a fixed % more: grows slowly, then very fast. RuneScape doubles about every 7 levels.",
+
+  tiers: "Flat inside a tier, one step up between tiers. Steam profile levels: 100 XP each, +100 every 10 levels.",
+
+  cap: "Rises for a while, then every level costs the same. League of Legends account levels.",
+
+};
+
+const PRESETS = {
+
+  decided: DECIDED,
+
+  flat:   { curve: "flat", base: 1500 },
+
+  fast:   { curve: "fast", base: 1500, earlyN: 10, early: 600 },
+
+  linear: { curve: "linear", base: 800, growth: 0.6 },
+
+  exp:    { curve: "exp", base: 300, growth: 1.2 },
+
+  // One full class (247 points) in 20 or 30 days for the average PC player (9.7 h a week): +1% a level.
+
+  class20: { curve: "exp", base: 1200, growth: 1, max: 300, ppl: 7, start: 4, xpm: 30, avg: 9.7 },
+
+  class30: { curve: "exp", base: 1800, growth: 1, max: 300, ppl: 7, start: 4, xpm: 30, avg: 9.7 },
+
+  // The real-game shapes, each tuned so one full class takes the average PC player about 25 days.
+
+  power25: { curve: "power", base: 70, pow: 1.1, max: 300, ppl: 7, start: 4, xpm: 30, avg: 9.7 },
+
+  tiers25: { curve: "tiers", base: 1200, tierN: 20, max: 300, ppl: 7, start: 4, xpm: 30, avg: 9.7 },
+
+  cap25: { curve: "cap", base: 950, growth: 5, capL: 50, max: 300, ppl: 7, start: 4, xpm: 30, avg: 9.7 },
+
+  // One full class (405 points) in 0.7 of a 13-week season at 10 h a week (about 9 weeks, 91 h of play), so a player
+
+  // who skips some weeks still finishes about a class a season: flat 4,450 XP (2.5 h) a level, 11 points a level.
+
+  // The whole tree (3,240) takes about 5.6 seasons of steady play, about 1.4 years.
+
+  // Played 5 days of 7, about 1.4 h on each: 7 h a week, so one class takes almost exactly one 13-week season.
+
+  // Counted app time is capped at 4 h a day, so leaving the app on all day counts at most 28 h a week.
+
+  season: { curve: "flat", base: 4450, max: 300, ppl: 11, start: 4, xpm: 30, hpd: 1.4, dpw: 5, cap: 4 },
+
+  // App running time is what counts, and most users leave the app open, so nearly everyone reaches the daily cap: the
+
+  // cap is the pace. 2 h a day counted; 10 quick levels (30 min each), then a flat 6,350 XP (about 3.5 h) a level.
+
+  // App on 5 days a week (10 counted h): first class in 0.77 season, then about a class a season, whole tree 1.9 years.
+
+  apptime: { curve: "fast", earlyN: 10, early: 900, base: 6350, max: 300, ppl: 11, start: 4, xpm: 30, hpd: 2, dpw: 5, cap: 2, low: 4 },
+
+  // No cap: every hour the app runs counts. Paced so the average PC player (9.7 h a week) fills the whole tree in 8 years.
+
+  // 10 quick levels (30 min), then a flat 25,550 XP (about 14.2 h) a level.
+
+  nocap: { curve: "fast", earlyN: 10, early: 900, base: 25550, max: 300, ppl: 11, start: 4, xpm: 30, hpd: 8, dpw: 7, cap: 24, low: 4 },
+
+};
+
+const SLIDERS = ["base", "earlyN", "early", "growth", "pow", "tierN", "capL", "max", "ppl", "start", "xpm", "hpd", "dpw", "cap", "boost", "avg", "low", "cls"];
+
+let S = { ...DEF };
+
+// Saved under a new key: values saved before the real tree numbers (a 255 class cost) are not loaded again.
+
+const SAVE_KEY = "levelCurve2";
+
+try { Object.assign(S, JSON.parse(localStorage.getItem(SAVE_KEY) || "{}")); } catch {}
+
+// Older visits saved hours per week: spread them over 7 days.
+
+if (S.hpw && !("hpd" in JSON.parse(localStorage.getItem(SAVE_KEY) || "{}"))) { S.hpd = S.hpw / 7; S.dpw = 7; }
+
+/** Your week: app hours per day (up to the daily cap) × days the app runs. */
+
+const syncWeek = () => { S.hpw = Math.round(Math.min(S.hpd, S.cap) * S.dpw * 10) / 10; };
+
+/** A weekly figure, cut to what the daily cap allows. */
+
+const capped = (perWeek) => Math.min(perWeek, S.cap * 7);
+
+syncWeek();
+
+// An older visit may have saved a slider value; the tree cost is fixed now.
+
+S.tree = TREE_COST;
+
+// A class cost saved from the smaller tree (247) moves to the five-band tree's.
+
+if ([247, 383, 405].includes(S.cls)) S.cls = CLASS_COST;
+
+
+
+function xpFor(L) { // XP to go from level L to L+1
+
+  if (S.curve === "flat") return S.base;
+
+  if (S.curve === "fast") return L <= S.earlyN ? S.early : S.base;
+
+  if (S.curve === "linear") return Math.round(S.base * (1 + (S.growth / 100) * (L - 1)));
+
+  if (S.curve === "power") return Math.round(S.base * Math.pow(L, S.pow));
+
+  if (S.curve === "tiers") return S.base * (1 + Math.floor((L - 1) / S.tierN));
+
+  if (S.curve === "cap") return Math.round(S.base * (1 + (S.growth / 100) * (Math.min(L, S.capL) - 1)));
+
+  return Math.round(S.base * Math.pow(1 + S.growth / 100, L - 1));
+
+}
+
+const hrs = (xp) => xp / S.xpm / 60;
+
+const fmtH = (h) => h < 10 ? h.toFixed(1) : Math.round(h).toLocaleString();
+
+function cal(h, perWeek = S.hpw) {
+
+  // Boosts make each counted hour worth more, so the same XP arrives sooner.
+
+  const w = h / (perWeek * (1 + S.boost / 100));
+
+  if (w < 1) return `${Math.max(1, Math.round(w * 7))} days`;
+
+  if (w < 9) return `${w.toFixed(1)} weeks`;
+
+  const m = w / 4.345;
+
+  if (m < 18) return `${m.toFixed(1)} months`;
+
+  return `${(m / 12).toFixed(1)} years`;
+
+}
+
+
+
+/**
+
+ * Targets mode: hours per level that hit each target exactly. Between two targets the hours per level grow by one
+
+ * steady rate (solved by bisection), starting from the level before, so the curve has no jumps. The first stretch
+
+ * starts at "First level takes". Returns the hours per level, each stretch's rate, and anything that could not be hit.
+
+ */
+
+function fitTargets() {
+
+  const perWeek = (S.tBasis === "avg" ? capped(S.avg) : S.hpw) * (1 + S.boost / 100);
+
+  const levelFor = (p) => 1 + Math.ceil(Math.max(0, p - S.start) / S.ppl);
+
+  const anchors = [
+
+    ["first class", levelFor(S.cls), (S.tC1 / 7) * perWeek],
+
+    ["second class", levelFor(S.cls * 2), S.tC2 * perWeek],
+
+    ["whole tree", levelFor(S.tree), S.tTree * WEEKS_PER_YEAR * perWeek],
+
+    ["max level", S.max, S.tMax * WEEKS_PER_YEAR * perWeek],
+
+  ];
+
+  const per = [], stretches = [], warn = [];
+
+  let prevL = 1, prevH = 0, last = null;
+
+  for (const [name, L0, H] of anchors) {
+
+    if (L0 > S.max) { warn.push(`The ${name} needs level ${L0}, past max level ${S.max}: its target is left out.`); continue; }
+
+    const L = L0;
+
+    if (L <= prevL) continue;
+
+    const n = L - prevL, need = H - prevH;
+
+    if (need <= 0) { warn.push(`The ${name} target comes before the one above it: it is left out.`); continue; }
+
+    // Hours for this stretch at rate r: from the first-level time, or on from the last level so far.
+
+    const sum = (r) => {
+
+      let t = 0, v = last == null ? S.tFirst / 60 / r : last;
+
+      for (let i = 0; i < n; i++) { v *= r; t += v; }
+
+      return t;
+
+    };
+
+    let lo = 0.2, hi = 1.6;
+
+    if (need < sum(lo)) warn.push(`The ${name} is too soon for this start: reached ${cal(prevH + sum(lo), perWeek)} at the earliest.`);
+
+    if (need > sum(hi)) warn.push(`The ${name} is too far for one smooth stretch: reached ${cal(prevH + sum(hi), perWeek)} at most.`);
+
+    for (let k = 0; k < 80; k++) { const mid = (lo + hi) / 2; if (sum(mid) < need) lo = mid; else hi = mid; }
+
+    const r = (lo + hi) / 2;
+
+    let v = last == null ? S.tFirst / 60 / r : last;
+
+    for (let i = 0; i < n; i++) { v *= r; per.push(v); prevH += v; }
+
+    last = v;
+
+    stretches.push({ name, from: prevL, to: L, pct: (r - 1) * 100 });
+
+    if (r < 0.999) warn.push(`Levels ${prevL} to ${L} get quicker, not slower, to reach the ${name} in time. Shorten "First level takes" or give the ${name} more time.`);
+
+    prevL = L;
+
+  }
+
+  while (per.length < S.max - 1) per.push(last ?? S.tFirst / 60);
+
+  return { per, stretches, warn, perWeek };
+
+}
+
+
+
+function model() {
+
+  const per = [], cum = [0]; // cum[i] = hours to reach level i+1
+
+  if (S.mode === "target") {
+
+    for (const h of fitTargets().per) { per.push(h); cum.push(cum[cum.length - 1] + h); }
+
+  } else {
+
+    for (let L = 1; L < S.max; L++) { const h = hrs(xpFor(L)); per.push(h); cum.push(cum[cum.length - 1] + h); }
+
+  }
+
+  const pointsAt = (lvl) => S.start + (lvl - 1) * S.ppl;
+
+  const levelFor = (p) => { const l = 1 + Math.ceil(Math.max(0, p - S.start) / S.ppl); return l <= S.max ? l : null; };
+
+  return { per, cum, pointsAt, levelFor };
+
+}
+
+
+
+function draw(cv, series, opts) {
+
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+
+  cv.width = w * dpr; cv.height = h * dpr;
+
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+
+  const cs = getComputedStyle(document.documentElement), col = (v) => cs.getPropertyValue(v).trim();
+
+  const pad = { l: 44, r: opts.right ? 44 : 12, t: 8, b: 26 };
+
+  const W = w - pad.l - pad.r, H = h - pad.t - pad.b;
+
+  g.font = "11px system-ui"; g.fillStyle = col("--muted"); g.strokeStyle = col("--grid"); g.lineWidth = 1;
+
+  const xMax = opts.xMax, x = (v) => pad.l + (v / xMax) * W;
+
+  for (let i = 0; i <= 4; i++) {
+
+    const yy = pad.t + H - (i / 4) * H;
+
+    g.beginPath(); g.moveTo(pad.l, yy); g.lineTo(pad.l + W, yy); g.stroke();
+
+    g.textAlign = "right"; g.fillText(opts.yFmt(series[0].max * i / 4), pad.l - 6, yy + 4);
+
+    if (opts.right) { g.textAlign = "left"; g.fillText(Math.round(100 * i / 4) + "%", pad.l + W + 6, yy + 4); }
+
+  }
+
+  g.textAlign = "center";
+
+  for (let i = 0; i <= 5; i++) g.fillText(opts.xFmt(xMax * i / 5), x(xMax * i / 5), h - 8);
+
+  for (const s of series) {
+
+    g.strokeStyle = col(s.color); g.lineWidth = 2; g.beginPath();
+
+    s.pts.forEach(([a, b], i) => { const px = x(a), py = pad.t + H - (b / (s.max || 1)) * H; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+
+    g.stroke();
+
+  }
+
+}
+
+
+
+function render() {
+
+  syncWeek();
+
+  for (const k of SLIDERS) { $(k).value = S[k]; }
+
+  $("curve").value = S.curve;
+
+  document.querySelectorAll("[data-mode]").forEach((el) => el.classList.toggle("hide", el.dataset.mode !== S.mode));
+
+  document.querySelectorAll("[data-mode-btn]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.modeBtn === S.mode)));
+
+  for (const k of TARGETS) if (document.activeElement !== $(k)) $(k).value = S[k];
+
+  $("tBasis").value = S.tBasis;
+
+  if (S.mode === "target") {
+
+    const f = fitTargets();
+
+    const xp = (h) => Math.round(h * S.xpm * 60).toLocaleString();
+
+    $("fit").innerHTML = `<b>Fitted curve</b> (${f.perWeek} h a week)<br>` +
+
+      `First level: <b>${xp(f.per[0])} XP</b> (${fmtH(f.per[0] * 60)} min); last level: <b>${xp(f.per[f.per.length - 1])} XP</b> (${fmtH(f.per[f.per.length - 1])} h)<br>` +
+
+      f.stretches.map((st) => `Levels ${st.from} to ${st.to} (${st.name}): <b>${st.pct >= 0 ? "+" : ""}${st.pct.toFixed(2)}%</b> a level`).join("<br>") +
+
+      f.warn.map((w) => `<span class="warn">${w}</span>`).join("");
+
+  }
+
+  document.querySelectorAll("[data-for]").forEach((el) => el.classList.toggle("hide", !el.dataset.for.split(" ").includes(S.curve)));
+
+  $("o-base").textContent = S.base.toLocaleString() + " XP";
+
+  $("base-h").textContent = `≈ ${fmtH(hrs(S.base))} h of counted time`;
+
+  $("o-earlyN").textContent = S.earlyN;
+
+  $("o-early").textContent = S.early.toLocaleString() + " XP";
+
+  $("early-h").textContent = `≈ ${fmtH(hrs(S.early))} h of counted time`;
+
+  $("o-growth").textContent = S.growth + "%";
+
+  $("o-pow").textContent = S.pow; $("o-tierN").textContent = S.tierN; $("o-capL").textContent = S.capL;
+
+  $("curve-note").textContent = CURVE_NOTES[S.curve] || "";
+
+  $("o-max").textContent = S.max; $("o-ppl").textContent = S.ppl; $("o-start").textContent = S.start;
+
+  $("o-xpm").textContent = S.xpm; $("o-hpd").textContent = (Math.round(S.hpd * 10) / 10) + " h"; $("o-dpw").textContent = S.dpw;
+
+  $("o-hpw").textContent = `${S.dpw} day${S.dpw === 1 ? "" : "s"} × ${Math.round(Math.min(S.hpd, S.cap) * 10) / 10} h${S.hpd > S.cap ? " (capped)" : ""} = ${S.hpw} counted h a week`;
+
+  $("o-cap").textContent = S.cap >= 24 ? "none" : S.cap + " h";
+
+  $("th-on").textContent = `Always on (${Math.round(S.cap * 7 * 10) / 10} h)`; $("o-avg").textContent = S.avg + " h";
+
+  $("th-you").textContent = `Your week (${S.hpw} h)`; $("th-avg").textContent = `Average PC player (${S.avg} h)`;
+
+  $("tree-note").textContent = `Fixed: every node of the perk tree at the costs the app charges (small 1, notable 2, keystone 3, squares free). Rebuilt by build.py.`;
+
+  $("cls-note").textContent = `Every node of one class at the app's costs: ${CLASS_COST}. The decided design paces this to one month for 8 h a day, every day.`;
+
+  $("o-boost").textContent = S.boost ? `+${S.boost}%` : "none";
+
+  $("o-low").textContent = S.low + " h"; $("th-low").textContent = `Lightest player (${S.low} h)`;
+
+  $("o-tree").textContent = S.tree.toLocaleString(); $("o-cls").textContent = S.cls;
+
+
+
+  const m = model(), total = m.cum[m.cum.length - 1], maxPts = m.pointsAt(S.max);
+
+  $("k-max").textContent = cal(total);
+
+  $("k-pts").innerHTML = maxPts.toLocaleString() + (maxPts < S.tree ? ` <span class="warn">(${Math.round(100 * maxPts / S.tree)}% of tree)</span>` : "");
+
+  const tl = m.levelFor(S.tree);
+
+  $("k-tree").innerHTML = tl ? cal(m.cum[tl - 1]) : '<span class="warn">never</span>';
+
+  $("k-last").textContent = fmtH(m.per[m.per.length - 1] || 0);
+
+  // First and second class complete: your week, and the average PC player under it.
+
+  for (const [id, pts] of [["k-c1", S.cls], ["k-c2", S.cls * 2]]) {
+
+    const lvl = m.levelFor(pts);
+
+    if (!lvl) { $(id).innerHTML = '<span class="warn">never</span>'; $(id + "-avg").textContent = ""; continue; }
+
+    const h = m.cum[lvl - 1];
+
+    $(id).textContent = cal(h);
+
+    $(id + "-avg").textContent = `Level ${lvl} · ${fmtH(h)} counted h · average PC player ${cal(h, capped(S.avg))}`;
+
+  }
+
+
+
+  const goals = [
+
+    ["First keystone (nearest)", 15], ["Top of a class", TOP_COST], ["First class complete", S.cls], ["Second class complete", S.cls * 2],
+
+    ["Half the tree", Math.round(S.tree / 2)], ["Whole tree", S.tree], ["Max level", null],
+
+  ];
+
+  $("ms").innerHTML = goals.map(([name, p]) => {
+
+    const lvl = p == null ? S.max : m.levelFor(p);
+
+    const pts = p == null ? maxPts : p;
+
+    if (!lvl) return `<tr><td>${name}</td><td class="num">${pts.toLocaleString()}</td><td class="num warn" colspan="6">not reachable before max level</td></tr>`;
+
+    const h = m.cum[lvl - 1];
+
+    return `<tr><td>${name}</td><td class="num">${pts.toLocaleString()}</td><td class="num">${lvl}</td><td class="num">${fmtH(h)}</td><td class="num">${cal(h)}</td><td class="num">${cal(h, capped(S.avg))}</td><td class="num">${cal(h, capped(S.low))}</td><td class="num">${cal(h, S.cap * 7)}</td></tr>`;
+
+  }).join("");
+
+
+
+  const perMax = Math.max(...m.per, 0.01);
+
+  draw($("c1"), [{ color: "--accent", max: perMax * 1.1, pts: m.per.map((h, i) => [i + 1, h]) }],
+
+    { xMax: S.max, xFmt: (v) => Math.round(v), yFmt: (v) => v.toFixed(1) + " h" });
+
+  const boostedWeek = S.hpw * (1 + S.boost / 100);
+
+  const weeks = total / boostedWeek;
+
+  draw($("c2"), [
+
+    { color: "--accent", max: S.max, pts: m.cum.map((h, i) => [h / boostedWeek, i + 1]) },
+
+    { color: "--accent2", max: 1, pts: m.cum.map((h, i) => [h / boostedWeek, Math.min(1, m.pointsAt(i + 1) / S.tree)]) },
+
+  ], { xMax: weeks || 1, right: true, xFmt: (v) => v < 52 ? Math.round(v) + " w" : (v / 52).toFixed(1) + " y", yFmt: (v) => "Lv " + Math.round(v) });
+
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch {}
+
+}
+
+
+
+for (const k of SLIDERS) $(k).addEventListener("input", (e) => { S[k] = +e.target.value; render(); });
+
+for (const k of TARGETS) $(k).addEventListener("input", (e) => { const v = +e.target.value; if (v > 0) { S[k] = v; render(); } });
+
+$("tBasis").addEventListener("change", (e) => { S.tBasis = e.target.value; render(); });
+
+document.querySelectorAll("[data-mode-btn]").forEach((b) => b.addEventListener("click", () => { S.mode = b.dataset.modeBtn; render(); }));
+
+$("curve").addEventListener("change", (e) => { S.curve = e.target.value; render(); });
+
+document.querySelectorAll("[data-p]").forEach((b) => b.addEventListener("click", () => { Object.assign(S, PRESETS[b.dataset.p], { mode: "curve" }); render(); }));
+
+window.addEventListener("resize", render);
+
+render();
+
+</script>
+
+</body>
+
+</html>
+

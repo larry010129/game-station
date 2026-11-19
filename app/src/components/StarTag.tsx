@@ -8,6 +8,7 @@ import type { DrawResult } from "../state/gachaEngine";
 export type Stars = 4 | 5;
 
 export function starsOf(r: DrawResult): Stars | null {
+  if (r.kind === "card" || r.kind === "widget") return r.stars;
   return r.kind === "look" ? (r.brand || r.rainbow ? 5 : 4) : null;
 }
 

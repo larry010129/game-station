@@ -13,7 +13,7 @@ import {
   tierForKind,
 } from "../lib/catalogFactory";
 import { useDraft } from "../state/DraftContext";
-import type { CmsItem, ItemKind, ItemTier } from "../types/draft";
+import { withWikiHidden, type CmsItem, type ItemKind, type ItemTier } from "../types/draft";
 import {
   Badge,
   Button,
@@ -239,6 +239,14 @@ export function ItemsPage() {
                   </Button>
                 </div>
               </div>
+              <label className="inline-flex items-center gap-1.5 text-xs" title="Off: the app's Draw Wiki leaves it out (search, lists, Featured now), so it is not spoiled. It can still drop.">
+                <input
+                  type="checkbox"
+                  checked={!(draft?.wikiHiddenIds ?? []).includes(selected.id)}
+                  onChange={(e) => setDraft((d) => withWikiHidden(d, selected.id, !e.target.checked))}
+                />
+                Show in Wiki
+              </label>
               <Field label="Name">
                 <Input
                   value={selected.name}

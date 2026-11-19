@@ -1,0 +1,98 @@
+/* Season Pass: badge, XP and actions on top; a two-row level track; the top Patreon reward on show at the right.
+   Theme tokens only, apart from the fixed ticket tints. */
+
+.pass { display: flex; flex-direction: column; gap: 16px; padding-top: 18px; }
+
+.pass-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 22px; }
+.pass-badge { position: relative; display: grid; place-items: center; flex: none; width: 92px; height: 92px; }
+.pass-badge svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.pass-badge circle { fill: none; stroke: color-mix(in srgb, var(--accent) 55%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.pass-badge circle:first-child { stroke-dasharray: 2 5; }
+.pass-badge circle:last-child { fill: color-mix(in srgb, var(--accent) 14%, var(--bg)); stroke-width: 1.5px; }
+.pass-badge b { position: relative; font-size: 36px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.pass-meta { flex: 1 1 360px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pass-meta h2 { font-size: 22px; font-weight: 500; }
+.pass-meta h2 span { margin-left: 8px; color: var(--dim); font-size: 14px; font-weight: 400; }
+.pass-ends { color: var(--dim); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.pass-xp { display: flex; align-items: center; gap: 14px; }
+.pass-bar { flex: 1; display: block; height: 6px; border-radius: 6px; background: var(--wash-2); overflow: hidden; }
+.pass-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: inline-size 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+.pass-nums { display: flex; flex-direction: column; align-items: flex-end; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pass-nums small { color: var(--mute); font-size: 11.5px; font-weight: 400; }
+.pass-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pass-claim-all, .pass-unlock { min-height: 42px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 600; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s; }
+.pass-claim-all:hover:not(:disabled), .pass-unlock:hover { transform: translateY(-1px); }
+.pass-claim-all:disabled { opacity: 0.4; }
+
+.pass-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: stretch; }
+.pass-board { display: grid; grid-template-columns: 96px minmax(0, 1fr); border-radius: var(--r); overflow: hidden; background: var(--glass-solid); box-shadow: 0 0 0 1px var(--edge); }
+.pass-rows { display: grid; grid-template-rows: 40px 1fr 1fr; box-shadow: 1px 0 0 var(--edge); }
+.pass-rows::before { content: ""; }
+.pass-rowname { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; font-size: 13px; font-weight: 500; text-align: center; }
+.pass-rowname + .pass-rowname { box-shadow: 0 -1px 0 var(--edge); }
+.pass-rowname svg { width: 26px; height: 26px; color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+.pass-rowname[data-locked] { color: var(--dim); }
+.pass-rowname[data-locked] svg { color: var(--dim); }
+
+.pass-track { display: flex; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.pass-col { flex: none; display: grid; grid-template-rows: 40px 1fr 1fr; width: 112px; scroll-snap-align: start; box-shadow: 1px 0 0 var(--edge); }
+.pass-col[data-reached] { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.pass-col[data-current] { background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.pass-lv { display: grid; place-items: center; color: var(--dim); font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; box-shadow: 0 1px 0 var(--edge); }
+.pass-col[data-reached] .pass-lv { color: var(--text); }
+.pass-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin: 10px; padding: 10px 6px; min-height: 104px; border: 0; border-radius: 12px; background: var(--wash); color: var(--text); transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s, opacity 0.15s; }
+.pass-tile[data-row="patron"] { box-shadow: 0 -1px 0 transparent; }
+.pass-tile:disabled { cursor: default; }
+.pass-tile[data-state="ahead"], .pass-tile[data-state="locked"] { opacity: 0.55; }
+.pass-tile[data-state="done"] { opacity: 0.7; }
+.pass-tile[data-state="ready"] { background: color-mix(in srgb, var(--accent) 18%, var(--wash)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent); animation: pass-ready 2.4s ease-in-out infinite; }
+.pass-tile[data-state="ready"]:hover { transform: translateY(-2px); }
+.pass-art { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, var(--bg)); color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+.pass-art svg { width: 28px; height: 28px; }
+.pass-art .pass-tk { width: 32px; height: 32px; }
+.pass-art.skin-swatch.skin-swatch-mini { padding: 0; }
+.pass-n { min-height: 16px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pass-mark { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; padding: 2px; border-radius: 999px; background: var(--bg); color: var(--good); box-sizing: content-box; }
+.pass-tile[data-state="locked"] .pass-mark { color: var(--dim); }
+
+.pass-featured { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 16px; border-radius: var(--r); text-align: center;
+  background: radial-gradient(80% 60% at 50% 30%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--glass-solid);
+  box-shadow: 0 0 0 1px var(--edge); }
+.pass-feat-lv { color: var(--dim); font-size: 12px; }
+.pass-feat-card { width: 170px; margin: 8px 0 6px; transform: rotate(-4deg); }
+.pass-feat-card .skin-swatch { min-height: 220px; box-shadow: 0 24px 40px -24px rgb(0 0 0 / 0.7); }
+.pass-featured b { font-size: 16px; font-weight: 600; }
+.pass-featured small { color: var(--dim); font-size: 12.5px; line-height: 1.45; }
+.pass-unlock { margin-top: auto; width: 100%; }
+
+.pass-rules { max-width: 80ch; color: var(--mute); font-size: 12.5px; line-height: 1.5; }
+
+@keyframes pass-ready { 50% { box-shadow: 0 0 0 1px var(--accent), 0 0 0 5px color-mix(in srgb, var(--accent) 15%, transparent); } }
+
+@media (max-width: 900px) {
+  .pass-body { grid-template-columns: minmax(0, 1fr); }
+  .pass-featured { flex-direction: row; flex-wrap: wrap; justify-content: center; text-align: left; }
+  .pass-feat-card { width: 120px; }
+  .pass-feat-card .skin-swatch { min-height: 150px; }
+}
+@media (max-width: 520px) {
+  .pass-board { grid-template-columns: 64px minmax(0, 1fr); }
+  .pass-rowname { font-size: 11.5px; }
+  .pass-col { width: 92px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pass-tile[data-state="ready"] { animation: none; }
+  .pass-bar i { transition: none; }
+}
+
+/* Levels above the open cap: sealed until a Season Key is taken in the perk tree. */
+.pass-cap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0; padding: 12px 16px; border-radius: 14px; background: var(--wash); box-shadow: 0 0 0 1px var(--edge); font-size: 13.5px; }
+.pass-cap > svg { flex: none; width: 18px; height: 18px; color: var(--dim); }
+.pass-cap span { flex: 1 1 320px; color: var(--dim); }
+.pass-cap b { color: var(--text); font-weight: 600; }
+.pass-cap[data-hit] { background: color-mix(in srgb, var(--accent) 12%, var(--wash)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
+.pass-cap[data-hit] > svg { color: var(--accent); }
+.pass-col[data-sealed] { background: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in srgb, var(--text) 3%, transparent) 10px 20px); }
+.pass-col[data-sealed] .pass-tile { opacity: 0.35; }
+.pass-col[data-sealed] .pass-lv { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: var(--mute); }
+.pass-lv svg { width: 11px; height: 11px; }

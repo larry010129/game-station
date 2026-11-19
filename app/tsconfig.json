@@ -20,5 +20,7 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  // Abandoned work-in-progress gallery (SimpleCardGallery replaced it); nothing imports it.
+  "exclude": ["src/components/CardGallery.tsx"]
 }

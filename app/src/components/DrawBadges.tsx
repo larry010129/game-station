@@ -1,8 +1,18 @@
 import type { CSSProperties } from "react";
-import { crystalKindFor, crystalValueFor, isRainbowResult, itemById, itemLabel, type DrawResult, type PackId } from "../state/gachaEngine";
+import { CARDS, type CardId } from "../layout/layouts";
+import { crystalKindFor, crystalValueFor, isRainbowResult, itemById, type DrawResult, type PackId } from "../state/gachaEngine";
 import type { ThemeDef } from "../state/palette";
 import { Easing, interpolate, progress } from "../lib/timeline";
 import { StarTag, starsOf } from "./StarTag";
+import { cardSkinById } from "../state/cardSkins";
+import { FragmentMark } from "./CurrencyIcon";
+import { itemIcon, itemKindLine, itemTitle } from "../state/itemFace";
+import type { FiveStarWin } from "./BrandUnlock";
+
+/** The packs a reveal can come from: the three theme packs and the Card Pack. */
+export type StagePack = PackId | "cards";
+const PACK_TITLE: Record<StagePack, string> = { regular: "Regular Pack", brand: "Brand Pack", region: "Region Pack", cards: "Card Pack" };
+const PACK_SHORT: Record<StagePack, string> = { regular: "Regular", brand: "Brand", region: "Region", cards: "Card" };
 
 /**
  * The draw, in three beats on one clock `t` (ms):
@@ -43,20 +53,28 @@ export function bestRarity(results: readonly DrawResult[]): Rarity {
 export type FrontKind = "item" | "theme" | "company";
 
 export function frontOf(r: DrawResult): FrontKind {
-  if (r.kind === "look") return isRainbowResult(r) ? "company" : "theme";
+  if (r.kind === "look" || r.kind === "card" || r.kind === "widget") return isRainbowResult(r) ? "company" : "theme";
   return "item";
 }
 
-/** What clicking a face-up badge does: a look opens its card, an alert sound plays, anything else does nothing. */
-export function previewKind(r: DrawResult): "card" | "sound" | null {
+/** What clicking a face-up badge does: a theme opens its card, a card skin its preview, an alert sound plays. */
+export function previewKind(r: DrawResult): "card" | "skin" | "sound" | null {
   if (r.kind === "look") return "card";
+  if (r.kind === "card") return "skin";
   if (r.kind === "item" && itemById(r.id)?.kind === "alert-sound") return "sound";
   return null;
 }
 
-/** Badges that are a first company look; each plays its logo moment once it is face up. */
-export function brandHolds(results: readonly DrawResult[]): number[] {
-  return results.flatMap((r, i) => (r.kind === "look" && r.brand && !r.repeat ? [i] : []));
+/** Badges that are a 5-star won for the first time; each plays its own moment once it is face up. */
+export function fiveStarHolds(results: readonly DrawResult[]): number[] {
+  return results.flatMap((r, i) => (fiveStarWin(r) ? [i] : []));
+}
+
+/** The moment a result earns: a first Brand or rainbow theme, a first 5-star card skin or dashboard card. */
+export function fiveStarWin(r: DrawResult): FiveStarWin | null {
+  if (r.kind === "look" && !r.repeat && (r.brand || r.rainbow)) return { kind: "look", id: r.id, brand: r.brand };
+  if ((r.kind === "card" || r.kind === "widget") && !r.repeat && r.stars === 5) return { kind: r.kind, id: r.id };
+  return null;
 }
 
 /** Each badge in a spread rests at a slight tilt, as if laid down by hand (a single badge stays straight). */
@@ -75,6 +93,8 @@ const outBack = (x: number) => {
 // ---------------------------------------------------------------- badge faces
 function tileClass(result: DrawResult): string {
   if (result.kind === "look") return isRainbowResult(result) ? "gs-tile brand" : "gs-tile";
+  if (result.kind === "card") return result.stars === 5 ? "gs-tile brand gs-tile-skin" : "gs-tile gs-tile-skin";
+  if (result.kind === "widget") return result.stars === 5 ? "gs-tile brand gs-tile-widget" : "gs-tile gs-tile-widget";
   if (result.kind === "pick") return "gs-tile pick";
   if (result.repeat) return "gs-tile crystal";
   const def = itemById(result.id);
@@ -86,11 +106,7 @@ function Tile({ result, look }: { result: DrawResult; look?: ThemeDef }) {
   if (result.kind !== "pick" && result.repeat) {
     return (
       <div className="gs-tile crystal" data-crystal={crystalKindFor(result)}>
-        <svg viewBox="0 0 48 54" width="40" height="45" aria-hidden="true">
-          <path d="M24 2 43 14v26L24 52 5 40V14z" fill="currentColor" fillOpacity="0.16" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          <path d="M5 14 24 26 43 14M24 26v26" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-          <path d="M24 2 13 22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeOpacity="0.55" strokeLinecap="round" />
-        </svg>
+        <FragmentMark kind={crystalKindFor(result)} className="gs-frag" />
         <b>+{crystalValueFor(result)}</b>
       </div>
     );
@@ -107,6 +123,29 @@ function Tile({ result, look }: { result: DrawResult; look?: ThemeDef }) {
           <i style={{ background: p?.accent }} />
           <i style={{ background: p?.caution }} />
           <i style={{ background: p?.alert }} />
+        </span>
+      </div>
+    );
+  }
+  if (result.kind === "card") {
+    return (
+      <div className={tileClass(result)}>
+        <span className="skin-swatch skin-swatch-mini" data-skin={result.id}>
+          <span className="skin-swatch-bars" aria-hidden="true">
+            <i />
+            <i />
+          </span>
+        </span>
+      </div>
+    );
+  }
+  if (result.kind === "widget") {
+    return (
+      <div className={tileClass(result)}>
+        <span className="widget-mini" aria-hidden="true">
+          <b>{CARDS[result.id as CardId]?.name.slice(0, 2) ?? "?"}</b>
+          <i />
+          <i />
         </span>
       </div>
     );
@@ -131,12 +170,10 @@ function Tile({ result, look }: { result: DrawResult; look?: ThemeDef }) {
       </div>
     );
   }
+  const ItemIcon = itemIcon(result.id);
   return (
-    <div className={tileClass(result)}>
-      <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
-        <rect x="10" y="12" width="28" height="24" rx="4" fill="none" stroke="currentColor" strokeWidth="1.75" />
-        <path d="M16 20h16M16 26h10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-      </svg>
+    <div className={tileClass(result)} data-item={itemById(result.id)?.kind}>
+      <ItemIcon className="gs-item-icon" aria-hidden="true" width={44} height={44} strokeWidth={1.5} />
     </div>
   );
 }
@@ -146,11 +183,21 @@ function labels(result: DrawResult, look?: ThemeDef): { title: string; sub: stri
     const name = look?.name ?? result.id;
     if (result.repeat) return { title: name, sub: `Repeat · +${crystalValueFor(result)} ${crystalKindFor(result) === "special" ? "special" : "regular"}` };
     // The 5★ / 4★ tag is drawn beside `sub` by the badge (StarTag), so the words stay plain.
-    return { title: name, sub: result.brand ? "Brand look" : result.rainbow ? "Rainbow look" : "New look" };
+    return { title: name, sub: result.brand ? "Brand theme" : result.rainbow ? "Rainbow theme" : "New theme" };
+  }
+  if (result.kind === "card") {
+    const name = cardSkinById(result.id)?.name ?? result.id;
+    if (result.repeat) return { title: name, sub: `Repeat · +${crystalValueFor(result)} regular` };
+    return { title: name, sub: "New card skin" };
+  }
+  if (result.kind === "widget") {
+    const name = CARDS[result.id as CardId]?.name ?? result.id;
+    if (result.repeat) return { title: name, sub: `Repeat · +${crystalValueFor(result)} regular` };
+    return { title: name, sub: "New dashboard card" };
   }
   if (result.kind === "pick") return { title: "Weekly pick", sub: "Unlock token" };
-  if (result.repeat) return { title: itemLabel(result.id), sub: `Repeat · +${crystalValueFor(result)} regular` };
-  return { title: itemLabel(result.id), sub: "Item" };
+  if (result.repeat) return { title: itemTitle(result.id), sub: `Repeat · +${crystalValueFor(result)} regular` };
+  return { title: itemTitle(result.id), sub: itemKindLine(result.id) };
 }
 
 // Badge faces and the lanyard each hangs from (rail, strap, reel, clip), after the Team Lanyard Rail component.
@@ -253,7 +300,7 @@ function ResultGrid({
   flipAt: Readonly<Record<number, number>>;
   onFlip: (i: number) => void;
   onPreview: (r: DrawResult) => void;
-  pack: PackId;
+  pack: StagePack;
 }) {
   return (
     <div className="db-grid" data-count={results.length}>
@@ -275,7 +322,7 @@ function ResultGrid({
                 transform: `translateY(${((1 - drop) * -48).toFixed(1)}px) rotate(${swing.toFixed(2)}deg)`,
               };
               const isRepeat = res.kind !== "pick" && res.repeat;
-              const isNew = res.kind === "look" ? !res.repeat : res.kind === "item" ? !res.repeat && !itemById(res.id)?.stackable : false;
+              const isNew = res.kind === "look" || res.kind === "card" || res.kind === "widget" ? !res.repeat : res.kind === "item" ? !res.repeat && !itemById(res.id)?.stackable : false;
               const restY = results.length === 1 ? 0 : REST_Y[i % REST_Y.length] * (1 - Math.min(1, f / 24));
               const look = res.kind === "look" ? lookOf(res.id) : undefined;
               const { title, sub } = labels(res, look);
@@ -296,7 +343,7 @@ function ResultGrid({
                           disabled={!landed}
                           aria-label={
                             facing
-                              ? `${title}, ${starsOf(res) ? `${starsOf(res)} star, ` : ""}${sub}${kind === "card" ? ". Click to preview." : kind === "sound" ? ". Click to play the sound." : ""}`
+                              ? `${title}, ${starsOf(res) ? `${starsOf(res)} star, ` : ""}${sub}${kind === "card" || kind === "skin" ? ". Click to preview." : kind === "sound" ? ". Click to play the sound." : ""}`
                               : `Badge ${i + 1}, face down${rarity === "company" ? ", rainbow" : ""}. Click to turn it over.`
                           }
                           onClick={() => {
@@ -309,8 +356,8 @@ function ResultGrid({
                               <Band />
                               <i className="db-hole" />
                               <span className="db-back-head">
-                                <strong>Draw Theme</strong>
-                                <small>{pack === "brand" ? "Brand Pack" : pack === "region" ? "Region Pack" : "Regular Pack"}</small>
+                                <strong>Draw</strong>
+                                <small>{PACK_TITLE[pack]}</small>
                               </span>
                               <svg className="db-qr" aria-hidden="true" viewBox="-1 -1 23 23">
                                 <path d={qrPath(seed)} fill="currentColor" />
@@ -346,7 +393,7 @@ function ResultGrid({
                                 {starsOf(res) ? <StarTag stars={starsOf(res)!} /> : null}
                                 {sub}
                               </span>
-                              <span className="db-team">{pack === "brand" ? "Brand" : pack === "region" ? "Region" : "Regular"} · draw {String(i + 1).padStart(2, "0")}</span>
+                              <span className="db-team">{PACK_SHORT[pack]} · draw {String(i + 1).padStart(2, "0")}</span>
                               <span className="db-codes">
                                 <svg aria-hidden="true" viewBox={`0 0 ${bars.width} 20`} preserveAspectRatio="none">
                                   <path d={bars.d} fill="currentColor" />
@@ -396,7 +443,7 @@ export function DrawStage({
   results: readonly DrawResult[];
   t: number;
   phase: "idle" | "drawing" | "revealed";
-  pack: PackId;
+  pack: StagePack;
   lookOf: (id: string) => ThemeDef | undefined;
   flipAt: Readonly<Record<number, number>>;
   onFlip: (i: number) => void;

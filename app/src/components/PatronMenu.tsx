@@ -113,7 +113,7 @@ export function PatronMenu() {
           ) : !status.signedIn ? (
             <>
               <p className="patron-title">Patreon</p>
-              <p className="patron-text">Log in to open the looks and tools your tier includes. You sign in on the Patreon site, and internet is needed to check your tier.</p>
+              <p className="patron-text">Log in to open the themes and tools your tier includes. You sign in on the Patreon site, and internet is needed to check your tier.</p>
               <button type="button" className="pill-btn patron-primary" disabled={busy} onClick={() => void login()}>
                 Log in with Patreon
               </button>
@@ -122,7 +122,7 @@ export function PatronMenu() {
             <>
               <p className="patron-title">{status.name || "Patron"}</p>
               <p className="patron-text">
-                {status.tierName ? `${status.tierName} tier.` : "No active paid tier."} {status.basic ? "Preset looks unlocked." : "No Patreon unlocks."}{" "}
+                {status.tierName ? `${status.tierName} tier.` : "No active paid tier."} {status.basic ? "Preset themes unlocked." : "No Patreon unlocks."}{" "}
                 {status.brand ? "Brand editor unlocked." : ""}
                 {status.stale ? " Patreon could not be reached for a while, so the unlocks are off until it can be." : ""}
               </p>

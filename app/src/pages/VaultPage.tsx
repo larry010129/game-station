@@ -11,6 +11,7 @@ import { AlertSettings, BackupSettings, GameModeSettings } from "../components/V
 import type { useMonitor } from "../state/useMonitor";
 import type { useTheme } from "../state/useTheme";
 import type { useToasts } from "../state/useToasts";
+import { LANGS, setLang, useLang, useT } from "../lib/i18n";
 import type { WindowView } from "../state/useWindowView";
 
 const WINDOW_VIEWS: { value: WindowView; label: string }[] = [
@@ -64,6 +65,8 @@ interface Props {
 /** Settings for this PC. A section rail on the left, one flat panel on the right. */
 export function VaultPage({ onProfilesChanged, look, windowView, monitor, displayName, onDisplayName, freeMove, onMoveMode, toasts, navTabs, onOpenThemes }: Props) {
   const [section, setSection] = useState(initialSection);
+  const T = useT();
+  const lang = useLang();
   const choose = (id: string) => {
     setSection(id);
     try {
@@ -91,6 +94,15 @@ export function VaultPage({ onProfilesChanged, look, windowView, monitor, displa
         {current.id === "pc" && (
           <section className="vault-card" aria-label="This PC">
             <h3>This PC</h3>
+            <div className="vault-row">
+              <div>
+                <h3>{T("vault.language")}</h3>
+                <p className="hint">{T("vault.languageHint")}</p>
+              </div>
+              <div className="vault-field">
+                <Segmented label={T("vault.language")} value={lang} options={LANGS} onChange={setLang} />
+              </div>
+            </div>
             <div className="vault-row">
               <div>
                 <h3>Display name</h3>

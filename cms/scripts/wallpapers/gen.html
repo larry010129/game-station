@@ -1,0 +1,194 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>wp</title></head>
+<body>
+<canvas id="c" width="2560" height="1440"></canvas>
+<script>
+const W = 2560, H = 1440;
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+const q = new URLSearchParams(location.search);
+const style = q.get("style") || "contour";
+const seed = Number(q.get("seed") || 1);
+const pal = (q.get("pal") || "").split(",").filter(Boolean).map((s) => "#" + s);
+
+function rng(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const R = rng(seed * 9973 + 17);
+
+// 2D value noise + fbm
+const P = new Uint8Array(512); { const p = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) P[i] = p[i & 255]; }
+const G = Array.from({ length: 256 }, () => R());
+const fade = (t) => t * t * (3 - 2 * t);
+function vn(x, y) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; const h = (a, b) => G[P[(P[a & 255] + b) & 255]]; const u = fade(xf), v = fade(yf); const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+function fbm(x, y, o = 5) { let s = 0, a = 0.5, f = 1, n = 0; for (let i = 0; i < o; i++) { s += a * vn(x * f, y * f); n += a; a *= 0.5; f *= 2.03; } return s / n; }
+
+function hex(c) { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgba(c, a) { const [r, g, b] = hex(c); return `rgba(${r},${g},${b},${a})`; }
+function mix(c1, c2, t) { const a = hex(c1), b = hex(c2); return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, "0")).join(""); }
+
+function grain(amount) {
+  const img = ctx.getImageData(0, 0, W, H), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (R() - 0.5) * amount; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  ctx.putImageData(img, 0, 0);
+}
+function vignette(c, a) {
+  const g = ctx.createRadialGradient(W / 2, H * 0.45, H * 0.35, W / 2, H * 0.45, W * 0.75);
+  g.addColorStop(0, rgba(c, 0)); g.addColorStop(1, rgba(c, a));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function blob(x, y, r, c, a) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgba(c, a)); g.addColorStop(1, rgba(c, 0));
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+
+const STYLES = {
+  // Topographic relief: the station's own backdrop language, as a full picture.
+  contour(p) {
+    const [bg, deep, line, glow] = p.length ? p : ["#12232a", "#071014", "#8fe6d5", "#38a99d"];
+    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, bg); g.addColorStop(1, deep);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    blob(W * 0.42, H * 0.38, 1000, glow, 0.5); blob(W * 0.7, H * 0.62, 800, glow, 0.3);
+    const cell = 6, cols = Math.ceil(W / cell) + 1, rows = Math.ceil(H / cell) + 1;
+    const f = new Float32Array(cols * rows);
+    const ox = R() * 50, oy = R() * 50;
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const x = i * cell / 900, y = j * cell / 900;
+      const wx = fbm(x + ox + 3.1, y + oy, 3) * 1.2, wy = fbm(x + ox, y + oy + 7.7, 3) * 1.2;
+      const cx = (i * cell - W * 0.5) / W, cy = (j * cell - H * 0.45) / H;
+      f[j * cols + i] = fbm(x + wx + ox, y + wy + oy, 5) * 0.85 + 0.25 * Math.exp(-(cx * cx * 4 + cy * cy * 6));
+    }
+    const levels = 22;
+    ctx.lineCap = "round";
+    for (let l = 1; l < levels; l++) {
+      const t = 0.18 + (l / levels) * 0.72;
+      const major = l % 5 === 0;
+      ctx.strokeStyle = rgba(line, major ? 0.6 : 0.28); ctx.lineWidth = major ? 3 : 1.8;
+      ctx.beginPath();
+      for (let j = 0; j < rows - 1; j++) for (let i = 0; i < cols - 1; i++) {
+        const a = f[j * cols + i], b = f[j * cols + i + 1], c = f[(j + 1) * cols + i + 1], d = f[(j + 1) * cols + i];
+        const k = (a > t ? 8 : 0) | (b > t ? 4 : 0) | (c > t ? 2 : 0) | (d > t ? 1 : 0);
+        if (k === 0 || k === 15) continue;
+        const x = i * cell, y = j * cell;
+        const T = [x + cell * (t - a) / (b - a), y], Rr = [x + cell, y + cell * (t - b) / (c - b)];
+        const B = [x + cell * (t - d) / (c - d), y + cell], L = [x, y + cell * (t - a) / (d - a)];
+        const seg = (p1, p2) => { ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); };
+        switch (k) {
+          case 1: case 14: seg(L, B); break; case 2: case 13: seg(B, Rr); break; case 3: case 12: seg(L, Rr); break;
+          case 4: case 11: seg(T, Rr); break; case 6: case 9: seg(T, B); break; case 7: case 8: seg(L, T); break;
+          case 5: seg(L, T); seg(B, Rr); break; case 10: seg(T, Rr); seg(L, B); break;
+        }
+      }
+      ctx.stroke();
+    }
+    vignette(deep, 0.55); grain(10);
+  },
+
+  // Aurora curtains over a night sky.
+  aurora(p) {
+    const [sky, top, c1, c2, c3] = p.length ? p : ["#04060d", "#0b1030", "#3dffb0", "#3aa0ff", "#b45cff"];
+    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, top); g.addColorStop(1, sky);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 260; i++) { ctx.fillStyle = `rgba(255,255,255,${0.15 + R() * 0.45})`; const s = R() < 0.9 ? 1.5 : 2.5; ctx.fillRect(R() * W, R() * H * 0.7, s, s); }
+    ctx.globalCompositeOperation = "lighter";
+    const bands = [[c1, 0.5, 0.36], [c2, 0.42, 0.52], [c3, 0.3, 0.28], [c1, 0.28, 0.6]];
+    for (const [c, a, yb] of bands) {
+      const ph = R() * 10;
+      for (let x = -40; x < W + 40; x += 6) {
+        const n = fbm(x / 700 + ph, ph, 4);
+        const y = H * yb + (n - 0.5) * H * 0.55;
+        const len = 260 + fbm(x / 240 + ph, 3 + ph, 3) * 520;
+        const inten = Math.pow(fbm(x / 380 + ph * 2, 9, 3), 2.2) * a * 1.6;
+        const gr = ctx.createLinearGradient(0, y - len, 0, y + 40);
+        gr.addColorStop(0, rgba(c, 0)); gr.addColorStop(0.75, rgba(c, inten * 0.5)); gr.addColorStop(0.95, rgba(c, inten)); gr.addColorStop(1, rgba(c, 0));
+        ctx.fillStyle = gr; ctx.fillRect(x, y - len, 7, len + 40);
+      }
+    }
+    ctx.globalCompositeOperation = "source-over";
+    ctx.filter = "blur(10px)"; ctx.drawImage(cv, 0, 0); ctx.filter = "none";
+    // low horizon ridge
+    ctx.fillStyle = sky; ctx.beginPath(); ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) ctx.lineTo(x, H * 0.86 - fbm(x / 500, 40, 5) * H * 0.14);
+    ctx.lineTo(W, H); ctx.fill();
+    vignette(sky, 0.55); grain(9);
+  },
+
+  // Layered ridges fading into a dusk haze.
+  dunes(p) {
+    const [skyTop, skyLow, sun, near] = p.length ? p : ["#1a1638", "#f08a5d", "#ffd2a1", "#120f22"];
+    const g = ctx.createLinearGradient(0, 0, 0, H * 0.7); g.addColorStop(0, skyTop); g.addColorStop(0.75, mix(skyTop, skyLow, 0.7)); g.addColorStop(1, skyLow);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    blob(W * 0.5, H * 0.56, 620, sun, 0.55); blob(W * 0.5, H * 0.56, 150, sun, 0.9);
+    const layers = 6;
+    for (let k = 0; k < layers; k++) {
+      const t = k / (layers - 1);
+      const base = H * (0.52 + t * 0.36), amp = H * (0.08 + t * 0.1), sc = 900 - t * 380, ph = R() * 30;
+      ctx.fillStyle = mix(mix(skyLow, skyTop, 0.35), near, Math.pow(t, 0.8));
+      ctx.beginPath(); ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 6) {
+        const n = fbm(x / sc + ph, ph, 4);
+        const dip = Math.exp(-Math.pow((x - W / 2) / (W * 0.28), 2)) * amp * 0.5 * (1 - t);
+        ctx.lineTo(x, base - n * amp * 2 + amp + dip);
+      }
+      ctx.lineTo(W, H); ctx.fill();
+      // haze between layers
+      const hz = ctx.createLinearGradient(0, base - amp, 0, base + amp * 2);
+      hz.addColorStop(0, rgba(skyLow, 0)); hz.addColorStop(0.45, rgba(skyLow, 0.12 * (1 - t))); hz.addColorStop(1, rgba(skyLow, 0));
+      ctx.fillStyle = hz; ctx.fillRect(0, base - amp, W, amp * 3);
+    }
+    vignette(near, 0.5); grain(10);
+  },
+
+  // A horizon grid: the arena floor at night.
+  grid(p) {
+    const [sky, horizon, line, floor] = p.length ? p : ["#07050f", "#ff4f8b", "#8a7bff", "#05040b"];
+    const hy = H * 0.58;
+    const g = ctx.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, sky); g.addColorStop(1, mix(sky, horizon, 0.35));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, hy);
+    blob(W / 2, hy, 900, horizon, 0.35);
+    // distant ridge
+    ctx.fillStyle = mix(sky, horizon, 0.12); ctx.beginPath(); ctx.moveTo(0, hy);
+    for (let x = 0; x <= W; x += 6) ctx.lineTo(x, hy - Math.pow(fbm(x / 420, 5, 5), 1.6) * H * 0.2);
+    ctx.lineTo(W, hy); ctx.fill();
+    const fg = ctx.createLinearGradient(0, hy, 0, H); fg.addColorStop(0, mix(floor, horizon, 0.18)); fg.addColorStop(1, floor);
+    ctx.fillStyle = fg; ctx.fillRect(0, hy, W, H - hy);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, hy, W, H - hy); ctx.clip();
+    ctx.globalCompositeOperation = "lighter";
+    const vx = W / 2;
+    for (let i = -40; i <= 40; i++) {
+      const xb = vx + i * 150; ctx.strokeStyle = rgba(line, 0.32 * (1 - Math.abs(i) / 46)); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(vx + i * 6, hy); ctx.lineTo(vx + (xb - vx) * 3.2, H + 600); ctx.stroke();
+    }
+    for (let k = 1; k < 30; k++) {
+      const z = k * k * 0.9; const y = hy + z * 1.2; if (y > H) break;
+      ctx.strokeStyle = rgba(line, Math.min(0.4, 0.06 + z / 900)); ctx.lineWidth = 1.5 + z / 300;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.restore(); ctx.globalCompositeOperation = "source-over";
+    const hl = ctx.createLinearGradient(0, hy - 6, 0, hy + 6); hl.addColorStop(0, rgba(horizon, 0)); hl.addColorStop(0.5, rgba(horizon, 0.85)); hl.addColorStop(1, rgba(horizon, 0));
+    ctx.fillStyle = hl; ctx.fillRect(0, hy - 6, W, 12);
+    vignette(floor, 0.7); grain(9);
+  },
+
+  // Soft colour fields with film grain.
+  mesh(p) {
+    const [bg, c1, c2, c3, c4] = p.length ? p : ["#0b0912", "#ff6a3d", "#7a2cff", "#1d2a8f", "#ffb86b"];
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    const cs = [c1, c2, c3, c4, c2];
+    ctx.filter = "blur(140px)";
+    for (let i = 0; i < 7; i++) {
+      const c = cs[i % cs.length];
+      ctx.fillStyle = rgba(c, 0.55 + R() * 0.3);
+      ctx.beginPath();
+      const x = W * (0.12 + R() * 0.76), y = H * (0.12 + R() * 0.76), rx = 380 + R() * 520, ry = 260 + R() * 360;
+      ctx.ellipse(x, y, rx, ry, R() * Math.PI, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.filter = "none";
+    vignette(bg, 0.6); grain(16);
+  },
+};
+
+STYLES[style](pal);
+const out = cv.toDataURL("image/webp", 0.9);
+fetch("/save", { method: "POST", body: out });
+</script>
+</body></html>

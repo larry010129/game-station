@@ -17,6 +17,7 @@ import {
   type ThemeGroup,
   type ThemeStatus,
   type ThemeTags,
+  withWikiHidden,
 } from "../types/draft";
 import {
   Badge,
@@ -113,6 +114,7 @@ export function ThemesPage() {
   const brandPool = draft ? brandPoolOf(draft) : [];
   const backInRegular = new Set(draft?.regularExtraIds ?? []);
   const rainbowSet = new Set(draft?.rainbowThemeIds ?? []);
+  const wikiHidden = new Set(draft?.wikiHiddenIds ?? []);
 
   /** Marks a Regular theme rainbow (5-star, draw-only), or back to standard (`rainbowThemeIds`). */
   function setRainbow(id: string, on: boolean) {
@@ -511,10 +513,14 @@ export function ThemesPage() {
                   ))}
                 </Select>
               </Field>
+              <label className="inline-flex items-center gap-1.5 text-xs" title="Off: the app's Draw Wiki leaves it out (search, lists, Featured now), so it is not spoiled. It can still drop.">
+                <input type="checkbox" checked={!wikiHidden.has(selected.id)} onChange={(e) => setDraft((d) => withWikiHidden(d, selected.id, !e.target.checked))} />
+                Show in Wiki
+              </label>
               {selected.group !== "Brand" ? (
                 <label
                   className="inline-flex items-center gap-1.5 text-xs"
-                  title="Rainbow Regular themes are rarer: the Regular Pack's rainbow row and a missed 50/50 in the Brand or Region Pack. Never sold for Credits, weekly unlocks or Regular crystals."
+                  title="Rainbow Regular themes are rarer: the Regular Pack's rainbow row and a missed 50/50 in the Brand or Region Pack. Never sold for Income, weekly unlocks or Regular crystals."
                 >
                   <input type="checkbox" checked={rainbowSet.has(selected.id)} onChange={(e) => setRainbow(selected.id, e.target.checked)} />
                   Rainbow (5-star), draw only
@@ -539,7 +545,7 @@ export function ThemesPage() {
                         {label}
                       </label>
                     ))}
-                    <label className="inline-flex items-center gap-1.5" title="Drops from the Regular theme row in every pack and can be picked with Regular crystals. Still never sold for Credits.">
+                    <label className="inline-flex items-center gap-1.5" title="Drops from the Regular theme row in every pack and can be picked with Regular crystals. Still never sold for Income.">
                       <input
                         type="checkbox"
                         checked={backInRegular.has(selected.id)}

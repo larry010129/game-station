@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { CreditBalance } from "../components/CreditIcon";
 import { createPortal } from "react-dom";
 /** Official yellow mark: https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png */
 import bmcButton from "../assets/bmc-default-yellow.png";
@@ -7,7 +8,6 @@ import { openLink } from "../lib/openLink";
 import {
   BUY_ME_A_COFFEE_URL,
   CREDIT_NAME,
-  formatCredits,
   useStationCredits,
 } from "../state/stationCredits";
 
@@ -31,7 +31,7 @@ export function BuyCreditsPage() {
       <header className="buy-credits-head">
         <h2>Support</h2>
         <p>
-          Station {CREDIT_NAME} stay on this PC. Quests earn them. A tip does not add {CREDIT_NAME}.
+          Your {CREDIT_NAME} stays on this PC. Play and quests earn it. A tip does not add {CREDIT_NAME}.
         </p>
       </header>
 
@@ -48,7 +48,10 @@ export function BuyCreditsPage() {
           <img src={bmcButton} alt="" width={545} height={153} />
         </button>
         <p className="buy-credits-bal">
-          Balance <strong>{formatCredits(balance)}</strong>
+          Balance{" "}
+          <strong>
+            <CreditBalance amount={balance} />
+          </strong>
         </p>
       </div>
 

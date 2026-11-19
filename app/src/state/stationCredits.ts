@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
-import { readJson, writeJson } from "../lib/storage";
+import { readJson, readString, writeJson, writeString } from "../lib/storage.ts";
+import { tr } from "../lib/i18n.ts";
+
+/** Vite's env, or undefined when this module runs outside Vite (the service tests import it under plain Node). */
+const VITE_ENV: ImportMetaEnv | undefined = typeof import.meta.env === "undefined" ? undefined : import.meta.env;
 
 /** Soft currency for station unlocks and rewards. */
 export const CREDITS_KEY = "cs.stationCredits";
-export const CREDIT_NAME = "Credits";
-export const CREDIT_NAME_SHORT = "Credits";
+/** What the player sees: amounts are Income ("+12 Income"); the system that pays it is Payroll. */
+export const CREDIT_NAME = "Income";
+export const CREDIT_NAME_SHORT = "Income";
+export const ECONOMY_NAME = "Payroll";
 /** Same-tab listeners (storage events only fire across windows). */
 export const CREDITS_EVENT = "cs-station-credits";
 
@@ -22,7 +28,7 @@ export const BUY_ME_A_COFFEE_URL_DEFAULT = "https://buymeacoffee.com/yourname";
 
 /** Resolved support URL for the Buy Credits / Support page. */
 export const BUY_ME_A_COFFEE_URL = (() => {
-  const fromEnv = String(import.meta.env.VITE_BUY_ME_A_COFFEE_URL ?? "").trim();
+  const fromEnv = String(VITE_ENV?.VITE_BUY_ME_A_COFFEE_URL ?? "").trim();
   return fromEnv || BUY_ME_A_COFFEE_URL_DEFAULT;
 })();
 
@@ -35,10 +41,15 @@ function notifyCredits(): void {
   window.dispatchEvent(new Event(CREDITS_EVENT));
 }
 
-/** Reads the balance; seeds STARTING_CREDITS the first time nothing is stored. */
+/**
+ * Reads the balance; seeds STARTING_CREDITS the first time nothing is stored. A stored value that is not a balance
+ * is copied to `cs.stationCredits.bad` before the re-seed, so a damaged save can still be recovered by hand.
+ */
 export function readCredits(): number {
   const raw = readJson<unknown>(CREDITS_KEY, null);
   if (isCredits(raw)) return Math.floor(raw);
+  const stored = readString(CREDITS_KEY);
+  if (stored != null && stored !== "") writeString(`${CREDITS_KEY}.bad`, stored);
   writeJson(CREDITS_KEY, STARTING_CREDITS);
   return STARTING_CREDITS;
 }
@@ -57,20 +68,22 @@ export function addCredits(amount: number): number {
   return next;
 }
 
-/** Deducts `cost` when the balance covers it. Returns the new balance, or null if short. */
+/**
+ * Deducts `cost` when the balance covers it. Returns the new balance, or null when it is short or the new balance
+ * could not be saved (nothing is spent then). Callers that need to tell the two apart check `readCredits()` first.
+ */
 export function spendCredits(cost: number): number | null {
   const bal = readCredits();
   if (bal < cost) return null;
   const next = bal - cost;
-  writeCredits(next);
-  return next;
+  return writeCredits(next) ? next : null;
 }
 
 /**
  * Dev-server only, never in a shipped build (Vite removes this block): open the app with `?testCredits=10000`
  * to add that many Credits for testing, or call `addTestCredits(n)` from the console. Credits cannot be bought.
  */
-if (import.meta.env.DEV && typeof window !== "undefined") {
+if (VITE_ENV !== undefined && import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as { addTestCredits: (n: number) => number }).addTestCredits = addCredits;
   const n = Number(new URLSearchParams(window.location.search).get("testCredits"));
   if (Number.isFinite(n) && n > 0) {
@@ -82,7 +95,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 }
 
 export function formatCredits(amount: number): string {
-  return `${amount} ${CREDIT_NAME}`;
+  return tr("income.amount", { n: amount }, `${amount} ${CREDIT_NAME}`);
 }
 
 /** Live Credits balance; updates on spend, top-up, and cross-window storage. */

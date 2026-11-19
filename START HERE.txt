@@ -9,6 +9,16 @@ DESKTOP APP
   Unsigned, so SmartScreen may warn: More info, Run anyway.
   Building it needs Smart App Control off (it blocks the build scripts).
 
+COMMAND CMS (content publishing desktop app)
+  Build:    in cms, run  npm run desktop:build
+  Install:  cms\src-tauri\target\release\bundle\nsis\Command CMS_<version>_x64-setup.exe
+  It runs its own server on 127.0.0.1:1430, so close  npm run dev  in cms first
+  (if something already answers on 1430, the window uses that instead).
+  Data (draft, releases, signing keys, uploads) and cms.log live in:
+    %APPDATA%\CommandCMS\
+  On first start it copies in the draft it was built with and makes a new signing key,
+  unless you copy cms\data\keys\*.pem into %APPDATA%\CommandCMS\data\keys\ first.
+
 Browser version (backup): open a terminal in app and run  npm run live
             Then open http://localhost:1420. Ctrl+C stops the service and the
             dashboard together, so nothing is left running in the background.

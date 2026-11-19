@@ -1,7 +1,5 @@
-import { FONTS, type FontKey } from "../state/palette";
 import { Icon } from "./Icon";
-import { LIMITS, hasTweaks, type Density, type Tweaks } from "../state/tweaks";
-import { Segmented } from "./Segmented";
+import type { Tweaks } from "../state/tweaks";
 
 interface Props {
   tweaks: Tweaks;
@@ -13,30 +11,14 @@ interface Props {
   onHover: (on: boolean) => void;
 }
 
-type Slide = "radius" | "blur" | "opacity" | "shadow" | "size";
-
-const ROWS: { key: Slide; label: string; unit: string; fallback: number }[] = [
-  { key: "radius", label: "Corners", unit: "px", fallback: 16 },
-  { key: "blur", label: "Glass blur", unit: "px", fallback: 12 },
-  { key: "opacity", label: "Card opacity", unit: "%", fallback: 82 },
-  { key: "shadow", label: "Card shadow", unit: "", fallback: 0 },
-  { key: "size", label: "Text size", unit: "%", fallback: 100 },
-];
-
-const DENSITIES: { value: Density; label: string }[] = [
-  { value: "compact", label: "Compact" },
-  { value: "normal", label: "Normal" },
-  { value: "roomy", label: "Roomy" },
-];
-
 /**
- * Personal adjustments over the active theme. A control shows the theme's own value until it
- * is touched; "Reset tweaks" hands every one back to the theme.
+ * Fine-tune: personal adjustments over the active theme. Locked for now, so the card shows none of its controls:
+ * only its name, a blurred empty panel and a "Coming soon" badge in the middle of the whole card. The props stay so
+ * the controls can come back (see git history for the sliders) without touching the Themes page.
  */
-export function ThemeTune({ tweaks, base, onTweak, onClear, hover, onHover }: Props) {
-  const shown = (key: Slide, fallback: number) => tweaks[key] ?? (key === "radius" ? base.radius : key === "opacity" ? base.opacity : fallback);
+export function ThemeTune(_props: Props) {
   return (
-    <section className="vault-card theme-tune locked" aria-label="Fine-tune the look, coming soon">
+    <section className="vault-card theme-tune locked" aria-label="Fine-tune the theme, coming soon">
       <h3>
         Fine-tune
         <span className="theme-tune-soon">
@@ -45,59 +27,11 @@ export function ThemeTune({ tweaks, base, onTweak, onClear, hover, onHover }: Pr
         </span>
       </h3>
       <p className="hint">Personal adjustments on top of any theme are locked for now.</p>
-      <fieldset className="theme-tune-body" disabled>
-      <div className="theme-tune-grid">
-        {ROWS.map((r) => {
-          const [lo, hi] = LIMITS[r.key];
-          const set = tweaks[r.key] !== undefined;
-          return (
-            <label key={r.key} className="range">
-              <span>{r.label}</span>
-              <input type="range" min={lo} max={hi} step={1} value={shown(r.key, r.fallback)} aria-label={r.label} onChange={(e) => onTweak({ [r.key]: Number(e.target.value) })} />
-              <output className={set ? "" : "dim"}>
-                {shown(r.key, r.fallback)}
-                {r.unit}
-              </output>
-            </label>
-          );
-        })}
-        <label className="range">
-          <span>Accent</span>
-          <input type="color" aria-label="Accent colour" value={tweaks.accent ?? base.accent} onChange={(e) => onTweak({ accent: e.target.value })} />
-          {tweaks.accent ? (
-            <button type="button" className="link" onClick={() => onTweak({ accent: undefined })}>
-              Use theme's
-            </button>
-          ) : (
-            <output className="dim">theme</output>
-          )}
-        </label>
-        <label className="range">
-          <span>Font</span>
-          <select value={tweaks.font ?? ""} aria-label="Font" onChange={(e) => onTweak({ font: (e.target.value || undefined) as FontKey | undefined })} style={{ fontFamily: FONTS.find((f) => f.key === tweaks.font)?.stack }}>
-            <option value="">Follow theme</option>
-            {FONTS.filter((f) => f.key).map((f) => (
-              <option key={f.key} value={f.key} style={{ fontFamily: f.stack }}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="range">
-          <span>Spacing</span>
-          <Segmented label="Card spacing" value={tweaks.density ?? "normal"} options={DENSITIES} onChange={(v) => onTweak({ density: v === "normal" ? undefined : v })} />
-        </div>
-      </div>
-      <div className="theme-form-actions">
-        <label className="theme-check">
-          <input type="checkbox" checked={hover} onChange={(e) => onHover(e.target.checked)} />
-          Preview a theme while hovering it
-        </label>
-        <button type="button" className="pill-btn" disabled={!hasTweaks(tweaks)} onClick={onClear}>
-          Reset tweaks
-        </button>
-      </div>
-      </fieldset>
+      <div className="theme-tune-veil" aria-hidden="true" />
+      <span className="theme-tune-soon theme-tune-soon-center" aria-hidden="true">
+        <Icon name="lock" small />
+        Coming soon
+      </span>
     </section>
   );
 }

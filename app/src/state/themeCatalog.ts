@@ -836,7 +836,7 @@ export const CONTENT_CHANGELOG: readonly { id: string; title: string; body: stri
   {
     id: "bundled-availability",
     title: "Theme availability",
-    body: "Looks can be Hidden, Available, or Archived. Past themes lists what left the shop; Brand looks stay Hidden until announced (Spotify Night and Twitch Purple are Available for local demo).",
+    body: "Themes can be Hidden, Available, or Archived. Past themes lists what left the shop; Brand themes stay Hidden until announced (Spotify Night and Twitch Purple are Available for local demo).",
   },
 ];
 

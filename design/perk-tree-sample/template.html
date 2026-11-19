@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Perk Tree Sample</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* Matches Command Station's default Charcoal look. */
+  :root {
+    --bg: #0a0a0b; --panel: rgba(24, 24, 26, 0.96); --edge: rgba(255, 255, 255, 0.1); --edge-2: rgba(255, 255, 255, 0.22);
+    --text: #efefef; --dim: #9a9a9e; --mute: #8c8c91; --accent: #f0893a; --good: #3ddc84; --red: #e5484d;
+    --ui: "Outfit", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 300 14px/1.45 var(--ui); -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--accent); color: #111; }
+  button, select, input { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 100vh; }
+
+  /* ---- Tree ---- */
+  .stage { position: relative; overflow: hidden; cursor: grab; background: radial-gradient(60% 60% at 50% 50%, #1a1410, var(--bg) 75%); }
+  .stage.dragging { cursor: grabbing; }
+  svg.tree { width: 100%; height: 100%; display: block; touch-action: none; }
+  .edge { stroke: rgba(255,255,255,0.13); stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .edge.open { stroke: rgba(255,255,255,0.32); }
+  .edge.taken { stroke: var(--accent); stroke-width: 3.5; }
+  .edge.closed { stroke-dasharray: 3 7; stroke-opacity: 0.4; }
+  .startpick small { color: var(--mute); font-weight: 400; }
+  .startpick .list { gap: 6px; margin-bottom: 12px; }
+  .startbtn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--edge-2); border-radius: 999px; background: none; color: var(--dim); font-size: 12.5px; cursor: pointer; }
+  .startbtn i { width: 9px; height: 9px; border-radius: 999px; background: var(--rc); opacity: .5; }
+  .startbtn:hover { color: var(--text); border-color: var(--text); }
+  .startbtn[aria-pressed="true"] { color: var(--text); border-color: var(--rc); background: color-mix(in srgb, var(--rc) 16%, transparent); }
+  .startbtn[aria-pressed="true"] i { opacity: 1; }
+  .startpick.need .list { outline: 1px dashed var(--accent); outline-offset: 6px; border-radius: 12px; }
+  .edge.preview { stroke: #fff; stroke-width: 3; stroke-dasharray: 6 5; }
+  .node { cursor: pointer; outline: none; }
+  .node .disc { fill: #17171a; stroke: var(--rc); stroke-opacity: 0.45; stroke-width: 2; vector-effect: non-scaling-stroke; transition: fill .15s; }
+  .node .core { fill: var(--rc); fill-opacity: 0.18; }
+  .node.taken .disc { fill: var(--rc); fill-opacity: 0.9; stroke-opacity: 1; }
+  .node.open .disc { stroke-opacity: 1; stroke-width: 2.5; }
+  .node.preview .disc { stroke: #fff; stroke-opacity: 1; stroke-width: 3; }
+  .node:hover .disc, .node:focus-visible .disc { stroke: #fff; stroke-opacity: 1; }
+  .node .ring2 { fill: none; stroke: var(--rc); stroke-opacity: 0.35; stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-dasharray: 3 4; }
+  .node.taken .ring2 { stroke-opacity: 0.9; }
+  .node.gate .disc, .node.special .disc, .node.pentagon .disc { stroke-width: 2.5; }
+  .node.pentagon .special-icon { display: inline !important; }
+  svg.far .node.pentagon text { display: none; }
+  .passive b { color: var(--rc); }
+  .node.special .special-icon { display: inline !important; }
+  svg.far .node.special text { display: none; }
+  .node.gate .gate-key { fill: none; stroke: var(--rc); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .node.gate.taken .gate-key { stroke: #111; }
+  svg.far .node.gate text { display: none; }
+  .node text { fill: var(--dim); font-family: var(--ui); font-weight: 500; font-size: var(--fs, 13px); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+  .node.taken text, .node:hover text { fill: var(--text); }
+  .node.small text, .node.ring text, .node.bridge text { display: none; }
+  svg.far .node.notable text, svg.far .node.start text { display: none; }
+  svg.far .node.notable.taken text, svg.far .node.notable.found text { display: inline; }
+  .node.found .disc { stroke: #fff; stroke-opacity: 1; stroke-width: 3; }
+  .node.found .halo { display: inline; }
+  .node .halo { display: none; fill: none; stroke: #fff; stroke-opacity: .5; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; }
+  .region-label .region-sub { font-size: 0.6em; font-weight: 400; letter-spacing: 0.02em; fill-opacity: 0.85; }
+  .region-label { fill: var(--rc); fill-opacity: 0.6; font-family: var(--ui); font-weight: 600; font-size: var(--rs, 22px); letter-spacing: 0.04em; text-anchor: middle; pointer-events: none; }
+
+  /* ---- Node icons ----
+     The drawings and their tone classes are copied in from perk-node-icons.html by build.py; edit them there.
+     Each icon is three tones of the node's region colour (--ta lit, --tb turned away, --tc recessed) plus --tk,
+     the surface behind it. A node you cannot reach yet shows a dimmer ramp; a taken node flips to dark ink. */
+  .node, .tip-ic {
+    --disc: #17171a; --tk: var(--disc); --tw: .1;
+    --ta: color-mix(in srgb, var(--rc) 52%, var(--disc));
+    --tb: color-mix(in srgb, var(--rc) 32%, var(--disc));
+    --tc: color-mix(in srgb, var(--rc) 19%, var(--disc));
+  }
+  .node.open, .node.preview, .node.found, .node:hover, .node:focus-visible, .tip-ic {
+    --ta: var(--rc); --tw: .42;
+    --tb: color-mix(in srgb, var(--rc) 58%, var(--disc));
+    --tc: color-mix(in srgb, var(--rc) 32%, var(--disc));
+  }
+  .node.taken {
+    --ink: #131316; --ta: var(--ink); --tk: var(--rc); --tw: .14;
+    --tb: color-mix(in srgb, var(--rc) 40%, var(--ink));
+    --tc: color-mix(in srgb, var(--rc) 68%, var(--ink));
+  }
+  /* Icons come in as you zoom closer, each once it is about 12px wide on screen: keystones and the core from 30%,
+     notables from 40%, small nodes from 70%. Below that an icon is only a few pixels wide and reads as noise. */
+  .node .icon { display: none; pointer-events: none; }
+  svg.wide .node.keystone .icon, svg.wide .node.start .icon, svg.mid .node.notable .icon, svg.near .node .icon { display: inline; }
+  /*__TONES__*/
+
+  .tools { position: absolute; left: 16px; bottom: 16px; display: flex; gap: 6px; }
+  .tools button { min-width: 38px; height: 38px; padding: 0 12px; border: 1px solid var(--edge-2); border-radius: 999px; background: var(--panel); cursor: pointer; }
+  .tools button:hover { border-color: var(--text); }
+  .hint { position: absolute; left: 16px; top: 12px; margin: 0; color: var(--mute); font-size: 12px; max-width: 250px; pointer-events: none; }
+
+  .tip { position: fixed; z-index: 10; max-width: 300px; padding: 12px 14px; border-radius: 12px; background: var(--panel); box-shadow: 0 0 0 1px var(--edge-2), 0 18px 36px -18px #000; pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; }
+  .tip.show { opacity: 1; transform: none; }
+  .tip .head { display: flex; align-items: center; gap: 10px; }
+  .tip-ic { --disc: #18181a; flex: none; width: 32px; height: 32px; }
+  .tip b { display: block; font-size: 15px; font-weight: 600; }
+  .tip .k { color: var(--rc); font-size: 11.5px; font-weight: 600; }
+  .tip p { margin: 6px 0 0; white-space: pre-line; }
+  .tip small { display: block; margin-top: 8px; color: var(--dim); font-size: 12px; }
+  .tip .work { color: var(--mute); }
+  /* The status line: can you take it, and if not, why. Words carry the meaning; colour backs them up. */
+  .tip .st { margin-top: 8px; font-size: 12.5px; font-weight: 600; }
+  .tip .st.ok { color: var(--good); }
+  .tip .st.no { color: color-mix(in srgb, var(--red) 72%, var(--text)); }
+  .tip .st.own { color: var(--rc); }
+  .tip .earn { margin-top: 4px; color: var(--dim); }
+
+  /* ---- Side panel ---- */
+  aside { display: flex; flex-direction: column; gap: 16px; padding: 20px 18px; overflow-y: auto; background: var(--panel); box-shadow: -1px 0 0 var(--edge); }
+  h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  h2 { margin: 0 0 8px; color: var(--dim); font-size: 12.5px; font-weight: 500; }
+  .pts { display: flex; align-items: baseline; gap: 10px; }
+  .pts b { font-size: 34px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .pts span { color: var(--dim); }
+  .est table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .est th, .est td { padding: 4px 6px 4px 0; text-align: left; vertical-align: top; }
+  .est th { color: var(--dim); font-weight: 500; }
+  .est td small { display: block; color: var(--dim); }
+  .sim { display: grid; gap: 10px; padding: 12px; border-radius: 12px; box-shadow: 0 0 0 1px var(--edge); }
+  .sim label { display: grid; gap: 4px; font-size: 13px; }
+  .sim select, .sim input[type=range] { width: 100%; }
+  .sim select { padding: 6px 8px; border: 1px solid var(--edge-2); border-radius: 8px; background: #111; }
+  input[type=range] { accent-color: var(--accent); }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; box-shadow: 0 1px 0 var(--edge); font-size: 13px; }
+  .row span:first-child { color: var(--dim); }
+  .row.head { margin-top: 8px; font-weight: 600; box-shadow: 0 1px 0 var(--edge-2, var(--edge)); }
+  .row.head span:first-child { color: var(--text, inherit); }
+  .row.sub { padding: 4px 0 4px 10px; font-size: 12px; }
+  .row.sub small { color: var(--dim); font-size: 11px; opacity: 0.8; }
+  .sec { margin: 16px 0 2px; padding-bottom: 4px; display: flex; flex-direction: column; gap: 1px; box-shadow: 0 1px 0 var(--edge-2, var(--edge)); }
+  .sec:first-child { margin-top: 0; }
+  .sec b { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .sec small { color: var(--dim); font-size: 11px; }
+  .neg { color: #ff6b6b; }
+  .row.sub.pas > span:first-child { display: flex; flex-direction: column; gap: 1px; }
+  .row.sub.pas > span:first-child small { display: block; }
+  .row span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+  .list { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Slot board: what you hold. One 3-column grid: pentagons across the top, squares in the outer two columns below.
+     A held slot looks like the node taken on the tree: its class colour, the icon in dark ink. */
+  /* Slot board, like a loadout bar: pentagons in a row with their names, then two interlocking rows of four squares
+     (the second half a slot over, tucked up between the first). The caption names the slot you point at. */
+  .slots { display: grid; gap: 8px; }
+  .slot-pents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center; align-items: start; }
+  .slot-squares { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); justify-items: center; }
+  .slot-caption { display: -webkit-box; min-height: calc(2 * 1.4em); margin: 0; overflow: hidden; color: var(--mute); font-size: 12px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .slot-caption b { color: var(--rc, var(--text)); font-weight: 600; }
+  .slot-caption.on { color: var(--dim); }
+  .slot { --ink: #131316; --ta: var(--ink); --tk: var(--rc); --tw: .14;
+    --tb: color-mix(in srgb, var(--rc) 40%, var(--ink)); --tc: color-mix(in srgb, var(--rc) 68%, var(--ink));
+    display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; min-width: 0; padding: 3px 2px; text-align: center; }
+  .slot svg { overflow: visible; }
+  .slot.pent svg { width: 46px; height: 46px; }
+  .slot.sq svg { width: 38px; height: 38px; }
+  .slot polygon { fill: var(--rc); stroke: var(--rc); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .slot small { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; line-height: 1.2; }
+  /* Empty: only the outline, clear enough to read as a slot; pentagons (the scarcer slot) a step stronger. */
+  .slot.empty polygon { fill: color-mix(in srgb, var(--text) 3%, transparent); stroke: color-mix(in srgb, var(--text) 30%, transparent); stroke-dasharray: 4 3; }
+  .slot.empty.pent polygon { stroke: color-mix(in srgb, var(--text) 40%, transparent); }
+  .slot-key { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--rc) 18%, transparent); color: color-mix(in srgb, var(--rc) 70%, #fff); }
+  .empty { color: var(--mute); font-size: 12.5px; }
+  .acts { display: flex; gap: 8px; }
+  .acts button { flex: 1; min-height: 38px; border: 1px solid var(--edge-2); border-radius: 999px; background: none; cursor: pointer; }
+  .acts button:hover { border-color: var(--text); }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; font-size: 12.5px; color: var(--dim); }
+  .legend svg { width: 26px; height: 26px; }
+  .msg { min-height: 20px; color: var(--accent); font-size: 12.5px; }
+  @media (max-width: 860px) { .app { grid-template-columns: 1fr; grid-template-rows: 62vh auto; height: auto; } aside { box-shadow: 0 -1px 0 var(--edge); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage" id="stage">
+    <svg class="tree" id="tree" aria-label="Perk tree"></svg>
+    <p class="hint">Hover a node to see the path to it and what it costs. Click to take the whole path. Click a node you own to give it back (only if nothing else depends on it). Drag to move, scroll to zoom.</p>
+    <div class="tools">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">−</button>
+      <button type="button" id="fit">Fit</button>
+    </div>
+  </div>
+  <aside>
+    <div>
+      <h1>Perk Tree Sample</h1>
+      <div class="pts"><b id="left">0</b><span id="ptsline">points taken</span></div>
+      <p class="msg" id="msg" role="status"></p>
+    </div>
+    <div class="sim est">
+      <h2>Time to earn it</h2>
+      <div id="est"></div>
+      <small class="empty" id="estnote"></small>
+    </div>
+    <div class="startpick" id="startpick">
+      <h2>Starting regions <small id="startsline"></small></h2>
+      <div class="list" id="starts"></div>
+      <small class="empty" id="startshint"></small>
+    </div>
+    <div>
+      <h2>Your slots <small id="slotsline"></small></h2>
+      <div class="slots" id="slots"></div>
+    </div>
+    <div>
+      <h2>Find a node</h2>
+      <input type="search" id="find" placeholder="Name or effect, e.g. tickets" autocomplete="off" style="width:100%;padding:8px 10px;border:1px solid var(--edge-2);border-radius:8px;background:#111" />
+      <p class="empty" id="found" style="margin:6px 0 0"></p>
+    </div>
+    <div>
+      <h2>What you took</h2>
+      <div id="totals"></div>
+    </div>
+    <div>
+      <h2>Notables</h2>
+      <div class="list" id="notables"></div>
+    </div>
+    <div>
+      <h2>Keystones</h2>
+      <div class="list" id="keystones"></div>
+    </div>
+    <div class="acts">
+      <button type="button" id="reset">Reset all</button>
+    </div>
+    <div>
+      <h2>Key</h2>
+      <div class="legend" id="legend"></div>
+    </div>
+  </aside>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><!--__ICONS__--></defs></svg>
+
+<script>
+const DATA = /*__DATA__*/null;
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const R = { start: 40, class: 46, keystone: 46, notable: 26, gate: 22, special: 22, pentagon: 34, small: 14, ring: 13, bridge: 14 };
+
+// ---- node icons ----
+// Which drawing (a symbol id in perk-node-icons.html, without the "i-") each effect uses.
+const STAT_ICON = {
+  playCreditPct: "coin", allCreditPct: "stack", creditsPerHour: "clock-coin", creditsPer5Hours: "clock-coin", creditsPer10Hours: "clock-coin",
+  uptimeCredits: "clock-coin", longSessionCreditPct: "streak", longSessionCreditPct2: "streak", backToBackCreditPct: "streak",
+  nightCreditPct: "moon", nightPassXpPct: "moon", darkThemeCreditPct: "moon", earlyCreditPct: "sun", warmupPassXpPct: "sun", firstGameCredits: "sun",
+  weekendCreditPct: "calendar", sessionCredits: "calendar", creditsPerPlayDay: "calendar", streakGraceMonthly: "calendar", perfectWeekCredits: "stack",
+  passXpPct: "xp", sessionPassXp: "xp", questPassXp: "xp", questCreditPassXp: "xp", passCap: "cap", passOverflowPct: "cap",
+  passStartXp: "rocket", longSessionPassXpPct: "book", catchUpPassXpPct: "book",
+  paySlipPct: "stack", vaultInterestPct: "stack", seasonArchiveDays: "calendar", freeRowFragment: "disk", longSessionFragment: "disk",
+  lastCallIncome: "moon", streakShieldMonthly: "snow", streak30Special: "ticket", itemChoicePer25h: "cards", weeklyDoubleRepeat: "disk",
+  extraDailyQuest: "check", dailyQuestSwap: "target", overnightIncome: "moon", ghostGameMode: "house", steadyWeekTicket: "ticket", coolSessionIncome: "chip",
+  overtimeHourIncome: "clock-coin", chequePer1000Income: "stack", tipJarPct: "clover", pensionPct: "house", fastTrackLevels: "rocket", xpBankCap: "cap", bonusLevelFragment: "disk", retroRowClaims: "calendar", firstSessionIncome: "sun", marathonSpecialFragment: "disk", doubleHeaderTicket: "ticket", tenthSessionIncome: "stack", comebackDoubleDays: "streak", fullWeekTicket: "ticket", streak10Income: "streak", streak60SkinPick: "cards", luckyFirstDraw: "clover", fragmentPressWeekly: "disk", specialTicketPer50h: "ticket", collectorFragmentDaily: "cards", extraWeeklyQuest: "flag", allDailiesIncome: "check", monthlyQuestTicket: "ticket", quest25SpecialFragment: "target", morningReportFragment: "sun", gameModeStintIncome: "chip", autoGameMode: "rocket", uptime30Special: "calendar", noOverheatWeekIncome: "snow", lowPingSessionIncome: "signal", stableSessionsTicket: "ticket", rigReportFragment: "news",
+  bonusLevelIncome: "stack", freeRowIncomePct: "coin", freeRowEvery5Income: "stack", lateSeasonXpPct: "xp",
+  milestoneTicket: "ticket", bonusLevelTicketPct: "clover", finaleSpecialTickets: "ticket",
+  weekPlayTicket: "ticket", longWeekendTicket: "ticket", ticketPer5Hours: "ticket", ticketPer8Hours: "ticket", level30SpecialTicket: "ticket",
+  luckySessionTicketPct: "clover", jackpotSpecialTicketPct: "clover", streakFreezeMonthly: "snow", streakFreezePer20h: "snow",
+  fragmentPlayPct: "disk", fragmentPer2Hours: "disk", fragmentPerRepeat: "disk", fragmentPer4Star: "disk", specialFragmentPer5Star: "disk",
+  specialFragmentPer20Hours: "disk", hourMilestoneFragment: "disk", itemPer10Hours: "cards",
+  questCreditPct: "check", autoClaimPlayQuests: "check", dailyQuestCreditPct: "check", playQuestCreditPct: "target",
+  weeklyQuestCreditPct: "flag", monthlyQuestCreditPct: "flag", allWeekliesTicket: "flag",
+  comebackCreditPct: "house", alwaysOnCreditPct: "house", minimisedCreditPct: "house", creditPctPer3Skins: "house",
+  gameModeCreditPct: "chip", coolPcCreditPct: "chip", steadyFrameCreditPct: "chip", lowPingCreditPct: "signal",
+};
+// Effects given their own icon on 2026-11-18 (later keys win over earlier ones above).
+Object.assign(STAT_ICON, {
+  coolPcCreditPct: "thermo", coolSessionIncome: "thermo", noOverheatWeekIncome: "thermo", coolStartCredits: "thermo",
+  gpuHeadroomCreditPct: "gauge", quietRigCreditPct: "gauge", steadyFrameCreditPct: "gauge", lowJitterCreditPct: "gauge", rigCreditPct: "gauge",
+  acPowerCreditPct: "bolt",
+  streakShieldMonthly: "shield", streakGraceMonthly: "shield", silentRigCreditPct: "shield", stableSessionsTicket: "shield",
+  itemChoicePer25h: "gift", itemPer10Hours: "gift",
+  level60SpecialTicket: "trophy", finaleSpecialTickets: "trophy", milestoneTicket: "trophy", quest25SpecialFragment: "trophy", uptime30Special: "trophy",
+  ghostGameMode: "ghost", minimisedCreditPct: "ghost", idleCredits: "ghost",
+  seasonArchiveDays: "hourglass", passOverflowPct: "hourglass",
+  alwaysOnCreditPct: "power", uptimeCredits: "power", weekUptimeTicket: "power",
+  vaultInterestPct: "vault", pensionPct: "vault", xpBankCap: "vault",
+  paySlipPct: "receipt", chequePer1000Income: "receipt",
+  gameModeCreditPct: "gamepad", gameModeStintIncome: "gamepad", autoGameMode: "gamepad", sessionCredits: "gamepad", encoreCredits: "gamepad", tenthSessionIncome: "gamepad", doubleHeaderTicket: "gamepad",
+  comebackCreditPct: "comeback", comebackDoubleDays: "comeback", streakRestartHalf: "comeback", retroRowClaims: "comeback",
+  nightSessionCredits: "moon", overnightUptimeCredits: "moon",
+  freezeOnRankUp: "snow",
+  // The Season Key's effect: a key, matching the key the tree draws on the node (it used to fall back to a coin).
+  passLevelCap: "key"
+});
+// An effect added to the workbook later, with no entry above, is matched on its name so it still gets a sensible icon.
+const STAT_GUESS = [[/ticket/i, "ticket"], [/fragment/i, "disk"], [/passxp|passcap/i, "xp"], [/quest/i, "check"], [/streak/i, "streak"], [/hour/i, "clock-coin"]];
+function iconFor(n) {
+  if (n.type === "start") return "core";
+  if (n.type === "class") return `class-${n.region}`;
+  if (n.type === "keystone") return "keystone";
+  return STAT_ICON[n.stat] || (STAT_GUESS.find(([re]) => re.test(n.stat || "")) || [])[1] || "coin";
+}
+// How much of the node's width the icon fills.
+const ICON_FILL = { small: 0.56, ring: 0.56, bridge: 0.56, notable: 0.55, keystone: 0.52, start: 0.5, class: 0.62 };
+const regionOf = Object.fromEntries(DATA.regions.map((r) => [r.id, r]));
+const byId = Object.fromEntries(DATA.nodes.map((n) => [n.id, n]));
+const START = DATA.nodes.find((n) => n.type === "start")?.id;
+/** Region -> the node Station Core links to in that region. */
+const CORE_LINK = {};
+for (const [a, b] of DATA.edges) if (a === START || b === START) { const o = a === START ? b : a; CORE_LINK[byId[o].region] = o; }
+const MAX_STARTS = (DATA.points && DATA.points.starts) || 2;
+/** Squares (Season Keys and Specials) are free, but a player holds at most this many. */
+const MAX_SQUARES = (DATA.points && DATA.points.squares) || 6;
+const isSquare = (id) => byId[id].type === "gate" || byId[id].type === "special";
+const squaresHeld = () => [...taken].filter(isSquare).length;
+/** Pentagons (five unique nodes per class) are free too, but a player holds at most this many. */
+const MAX_PENTAGONS = (DATA.points && DATA.points.pentagons) || 3;
+const isPentagon = (id) => byId[id].type === "pentagon";
+const pentagonsHeld = () => [...taken].filter(isPentagon).length;
+/** The regions you entered straight from Station Core: your starting regions. Chosen by taking a path, not in a menu. */
+let starts = new Set();
+/** Region whose core-linked first node is `id`, or undefined. */
+const entryRegion = (id) => Object.keys(CORE_LINK).find((r) => CORE_LINK[r] === id);
+/** A core link is open while starts are still free; once they are all taken, only the starts' own links stay open. */
+const linkOpen = (region) => starts.has(region) || starts.size < MAX_STARTS;
+/** Every edge touching each node, for the refund check. */
+const EDGE_LIST = Object.fromEntries(DATA.nodes.map((n) => [n.id, []]));
+for (const e of DATA.edges) { EDGE_LIST[e[0]].push(e); EDGE_LIST[e[1]].push(e); }
+const isClosedLink = (a, b) => (a === START || b === START) && !linkOpen(byId[a === START ? b : a].region);
+const adj = {};
+function rebuildAdj() {
+  for (const n of DATA.nodes) adj[n.id] = new Set();
+  for (const [a, b] of DATA.edges) {
+    if (isClosedLink(a, b)) continue;
+    adj[a].add(b); adj[b].add(a);
+  }
+}
+rebuildAdj();
+
+// Labels for the totals panel. Stats not listed show their key.
+const STAT_LABEL = { ...(DATA.statLabels || {}),
+  playCreditPct: ["Income from play", "%"], creditsPerHour: ["Income per counted hour", ""], questCreditPct: ["Income from quests", "%"],
+  passXpPct: ["Season Pass XP", "%"], passCap: ["Weekly Pass XP cap", ""], checkinBonusPct: ["Chance of a bonus ticket on check-in", "%"],
+  boardDay7Regular: ["Day 7 bonus Regular Ticket", "×"], boardDay4Regular: ["Day 4 bonus Regular Ticket", "×"], fragmentPct: ["Fragments from repeats", "%"],
+  fragmentPerRepeat: ["Regular fragments per repeat", ""], weeklyRegularTicket: ["Regular Tickets every Monday", ""], questPassXp: ["Pass XP per claimed quest", ""],
+  weeklyQuestCreditPct: ["Income from weekly quests", "%"], allCreditPct: ["All Income", "%"], streakFreezeMonthly: ["Streak freezes each month", ""],
+  welcomeBackPct: ["Welcome-back Income for an hour", "%"],
+  longSessionCreditPct: ["Income from sessions over 45 min", "%"], morningCreditPct: ["Income from morning play", "%"], creditsPer5Quests: ["Income per 5 quests claimed", ""],
+  passStartXp: ["Pass XP at the start of each season", ""], nightPassXpPct: ["Pass XP from play after 20:00", "%"], passOverflowPct: ["Weekly overflow XP carried over", "%"],
+  creditsPerCheckin: ["Income per check-in", ""], weekendCheckinDouble: ["Weekend check-ins count twice", "×"], fullBoardCredits: ["Income for a full check-in board", ""],
+  tenDrawDiscountPct: ["Off 10-draws bought with Income", "%"], specialFragmentPer5Star: ["Special fragments per 5-star repeat", ""], ticketRefundPct: ["Chance a Ticket draw refunds the Ticket", "%"],
+  dailyQuestCreditPct: ["Income from daily quests", "%"], allDailiesCredits: ["Income for finishing every daily", ""], monthlyQuestCreditPct: ["Income from monthly quests", "%"],
+  gameModeCreditPct: ["All Income while game mode is on", "%"], creditsPer10News: ["Income per 10 News stories read", ""], skinCreditsPerHour: ["Income per hour with a card skin on", ""],
+};
+
+let taken = new Set([START]);
+let preview = [];
+const view = { x: 0, y: 0, k: 1 };
+
+// There is no points limit here: take any part, and the panel works out how long it takes to earn.
+const budget = () => Infinity;
+const spent = () => [...taken].reduce((s, id) => s + (byId[id].cost || 0), 0);
+const left = () => budget() - spent();
+
+/** Shortest path (fewest nodes) from anything taken to `target`; the nodes to add, nearest first. */
+/** Bands IV, V and VI of a class open only to a player who started in that class (its first node is a starting pick). */
+const lockedClass = (id) => { const m = /^([a-z]+)-b(\d+)-/.exec(id); return m && (m[2] === "4" || m[2] === "5" || m[2] === "6") ? m[1] : null; };
+/** Band VI can be taken in only ONE class: the class whose band VI you have started (the monthly reset frees the choice). */
+const isBand6 = (id) => /^[a-z]+-b6-/.test(id);
+const band6Owner = () => { for (const id of taken) if (isBand6(id)) return byId[id].region; return null; };
+/** Band VI has three branches (a, b, c), each ending on its own keystone; only ONE can be taken. The branch is the letter in the id. */
+const band6Branch = (id) => { const m = /^[a-z]+-b6-([abc])(?:\d+|m|k)$/.exec(id); return m ? m[1] : null; };
+const band6Chosen = () => { for (const id of taken) { const b = band6Branch(id); if (b) return b; } return null; };
+const bandLocked = (id) => {
+  const c = lockedClass(id);
+  if (c === null) return false;
+  if (!starts.has(c)) return true;
+  if (!isBand6(id)) return false;
+  const owner = band6Owner();
+  if (owner !== null && owner !== c) return true;
+  const br = band6Branch(id), chosen = band6Chosen();
+  return br !== null && chosen !== null && chosen !== br;
+};
+function pathTo(target) {
+  if (taken.has(target)) return [];
+  const prev = new Map(); const q = [...taken]; const seen = new Set(taken);
+  while (q.length) {
+    const cur = q.shift();
+    for (const nb of adj[cur]) {
+      if (seen.has(nb) || bandLocked(nb)) continue;
+      seen.add(nb); prev.set(nb, cur);
+      if (nb === target) { const out = []; let x = nb; while (!taken.has(x)) { out.unshift(x); x = prev.get(x); } out.from = x; return out; }
+      q.push(nb);
+    }
+  }
+  return null;
+}
+
+/** Can `id` be given back without cutting anything else off from the start? */
+function canRefund(id) {
+  if (id === START || !taken.has(id)) return false;
+  const rest = new Set(taken); rest.delete(id);
+  const keep = new Set(starts); const er = entryRegion(id); if (er) keep.delete(er);
+  if (er && [...rest].some((x) => lockedClass(x) === er)) return false; // bands IV, V and VI of that class need the start
+  const seen = new Set([START]); const q = [START];
+  while (q.length) {
+    const c = q.shift();
+    for (const [a, b] of EDGE_LIST[c]) {
+      const nb = a === c ? b : a;
+      if ((a === START || b === START) && !keep.has(byId[nb === START ? c : nb].region)) continue;
+      if (rest.has(nb) && !seen.has(nb)) { seen.add(nb); q.push(nb); }
+    }
+  }
+  return seen.size === rest.size;
+}
+/** Gives a node back; giving back a start's first node frees that start. */
+function refund(id) {
+  taken.delete(id);
+  const er = entryRegion(id);
+  if (er && starts.has(er)) { starts.delete(er); rebuildAdj(); return er; }
+  return null;
+}
+
+// ---- drawing ----
+const svg = $("tree");
+const world = document.createElementNS(NS, "g");
+svg.appendChild(world);
+const gLabels = document.createElementNS(NS, "g"), gEdges = document.createElementNS(NS, "g"), gNodes = document.createElementNS(NS, "g");
+world.append(gLabels, gEdges, gNodes);
+
+// Region names sit beyond each keystone.
+for (const reg of DATA.regions) {
+  // The farthest keystone in the region (the grand keystone on the rim).
+  const key = DATA.nodes.filter((n) => n.region === reg.id && n.type === "keystone").sort((a, b) => Math.hypot(b.x, b.y) - Math.hypot(a.x, a.y))[0];
+  if (!key) continue;
+  // Straight above the keystone in the top half, below its name in the bottom half.
+  const t = document.createElementNS(NS, "text");
+  t.setAttribute("class", "region-label"); t.setAttribute("x", key.x);
+  // Placed in apply(): the gap grows as you zoom out, because the text keeps its size on screen.
+  t.dataset.ky = key.y; t.dataset.up = key.y < 0 ? "1" : "";
+  t.style.setProperty("--rc", reg.color);
+  // The class name, and under it the area it covers.
+  const cls = document.createElementNS(NS, "tspan"); cls.textContent = reg.name.toUpperCase(); t.appendChild(cls);
+  if (reg.focus) {
+    const sub = document.createElementNS(NS, "tspan");
+    sub.setAttribute("class", "region-sub"); sub.setAttribute("x", key.x); sub.setAttribute("dy", "1.25em"); sub.textContent = reg.focus;
+    t.appendChild(sub); t.dataset.two = "1";
+  }
+  gLabels.appendChild(t);
+}
+
+const edgeEls = DATA.edges.map(([a, b]) => {
+  const l = document.createElementNS(NS, "line");
+  l.setAttribute("x1", byId[a].x); l.setAttribute("y1", byId[a].y); l.setAttribute("x2", byId[b].x); l.setAttribute("y2", byId[b].y);
+  l.setAttribute("class", "edge"); gEdges.appendChild(l);
+  return { a, b, el: l };
+});
+
+const nodeEls = {};
+for (const n of DATA.nodes) {
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("class", `node ${n.type}`); g.setAttribute("transform", `translate(${n.x},${n.y})`);
+  g.setAttribute("tabindex", "0"); g.setAttribute("role", "button"); g.setAttribute("aria-label", `${n.name}: ${n.effect}`);
+  g.style.setProperty("--rc", (regionOf[n.region] || regionOf.core).color);
+  const r = R[n.type] || 11;
+  if (n.type === "keystone" || n.type === "start" || n.type === "class") { const o = document.createElementNS(NS, "circle"); o.setAttribute("r", r + 9); o.setAttribute("class", "ring2"); g.appendChild(o); }
+  const h = document.createElementNS(NS, "circle"); h.setAttribute("r", r + 14); h.setAttribute("class", "halo"); g.appendChild(h);
+  if (n.type === "pentagon") {
+    // Pentagon: a pentagon inside a dashed pentagon, with the node's icon.
+    const pg = (k) => [0, 1, 2, 3, 4].map((i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; return `${(k * Math.cos(a)).toFixed(1)},${(k * Math.sin(a)).toFixed(1)}`; }).join(" ");
+    const o = document.createElementNS(NS, "polygon"); o.setAttribute("points", pg(r + 10)); o.setAttribute("class", "ring2"); g.appendChild(o);
+    const c = document.createElementNS(NS, "polygon"); c.setAttribute("points", pg(r)); c.setAttribute("class", "disc"); g.appendChild(c);
+    const is = r * 0.9;
+    const ic = document.createElementNS(NS, "use"); ic.setAttribute("href", `#i-${iconFor(n)}`); ic.setAttribute("class", "icon special-icon");
+    ic.setAttribute("x", -is / 2); ic.setAttribute("y", -is / 2 + 2); ic.setAttribute("width", is); ic.setAttribute("height", is); g.appendChild(ic);
+  } else if (n.type === "gate" || n.type === "special") {
+    // Season Key and special nodes: a diamond inside a dashed diamond. The key draws a key; a special shows its icon.
+    const d = (k) => `0,${-k} ${k},0 0,${k} ${-k},0`;
+    const o = document.createElementNS(NS, "polygon"); o.setAttribute("points", d(r + 9)); o.setAttribute("class", "ring2"); g.appendChild(o);
+    const c = document.createElementNS(NS, "polygon"); c.setAttribute("points", d(r)); c.setAttribute("class", "disc"); g.appendChild(c);
+    if (n.type === "gate") {
+      const key = document.createElementNS(NS, "path");
+      key.setAttribute("d", "M-9 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0M0 0h10M6 0v4M9 0v3");
+      key.setAttribute("class", "gate-key"); g.appendChild(key);
+    } else {
+      const is = r * 0.95;
+      const ic = document.createElementNS(NS, "use"); ic.setAttribute("href", `#i-${iconFor(n)}`); ic.setAttribute("class", "icon special-icon");
+      ic.setAttribute("x", -is / 2); ic.setAttribute("y", -is / 2); ic.setAttribute("width", is); ic.setAttribute("height", is); g.appendChild(ic);
+    }
+  } else {
+    const c = document.createElementNS(NS, "circle"); c.setAttribute("r", r); c.setAttribute("class", "disc" + (n.type === "start" ? " core" : "")); g.appendChild(c);
+    const is = 2 * r * (ICON_FILL[n.type] || 0.55);
+    const ic = document.createElementNS(NS, "use"); ic.setAttribute("href", `#i-${iconFor(n)}`); ic.setAttribute("class", "icon");
+    ic.setAttribute("x", -is / 2); ic.setAttribute("y", -is / 2); ic.setAttribute("width", is); ic.setAttribute("height", is); g.appendChild(ic);
+  }
+  if (n.type === "notable" || n.type === "keystone" || n.type === "start" || n.type === "class" || n.type === "gate" || n.type === "special" || n.type === "pentagon") {
+    const t = document.createElementNS(NS, "text"); t.dataset.r = r; t.textContent = n.name; g.appendChild(t);
+    // Only the name on the tree: what a node does (and its passive) is in the hover tip.
+  }
+  g.addEventListener("pointerenter", (e) => hover(n.id, e));
+  g.addEventListener("pointermove", (e) => placeTip(e));
+  g.addEventListener("pointerleave", () => unhover());
+  g.addEventListener("focus", () => { const b = g.getBoundingClientRect(); hover(n.id, { clientX: b.right, clientY: b.top }); });
+  g.addEventListener("blur", () => unhover());
+  g.addEventListener("click", (e) => { if (!moved) act(n.id); });
+  g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(n.id); } });
+  gNodes.appendChild(g);
+  nodeEls[n.id] = g;
+}
+
+/** A pentagon (point up) or a diamond of radius r, as SVG points. */
+const slotPoints = (shape, r) => shape === "pentagon"
+  ? [0, 1, 2, 3, 4].map((i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5; return `${(r * Math.cos(a)).toFixed(1)},${(r * Math.sin(a)).toFixed(1)}`; }).join(" ")
+  : `0,${-r} ${r},0 0,${r} ${-r},0`;
+/** One slot: the held node in its class colour with its icon (a Season Key shows its key), or a dashed outline. */
+function slotHTML(shape, id, row, col, extra, named) {
+  const n = id ? byId[id] : null;
+  const r = shape === "pentagon" ? 20 : 17;
+  const inner = !n ? "" : n.type === "gate"
+    ? `<path class="slot-key" d="M-9 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0M0 0h10M6 0v4M9 0v3"/>`
+    : `<use href="#i-${iconFor(n)}" x="${-r * 0.48}" y="${-r * 0.48}" width="${r * 0.96}" height="${r * 0.96}"/>`;
+  const style = `grid-row:${row};grid-column:${col}` + (extra ? `;${extra}` : "") + (n ? `;--rc:${(regionOf[n.region] || regionOf.core).color}` : "");
+  return `<div class="slot ${shape === "pentagon" ? "pent" : "sq"}${n ? "" : " empty"}" style="${style}"${n ? ` data-slot="${n.id}"` : ""}><svg viewBox="-24 -24 48 48"><polygon points="${slotPoints(shape, r)}"/>${inner}</svg>${n && named ? `<small>${n.name}</small>` : ""}</div>`;
+}
+/** The slot board, filled in the order taken: pentagons in a row (named), squares in two interlocking rows of four. */
+function paintSlots() {
+  const held = [...taken];
+  const pents = held.filter(isPentagon), squares = held.filter(isSquare);
+  const perRow = Math.ceil(MAX_SQUARES / 2);
+  $("slotsline").textContent = `(${pents.length}/${MAX_PENTAGONS} pentagons · ${squares.length}/${MAX_SQUARES} squares)`;
+  const sq = Array.from({ length: MAX_SQUARES }, (_, i) => {
+    const row = i < perRow ? 1 : 2, col = (i % perRow) * 2 + (row === 1 ? 1 : 2);
+    return slotHTML("diamond", squares[i], row, `${col} / span 2`, row === 2 ? "margin-top:-18px" : "", false);
+  }).join("");
+  $("slots").innerHTML =
+    `<div class="slot-pents">${Array.from({ length: MAX_PENTAGONS }, (_, i) => slotHTML("pentagon", pents[i], 1, `${i + 1}`, "", true)).join("")}</div>` +
+    `<div class="slot-squares" style="grid-template-columns:repeat(${perRow * 2 + 1},minmax(0,1fr))">${sq}</div>` +
+    `<p class="slot-caption" id="slotcap"></p>`;
+  slotCaption(null);
+}
+/** The caption: the slot you point at, or what the board is for. */
+function slotCaption(id) {
+  const cap = $("slotcap"); if (!cap) return;
+  const n = id ? byId[id] : null;
+  cap.classList.toggle("on", !!n);
+  cap.style.setProperty("--rc", n ? (regionOf[n.region] || regionOf.core).color : "");
+  cap.innerHTML = n ? `<b>${n.name}</b> ${n.effect.split("\n").join(" · ")}`
+    : [...taken].some((x) => isSquare(x) || isPentagon(x)) ? "Point at a slot to see it." : "Pentagons and squares you take on the tree fill these slots.";
+}
+$("slots").addEventListener("mouseover", (e) => { const el = e.target.closest("[data-slot]"); slotCaption(el ? el.dataset.slot : null); });
+$("slots").addEventListener("mouseleave", () => slotCaption(null));
+
+/** A trade-off node reads "gain, −loss": the loss goes on its own line in red. */
+const effectHTML = (t) => { const i = t.indexOf(", −"); return i < 0 ? t : `${t.slice(0, i)}<br><span class="neg">${t.slice(i + 2)}</span>`; };
+function paint() {
+  const prev = new Set(preview);
+  for (const n of DATA.nodes) {
+    const g = nodeEls[n.id];
+    const open = !taken.has(n.id) && [...adj[n.id]].some((x) => taken.has(x));
+    g.classList.toggle("taken", taken.has(n.id));
+    g.classList.toggle("open", open);
+    g.classList.toggle("preview", prev.has(n.id));
+  }
+  for (const e of edgeEls) {
+    const ta = taken.has(e.a), tb = taken.has(e.b);
+    const pa = prev.has(e.a) || ta, pb = prev.has(e.b) || tb;
+    e.el.setAttribute("class", "edge" + (isClosedLink(e.a, e.b) ? " closed" : ta && tb ? " taken" : prev.size && pa && pb && (prev.has(e.a) || prev.has(e.b)) ? " preview" : ta || tb ? " open" : ""));
+  }
+  paintSlots();
+  $("startsline").textContent = `(${starts.size} of ${MAX_STARTS})`;
+  $("starts").innerHTML = starts.size
+    ? [...starts].map((r) => `<span class="chip" style="--rc:${regionOf[r].color}" title="${regionOf[r].focus || ""}">${regionOf[r].name}</span>`).join("")
+    : `<p class="empty">None yet.</p>`;
+  $("startshint").textContent = starts.size < MAX_STARTS
+    ? `Your first ${MAX_STARTS} paths out of Station Core become your starting regions. After that, the core's other links close.`
+    : "The core's other links are closed. Reach other classes over the Bridges further out. Give back a start's first node to free it.";
+  $("left").textContent = spent();
+  $("ptsline").textContent = "points taken";
+  paintEstimate();
+
+  // Totals by stat.
+  const tot = {}, cnt = {}, who = {};
+  for (const id of taken) { const n = byId[id]; if (n.stat2) { tot[n.stat2] = (tot[n.stat2] || 0) + n.value2; cnt[n.stat2] = (cnt[n.stat2] || 0) + 1; } if (!n.stat) continue; tot[n.stat] = (tot[n.stat] || 0) + n.value; cnt[n.stat] = (cnt[n.stat] || 0) + 1; (who[n.stat] = who[n.stat] || []).push(n.name); }
+  if (tot.passLevelCap) tot.passLevelCap = Math.min(tot.passLevelCap, 15);
+  const THEMES = [
+    ["Income", (k, l) => /income/i.test(l) && !/pass xp/i.test(l)],
+    ["Season Pass XP", (k, l) => /pass/i.test(l)],
+    ["Tickets", (k, l) => /ticket/i.test(l)],
+    ["Fragments", (k, l) => /fragment/i.test(l)],
+    ["Streaks", (k, l) => /streak|freeze/i.test(l)],
+  ];
+  // Plain totals first: each theme has a heading line (its percent total) and then every stat on its own line.
+  // Passives come after: a bonus that only applies while a condition holds ("from sessions over 2 hours",
+  // "while GPU load stays under 90%"). They are listed one by one and never added into the totals above.
+  const PASSIVE = /\b(while|over|before|after|under|during|when|if|session|sessions|weekend|weekday|fridays|night|morning|midnight|in a row|dark theme|mains|minimi[sz]ed|first|second|back-to-back|comeback|alert|jitter|ping|frame|safe limits|game mode|once the app)\b/i;
+  const COND = /\b(from sessions|from play (before|after)|from back-to-back|from weekend|while|per session|for a session|for the first|for the second|if|when|during|once the app|on a dark|on mains|after midnight|ending after|in play)\b/i;
+  const sums = new Map(THEMES.map(([name]) => [name, { pct: 0, flat: 0, lines: [], pass: [] }]).concat([["Rules and unlocks", { pct: 0, flat: 0, lines: [], pass: [] }]]));
+  const fmtNum = (v) => (Math.round(v * 10) / 10).toLocaleString();
+  const sg = (n) => (n > 0 ? "+" : "");
+  const colored = (t) => /^[-−]/.test(t) ? `<span class="neg">${t.replace(/^-/, "−")}</span>` : t;   // a negative total or value shows in red
+  const valueText = (v, unit) => unit === "%" ? `${v > 0 ? "+" : ""}${fmtNum(v)}%` : `${v > 0 ? "+" : ""}${fmtNum(v)}${unit ? " " + unit : ""}`;
+  for (const [k, v] of Object.entries(tot)) {
+    if (!STAT_LABEL[k]) continue;                                         // keystone and pentagon rules are on/off, not totals: left out
+    const [label, unit] = STAT_LABEL[k];
+    if (unit && !/^[\x20-\x7e]*$/.test(unit)) continue;                   // on/off effects too
+    const theme = (THEMES.find(([, test]) => test(k, label)) || ["Rules and unlocks"])[0];
+    const e = sums.get(theme);
+    if (PASSIVE.test(label)) {
+      // Conditional boosts: group under the effect (Income, Pass XP, Tickets, Fragments, Streaks); each row is the
+      // condition plus a value that names what it gives ("+150% Income", "+1,500 Pass XP", "+1 Regular Ticket").
+      const lead = /^\+(\d+)%\s+(.*)$/.exec(label);                     // "+5% Income from play on mains power": the % is in the name
+      const name = lead && !unit ? lead[2] : label, val = lead && !unit ? +lead[1] : v, isPct = unit === "%" || (lead && !unit);
+      const thing = /(Regular|Special) (Ticket|fragment)/i.exec(name);
+      const group = /ticket/i.test(name) ? "Tickets" : /fragment/i.test(name) ? "Fragments" : /pass xp/i.test(name) ? "Pass XP" : /income/i.test(name) ? "Income" : /streak|counted double/i.test(name) ? "Streaks" : theme;
+      const noun = thing ? thing[0] + (!isPct && val > 1 && /ticket/i.test(thing[2]) ? "s" : !isPct && val > 1 ? "s" : "") : group === "Income" ? (/^all income/i.test(name) ? "All Income" : "Income") : group === "Pass XP" ? "Pass XP" : group === "Streaks" ? "days" : "";
+      const chance = /^chance/i.test(name);
+      const text = chance ? `+${fmtNum(val)}% chance${thing ? " of " + thing[0] : ""}` : `${val > 0 ? "+" : ""}${fmtNum(val)}${isPct ? "%" : ""}${noun ? " " + noun : ""}`;
+      // The row keeps only the condition: cut from the first condition word, or drop the leading effect words, then the filler.
+      const m = COND.exec(name);
+      let when = m && m.index > 0 ? name.slice(m.index) : name.replace(/^(All Income|Income|Pass XP|(Regular|Special) (Tickets?|fragments?)|Chance of an? ((Regular|Special) (Ticket|fragment)|\d+ Income tip)?)\s*/i, "");
+      for (let i = 0; i < 3; i++) when = when.replace(/^(while|from|for|your|the)\s+/i, "");
+      e.pass.push({ group, when: when || name, text, pct: isPct ? val : 0, val });
+      continue;
+    }
+    if (unit === "%") e.pct += v; else e.flat += v;
+    e.lines.push({ label, text: valueText(v, unit), pct: unit === "%" ? v : 0 });
+  }
+  const plain = [...sums.entries()].filter(([, e]) => e.lines.length);
+  const groups = new Map();
+  for (const [, e] of sums) for (const x of e.pass) { if (!groups.has(x.group)) groups.set(x.group, []); groups.get(x.group).push(x); }
+  const ORDER = ["Income", "Pass XP", "Tickets", "Fragments", "Streaks"];
+  const passives = [...groups.entries()].map(([name, list]) => [name, list.sort((x, y) => y.pct - x.pct || y.val - x.val)]).sort((x, y) => (ORDER.indexOf(x[0]) + 99) % 99 - (ORDER.indexOf(y[0]) + 99) % 99);
+  const section = (title, note) => `<div class="sec"><b>${title}</b><small>${note}</small></div>`;
+  $("totals").innerHTML = plain.length || passives.length
+    ? (plain.length ? section("Active boosts", "always on, added up") : "") + plain.map(([name, e]) => `<div class="row head"><span>${name}</span><span>${[e.pct ? colored(`${sg(e.pct)}${fmtNum(e.pct)}%`) : "", e.flat ? colored(`${sg(e.flat)}${fmtNum(e.flat)}`) : ""].filter(Boolean).join(" ")}</span></div>`
+        + e.lines.sort((x, y) => y.pct - x.pct).map((l) => `<div class="row sub"><span>${l.label}</span><span>${colored(l.text)}</span></div>`).join("")).join("")
+      + (passives.length ? section("Conditional boosts", "only while the condition holds; not added into the totals above")
+        + passives.map(([name, list]) => `<div class="row head"><span>${name}</span><span></span></div>`
+          + list.map((x) => `<div class="row sub"><span>${x.when}</span><span>${colored(x.text)}</span></div>`).join("")).join("") : "")
+    : `<p class="empty">Nothing yet. Take a node to see it here.</p>`;
+  const chips = (type) => {
+    const list = [...taken].map((id) => byId[id]).filter((n) => n.type === type);
+    return list.length ? list.map((n) => `<span class="chip" style="--rc:${(regionOf[n.region] || regionOf.core).color}" title="${n.effect.replace(/"/g, "&quot;")}">${n.name}</span>`).join("") : `<p class="empty">None taken.</p>`;
+  };
+  $("notables").innerHTML = chips("notable");
+  $("keystones").innerHTML = chips("keystone");
+}
+
+// ---- time to earn ----
+// DATA.levels (written by build.py from player-level-xp.html): points[L-1] is the Perk Points held at level L, and
+// cumHours[L-1] the counted hours (app running) to reach level L. Weekly hours turn that into calendar time.
+const PLAYERS = [["Reference player", 56], ["Steady player", 31], ["Average PC player", 9.7], ["Light player", 4]];
+const SEASON_DAYS = 90;
+function levelFor(points) {
+  const L = DATA.levels;
+  const i = L.points.findIndex((x) => x >= points);
+  return i < 0 ? null : i + 1;
+}
+function timeText(hours, perWeek) {
+  const days = hours / perWeek * 7;
+  const t = days < 14 ? `${Math.max(1, Math.round(days))} days` : days < 120 ? `${(days / 7).toFixed(1)} weeks` : days < 730 ? `${(days / 30.44).toFixed(1)} months` : `${(days / 365.25).toFixed(1)} years`;
+  return `${t}<small>${(days / SEASON_DAYS).toFixed(1)} seasons</small>`;
+}
+function paintEstimate() {
+  const L = DATA.levels, box = $("est");
+  if (!L) { box.innerHTML = `<p class="empty">No level table found. Run build.py with player-level-xp.html beside it.</p>`; return; }
+  const pts = spent(), mine = pts ? levelFor(pts) : 1, all = L.targetLevel;
+  const colMine = mine ? `${pts.toLocaleString()} pts<small>level ${mine}</small>` : `${pts.toLocaleString()} pts<small>past max level</small>`;
+  box.innerHTML = `<table><thead><tr><th></th><th>What you took<small>${colMine}</small></th><th>All parts<small>${L.reachCost.toLocaleString()} pts · level ${all}</small></th></tr></thead><tbody>`
+    + PLAYERS.map(([name, wk]) => `<tr><td>${name}<small>${wk} h a week</small></td><td>${mine ? timeText(L.cumHours[mine - 1], wk) : "n/a"}</td><td>${timeText(L.cumHours[all - 1], wk)}</td></tr>`).join("")
+    + `</tbody></table>`;
+  $("estnote").textContent = `All parts means every class up to band III plus bands IV and V in 2 classes. Time is app running time; a season is ${SEASON_DAYS} days.`;
+}
+
+// ---- tooltip and actions ----
+const tip = $("tip");
+function hover(id, e) {
+  const n = byId[id];
+  const path = pathTo(id);
+  preview = path || [];
+  const cost = (path || []).reduce((s, x) => s + (byId[x].cost || 0), 0);
+  const reg = regionOf[n.region] || regionOf.core;
+  const [state, status] = tipStatus(id, path, cost);
+  tip.style.setProperty("--rc", reg.color);
+  const earn = !n.earned_by || n.type === "start" || n.earned_by === "Rule change" ? ""
+    : `<small class="earn">${["Quests", "Draws"].includes(n.earned_by) ? "Pays when you act in the app" : "Pays out while you play"}</small>`;
+  tip.innerHTML = `<div class="head"><svg class="tip-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${iconFor(n)}"/></svg><div><span class="k">${reg.name}${reg.focus ? ` (${reg.focus})` : ""} · ${n.type}</span><b>${n.name}</b></div></div><p>${effectHTML(n.effect)}</p>${n.passive ? `<p class="passive"><b>Passive:</b> ${n.passive}</p>` : ""}<small class="st ${state}">${status}</small>${earn}${n.hook === "New work" ? `<small class="work">Not in the app yet</small>` : ""}`;
+  tip.classList.add("show");
+  placeTip(e);
+  paint();
+}
+/** How many Season Keys, squares and pentagons you hold, as "Season Key 0/1". */
+function slotCount(n) {
+  if (n.type === "gate") return `Season Key ${[...taken].filter((x) => byId[x].type === "gate").length}/1`;
+  if (n.type === "special") return `Square ${squaresHeld()}/${MAX_SQUARES}`;
+  if (n.type === "pentagon") return `Pentagon ${pentagonsHeld()}/${MAX_PENTAGONS}`;
+  return "";
+}
+/** The tooltip's status: ["ok" | "no" | "own", one short line saying whether you can take it, and why not]. */
+function tipStatus(id, path, cost) {
+  const n = byId[id];
+  const join = (...bits) => bits.filter(Boolean).join(" · ");
+  if (id === START) return ["own", `Start · your first ${MAX_STARTS} paths out pick your starting regions`];
+  if (taken.has(id)) return ["own", join("Yours", slotCount(n), canRefund(id) ? "click to give back" : "other nodes depend on it")];
+  if (n.type === "gate" && [...taken].some((x) => byId[x].type === "gate")) return ["no", "Can't take · Season Key 1/1 already held"];
+  if (!path) return ["no", bandLocked(id) ? (starts.has(lockedClass(id)) ? (band6Owner() === lockedClass(id) ? "Can't take · you already chose another band VI path" : `Can't take · band VI is already started in ${regionOf[band6Owner()].name}`) : `Can't take · bands IV, V and VI need a ${regionOf[lockedClass(id)].name} start`) : "Can't take · no open path yet"];
+  if (path.some(isSquare) && squaresHeld() + path.filter(isSquare).length > MAX_SQUARES) return ["no", `Can't take · squares full (${squaresHeld()}/${MAX_SQUARES})`];
+  if (path.some(isPentagon) && pentagonsHeld() + path.filter(isPentagon).length > MAX_PENTAGONS) return ["no", `Can't take · pentagons full (${pentagonsHeld()}/${MAX_PENTAGONS})`];
+  if (cost > left()) return ["no", `Can't take · needs ${cost} pts, you have ${left()}`];
+  const opens = path.from === START ? byId[path[0]].region : null;
+  return ["ok", join("Can take", `${cost} pt${cost === 1 ? "" : "s"}`, path.length > 1 && `${path.length} nodes`, slotCount(n), opens && !starts.has(opens) && `start ${starts.size + 1}/${MAX_STARTS}`)];
+}
+function placeTip(e) {
+  const pad = 16, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + w > innerWidth - 8) x = e.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = e.clientY - h - pad;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+function unhover() { tip.classList.remove("show"); preview = []; paint(); }
+function say(t) { $("msg").textContent = t; }
+
+function act(id) {
+  if (taken.has(id)) {
+    if (canRefund(id)) {
+      const freed = refund(id);
+      say(freed ? `Gave back ${byId[id].name}. ${regionOf[freed].name} is no longer a starting region, so a core link is free again.` : `Gave back ${byId[id].name}.`);
+    }
+    else if (id !== START) say("Other nodes you have depend on that one.");
+  } else {
+    const path = pathTo(id);
+    if (!path) return;
+    const cost = path.reduce((s, x) => s + (byId[x].cost || 0), 0);
+    if (cost > left()) { say(`That path needs ${cost} points; you have ${left()}.`); return; }
+    if (squaresHeld() + path.filter(isSquare).length > MAX_SQUARES) { say(`You already hold ${squaresHeld()} of ${MAX_SQUARES} squares. Reset to choose others.`); return; }
+    if ([...taken].some((x) => byId[x].type === "gate") && path.some((x) => byId[x].type === "gate")) { say("You already have a Season Key. You can hold only one; reset to choose another."); return; }
+    if (pentagonsHeld() + path.filter(isPentagon).length > MAX_PENTAGONS) { say(`You already hold ${pentagonsHeld()} of ${MAX_PENTAGONS} pentagons. Reset to choose others.`); return; }
+    for (const x of path) taken.add(x);
+    let note = path.length > 1 ? `Took ${path.length} nodes on the way to ${byId[id].name}.` : `Took ${byId[id].name}.`;
+    const opens = path.from === START ? byId[path[0]].region : null;
+    if (opens && !starts.has(opens)) {
+      starts.add(opens);
+      rebuildAdj();
+      note += starts.size < MAX_STARTS
+        ? ` ${regionOf[opens].name} is your starting region ${starts.size} of ${MAX_STARTS}.`
+        : ` ${regionOf[opens].name} is your last starting region: the core's other links are now closed.`;
+    }
+    say(note);
+  }
+  hover(id, lastPointer);
+}
+
+$("find").addEventListener("input", () => {
+  const q = $("find").value.trim().toLowerCase();
+  let hits = 0;
+  for (const n of DATA.nodes) {
+    const big = n.type === "notable" || n.type === "keystone";
+    const hit = q.length > 1 && big && (n.name.toLowerCase().includes(q) || n.effect.toLowerCase().includes(q));
+    nodeEls[n.id].classList.toggle("found", hit);
+    if (hit) hits++;
+  }
+  $("found").textContent = q.length > 1 ? (hits ? `${hits} notable${hits === 1 ? "" : "s"} or keystone${hits === 1 ? "" : "s"} match, ringed on the tree.` : "No notable or keystone matches.") : "";
+});
+$("reset").addEventListener("click", () => { taken = new Set([START]); starts.clear(); rebuildAdj(); say("Everything given back, starting regions too."); paint(); });
+
+// ---- pan and zoom ----
+let drag = null, moved = false, lastPointer = { clientX: 0, clientY: 0 };
+const labels = () => world.querySelectorAll(".node text:not(.fx)");
+function apply() {
+  world.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  const fs = 12.5 / view.k;
+  world.style.setProperty("--fs", fs + "px");
+  world.style.setProperty("--rs", 15 / view.k + "px");
+  for (const t of labels()) t.setAttribute("y", +t.dataset.r + 4 / view.k + fs);
+  for (const t of world.querySelectorAll(".region-label")) {
+    const ky = +t.dataset.ky, rs = 15 / view.k, kr = R.keystone;
+    // Above the keystone in the top half; below the keystone's own name in the bottom half.
+    // A two-line label (class, then area) sits a line higher above the keystone so it never covers it.
+    const extra = t.dataset.two && t.dataset.up ? rs * 0.85 : 0;
+    t.setAttribute("y", t.dataset.up ? ky - kr - 8 / view.k - 4 / view.k - extra : ky + kr + 4 / view.k + fs + 6 / view.k + rs);
+  }
+  svg.classList.toggle("far", view.k < 0.36);
+  // Which node icons are large enough to read at this zoom (see the node icons CSS).
+  svg.classList.toggle("wide", view.k >= 0.3);
+  svg.classList.toggle("mid", view.k >= 0.4);
+  svg.classList.toggle("near", view.k >= 0.7);
+}
+function fit() {
+  const r = svg.getBoundingClientRect();
+  const xs = DATA.nodes.map((n) => n.x), ys = DATA.nodes.map((n) => n.y);
+  const w = Math.max(...xs) - Math.min(...xs) + 400, h = Math.max(...ys) - Math.min(...ys) + 1080;
+  view.k = Math.min(r.width / w, r.height / h);
+  view.x = r.width / 2 - ((Math.max(...xs) + Math.min(...xs)) / 2) * view.k;
+  view.y = r.height / 2 - ((Math.max(...ys) + Math.min(...ys)) / 2) * view.k;
+  apply();
+}
+function zoomAt(f, cx, cy) {
+  const k = Math.min(8, Math.max(0.05, view.k * f));
+  view.x = cx - (cx - view.x) * (k / view.k); view.y = cy - (cy - view.y) * (k / view.k); view.k = k; apply();
+}
+svg.addEventListener("wheel", (e) => { e.preventDefault(); const r = svg.getBoundingClientRect(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+svg.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; moved = false; });
+addEventListener("pointermove", (e) => {
+  lastPointer = e;
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 4) { moved = true; $("stage").classList.add("dragging"); }
+  if (moved) { view.x = drag.vx + dx; view.y = drag.vy + dy; apply(); }
+});
+addEventListener("pointerup", () => { drag = null; $("stage").classList.remove("dragging"); setTimeout(() => (moved = false), 0); });
+$("zin").onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(1.25, r.width / 2, r.height / 2); };
+$("zout").onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(0.8, r.width / 2, r.height / 2); };
+$("fit").onclick = fit;
+addEventListener("resize", fit);
+
+// ---- key ----
+$("legend").innerHTML = [
+  ["start", "Station Core: where you start"], ["class", "Class node: free, shows the class icon. Taking it picks that class as a start"], ["small", "Small node: a small bonus"], ["notable", "Notable: a named, bigger bonus"],
+  ["keystone", "Keystone: changes a rule, with a cost"], ["gate", "Season Key: free square, opens Pass levels 46 to 60 plus a class extra. Hold only one"],
+  ["special", "Special: free square, unlocks a class feature. Eleven per class plus the Key; hold 8 squares in all"],
+  ["pentagon", "Pentagon: free, a unique class node beside each grand keystone. Five per class; hold 3 in all"],
+  ["bridge", "Bridge: joins two classes, further out"],
+].map(([t, label]) => {
+  const r = Math.min(11, (R[t] || 11) / 2.8);
+  if (t === "pentagon") return `<svg viewBox="-13 -13 26 26"><polygon points="0,-8.5 8.1,-2.6 5,6.9 -5,6.9 -8.1,-2.6" fill="#17171a" stroke="#efefef" stroke-width="1.5"/><polygon points="0,-12 11.4,-3.7 7.1,9.7 -7.1,9.7 -11.4,-3.7" fill="none" stroke="#efefef" stroke-opacity=".4" stroke-dasharray="2 2"/></svg><span>${label}</span>`;
+  if (t === "gate" || t === "special") return `<svg viewBox="-13 -13 26 26"><polygon points="0,-8 8,0 0,8 -8,0" fill="#17171a" stroke="#efefef" stroke-width="1.5"/><polygon points="0,-11.5 11.5,0 0,11.5 -11.5,0" fill="none" stroke="#efefef" stroke-opacity=".4" stroke-dasharray="2 2"/></svg><span>${label}</span>`;
+  return `<svg viewBox="-13 -13 26 26"><circle r="${r}" fill="#17171a" stroke="#efefef" stroke-width="1.5"/>${t === "keystone" || t === "start" ? `<circle r="${r + 2.5}" fill="none" stroke="#efefef" stroke-opacity=".4" stroke-dasharray="2 2"/>` : ""}</svg><span>${label}</span>`;
+}).join("") + DATA.regions.filter((r) => r.id !== "core").map((r) => `<svg viewBox="-13 -13 26 26"><circle r="6" fill="${r.color}"/></svg><span>${r.name}</span>`).join("");
+
+fit();
+paint();
+say(`Click a node to begin. Your first ${MAX_STARTS} paths out of Station Core become your starting regions.`);
+</script>
+</body>
+</html>

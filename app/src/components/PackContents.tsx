@@ -1,16 +1,24 @@
 import { useEffect, useRef } from "react";
 import type { ThemeDef } from "../state/palette";
-import { getContent, itemLabel, itemsOfKind, packTable, type ItemDef, type PackId } from "../state/gachaEngine";
+import { getContent, itemsOfKind, packTable, type ItemDef, type PackId } from "../state/gachaEngine";
 import { StarTag, type Stars } from "./StarTag";
+import { cardPackOf, drawableSkins, itemById, widgetPackOf } from "../state/gachaContent";
+import { drawableWidgets } from "../state/widgets";
+import { CARDS, type CardId } from "../layout/layouts";
+import { cardSkinById } from "../state/cardSkins";
+import { itemTitle, ITEM_ICON } from "../state/itemFace";
 
-type Row = { id: string; name: string; chance: number; owned: boolean; look?: ThemeDef };
-type Section = { title: string; total: number; rows: Row[]; stars?: Stars };
-
-/** "Wallpaper 3" from "wallpaper-03"; items carry no display name in the content, so the number tells them apart. */
-function itemName(item: ItemDef): string {
-  const n = item.id.match(/-(\d+)$/)?.[1];
-  return n ? `${itemLabel(item.id)} ${Number(n)}` : itemLabel(item.id);
+/** An item row's swatch: its kind's icon (a wallpaper, a bell for a sound); other rows keep the plain swatch. */
+function PoolItemIcon({ id }: { id: string }) {
+  const kind = itemById(id)?.kind;
+  const Icon = kind ? ITEM_ICON[kind] : null;
+  return <span className="warp-pool-swatch item" aria-hidden="true">{Icon && <Icon width={14} height={14} strokeWidth={1.75} />}</span>;
 }
+
+/** One thing a pack can give. `look` draws a theme swatch, `skin` a card skin swatch. */
+type Row = { id: string; name: string; chance: number; owned: boolean; look?: ThemeDef; skin?: string };
+export type Section = { title: string; total: number; rows: Row[]; stars?: Stars };
+
 
 /** Every outcome a pack can give, with its chance per draw: each category's odds split evenly across its entries. */
 export function packSections(
@@ -31,7 +39,7 @@ export function packSections(
       const items = itemsOfKind(kind, content);
       return items.map((item) => ({
         id: item.id,
-        name: itemName(item),
+        name: itemTitle(item.id),
         chance: (total * share * 100) / Math.max(1, items.length),
         owned: !item.stackable && ownedItems.includes(item.id),
       }));
@@ -84,6 +92,63 @@ export function packSections(
   return sections;
 }
 
+/** Everything the Card Pack can give: 5-star and 4-star skins, then the item rows (Regular Pack inner weights). */
+export function cardSections(ownedSkins: readonly string[], ownedItems: readonly string[], kind: "skins" | "widgets" = "skins"): Section[] {
+  const content = getContent();
+  const w = (kind === "widgets" ? widgetPackOf(content) : cardPackOf(content)).weights;
+  const sections: Section[] = [];
+  for (const stars of [5, 4] as const) {
+    const ids = kind === "widgets" ? drawableWidgets(stars, content) : drawableSkins(stars, content);
+    const share = stars === 5 ? w.five : w.four;
+    if (share > 0 && ids.length > 0) {
+      sections.push({
+        title: kind === "widgets" ? `${stars}-star dashboard cards` : `${stars}-star card skins`,
+        stars,
+        total: share * 100,
+        rows: ids.map((id) => ({
+          id,
+          name: kind === "widgets" ? (CARDS[id as CardId]?.name ?? id) : (cardSkinById(id)?.name ?? id),
+          chance: (share * 100) / ids.length,
+          owned: ownedSkins.includes(id),
+          ...(kind === "skins" ? { skin: id } : {}),
+        })),
+      });
+    }
+  }
+  // Item rows use the Regular Pack's inner mixes (as the engine does), scaled by the Card Pack's own row chances.
+  const reg = packTable("regular", content);
+  const itemRows = (kinds: { kind: ItemDef["kind"]; w: number }[], total: number): Row[] =>
+    kinds.flatMap(({ kind, w: share }) => {
+      const items = itemsOfKind(kind, content);
+      return items.map((item) => ({
+        id: item.id,
+        name: itemTitle(item.id),
+        chance: (total * share * 100) / Math.max(1, items.length),
+        owned: !item.stackable && ownedItems.includes(item.id),
+      }));
+    });
+  const bi = reg.betterInner;
+  const ci = reg.commonInner;
+  if (w.better > 0) {
+    sections.push({
+      title: "Better items",
+      total: w.better * 100,
+      rows: itemRows([{ kind: "wallpaper", w: bi.wallpaper }, { kind: "boot", w: bi.boot }, { kind: "layout-slot", w: bi.layout }], w.better),
+    });
+  }
+  if (w.common > 0) {
+    sections.push({
+      title: "Common items",
+      total: w.common * 100,
+      rows: itemRows(
+        [{ kind: "streak-freeze", w: ci.streakFreeze }, { kind: "alert-sound", w: ci.alert }, { kind: "font", w: ci.font }, { kind: "name-flair", w: ci.flair }],
+        w.common,
+      ),
+    });
+  }
+  return sections;
+}
+
 const pct = (n: number) => (n < 0.01 ? "<0.01%" : `${n >= 1 ? n.toFixed(1).replace(/\.0$/, "") : n.toFixed(2)}%`);
 
 /** A scrollable list of everything in a pack and its chance per draw. Escape, the close button or the backdrop closes it. */
@@ -107,7 +172,7 @@ export function PackContents({ title, sections, onClose }: { title: string; sect
           <div>
             <h3 id="warp-pool-title">{title}</h3>
             <p>
-              {count} things you can draw, with each one&apos;s chance per draw. Pity can bring a theme sooner.
+              {count} things you can draw, with each one&apos;s chance per draw. Pity can bring a rarer prize sooner.
             </p>
           </div>
           <button ref={closeRef} type="button" className="warp-close" aria-label="Close list" onClick={onClose}>
@@ -131,7 +196,9 @@ export function PackContents({ title, sections, onClose }: { title: string; sect
               <ul>
                 {sec.rows.map((row) => (
                   <li key={row.id}>
-                    {row.look ? (
+                    {row.skin ? (
+                      <span className="warp-pool-swatch skin-swatch skin-swatch-mini" data-skin={row.skin} aria-hidden="true" />
+                    ) : row.look ? (
                       <span
                         className="warp-pool-swatch"
                         aria-hidden="true"
@@ -140,7 +207,7 @@ export function PackContents({ title, sections, onClose }: { title: string; sect
                         Aa
                       </span>
                     ) : (
-                      <span className="warp-pool-swatch item" aria-hidden="true" />
+                      <PoolItemIcon id={row.id} />
                     )}
                     <span className="warp-pool-name">{row.name}</span>
                     {row.owned ? <em>Owned</em> : null}

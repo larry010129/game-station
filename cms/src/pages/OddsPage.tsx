@@ -281,7 +281,7 @@ export function OddsPage() {
 
         <div className="flex flex-col gap-4">
           <Panel className="p-4">
-            <h2 className="mb-3 text-sm font-semibold">Prices (Credits)</h2>
+            <h2 className="mb-3 text-sm font-semibold">Prices (Income)</h2>
             <div className="grid grid-cols-2 gap-3">
               <Field label="One draw">
                 <Input
@@ -305,7 +305,7 @@ export function OddsPage() {
               </Field>
               <Field
                 label="Draw Ticket"
-                hint="Check-in ticket that pays one draw here instead of Credits"
+                hint="Check-in ticket that pays one draw here instead of Income"
               >
                 <Select
                   value={ticketOf(draft, pack)}
@@ -315,13 +315,29 @@ export function OddsPage() {
                   <option value="special">Special Ticket</option>
                 </Select>
               </Field>
-              <Field label="Chosen look cost" hint="Shared across packs">
+              <Field label="Chosen theme cost" hint="Shared across packs">
                 <Input
                   type="number"
                   min={1}
                   value={draft.economy.lookCost}
                   onChange={(e) =>
                     setPrice("lookCost", Number(e.target.value) || 0)
+                  }
+                />
+              </Field>
+              <Field
+                label="Big Income amount"
+                hint="One Income reward above this shows the cash bundle in the app, not the coins. Shared across packs"
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  value={draft.economy.creditBigAmount ?? 100}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      economy: { ...d.economy, creditBigAmount: Math.max(0, Number(e.target.value) || 0) },
+                    }))
                   }
                 />
               </Field>
@@ -342,7 +358,7 @@ export function OddsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field
-                label="Look pity after"
+                label="Theme pity after"
                 hint="Force Regular theme on next draw"
               >
                 <Input

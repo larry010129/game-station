@@ -6,7 +6,9 @@ import { killTree, spawnSafe } from "./spawn.mjs";
 // Talks to Windows' own media session (the one the keyboard media keys use), so it
 // works for Spotify and for anything else that is playing. No login, no key.
 // One long-lived PowerShell reads a command per line and answers with one JSON line.
-const SCRIPT = String.raw`
+// When nothing is playing the service drops its stored art, so the helper must forget the last track too ($lastKey);
+// otherwise the same track resuming is never sent with its art again.
+export const MEDIA_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell writes a redirected pipe in the OEM code page (Big5 on this PC).
 # Node reads that pipe as UTF-8, so Traditional Chinese becomes U+FFFD unless this is UTF-8.
@@ -97,7 +99,7 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
   }
   try {
     $s = $mgr.GetCurrentSession()
-    if (-not $s) { Write-Output '{"available":false}'; continue }
+    if (-not $s) { $lastKey = ''; Write-Output '{"available":false}'; continue }
     if ($cmd -eq 'playpause') { Await ($s.TryTogglePlayPauseAsync()) ([bool]) | Out-Null }
     elseif ($cmd -eq 'next') { Await ($s.TrySkipNextAsync()) ([bool]) | Out-Null }
     elseif ($cmd -eq 'previous') { Await ($s.TrySkipPreviousAsync()) ([bool]) | Out-Null }
@@ -145,7 +147,7 @@ const ACTIONS = new Set(["status", "playpause", "next", "previous"]);
 
 export function createMedia(log, deps = {}) {
   const spawn = deps.spawnSafe ?? spawnSafe; // tests inject a fake spawner
-  const writeScript = deps.writeScript ?? ((file) => fs.writeFileSync(file, SCRIPT, "utf8"));
+  const writeScript = deps.writeScript ?? ((file) => fs.writeFileSync(file, MEDIA_SCRIPT, "utf8"));
   let child = null;
   const waiting = []; // FIFO of { resolve, timer }
   let artKey = "";

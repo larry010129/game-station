@@ -4,7 +4,13 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** cms/ package root */
 export const CMS_ROOT = path.resolve(here, "..");
-export const DATA_DIR = path.join(CMS_ROOT, "data");
+/**
+ * Data folder (draft, releases, signing keys, uploads). COMMAND_CMS_DATA moves it:
+ * the desktop Command CMS points it at %APPDATA%\CommandCMS\data so updates never touch it.
+ */
+export const DATA_DIR = process.env.COMMAND_CMS_DATA
+  ? path.resolve(process.env.COMMAND_CMS_DATA)
+  : path.join(CMS_ROOT, "data");
 export const KEYS_DIR = path.join(DATA_DIR, "keys");
 export const RELEASES_DIR = path.join(DATA_DIR, "releases");
 export const BY_NUMBER_DIR = path.join(RELEASES_DIR, "by-number");

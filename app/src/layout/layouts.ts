@@ -73,13 +73,20 @@ export const TABS = [
   { id: "station", label: "Station", kind: "cards" },
   { id: "overwatch", label: "Overwatch", kind: "cards" },
   { id: "gamemode", label: "Game mode", kind: "cards" },
+  { id: "news", label: "News", kind: "page", note: "News is a page, not a card layout." },
   { id: "calendar", label: "Calendar", kind: "page", note: "The calendar is a page, not a card layout." },
   { id: "quests", label: "Quests", kind: "page", note: "Quests is a page, not a card layout." },
+  { id: "checkin", label: "Check-in", kind: "page", note: "Daily check-in is a page, not a card layout." },
+  { id: "pass", label: "Pass", kind: "page", note: "The Season Pass is a page, not a card layout." },
+  { id: "perks", label: "Perks", kind: "page", note: "The perk tree is a page, not a card layout." },
+  { id: "draw", label: "Draw", kind: "page", note: "Draw is a page, not a card layout." },
+  { id: "wiki", label: "Wiki", kind: "page", note: "Wiki is a page, not a card layout." },
   { id: "credits", label: "Credits", kind: "page", note: "Credits is a page, not a card layout." },
   { id: "buy-credits", label: "Support", kind: "page", note: "Support is a page, not a card layout." },
   { id: "themes", label: "Themes", kind: "page", note: "Themes is a page, not a card layout." },
-  { id: "draw", label: "Draw Theme", kind: "page", note: "Draw Theme is a page, not a card layout." },
   { id: "vault", label: "Vault", kind: "page", note: "Vault is settings, not a card layout." },
+  { id: "profile", label: "Profile", kind: "page", note: "Profile is a page, not a card layout." },
+  { id: "achievements", label: "Achievements", kind: "page", note: "Achievements is a page, not a card layout." },
 ] as const;
 export type BuiltinTabId = (typeof TABS)[number]["id"];
 /** A built-in tab id, or the id of a tab the user added in the Vault. */

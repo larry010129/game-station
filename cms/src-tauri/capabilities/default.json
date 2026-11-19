@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Command CMS window: the UI talks to its local Node server over HTTP, so it needs no app commands",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

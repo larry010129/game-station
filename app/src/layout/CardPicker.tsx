@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { CARDS, CARD_IDS, tabOf, type CardId, type CardInstance, type TabId } from "./layouts";
 import { CARD_MIME, dragging } from "./dragCard";
+import { widgetStatus } from "../state/gachaContent";
+import { buyWidget, useWidgetLock } from "../state/widgetStore";
+import { widgetPrice } from "../state/widgets";
+import { useToast } from "../state/Toast";
 
 interface Props {
   tab: TabId;
@@ -25,10 +29,17 @@ export function CardPicker({ tab, all = false, instances, onAdd, onClose }: Prop
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const count = (t: CardId) => instances.filter((i) => i.type === t).length;
+  const isLocked = useWidgetLock();
+  const toast = useToast();
 
   const sections = GROUPS.map((g) => {
     const ids = CARD_IDS.filter(
-      (id) => CARDS[id].group === g && (all || tab === "home" || tabOf(id) === tab) && matchesQuery(id, q),
+      (id) =>
+        CARDS[id].group === g &&
+        (all || tab === "home" || tabOf(id) === tab) &&
+        matchesQuery(id, q) &&
+        // A Hidden card is not announced yet: not listed unless the player already has it.
+        !(widgetStatus(id) === "Hidden" && isLocked(id)),
     );
     return { g, ids };
   }).filter((s) => s.ids.length > 0);
@@ -71,19 +82,22 @@ export function CardPicker({ tab, all = false, instances, onAdd, onClose }: Prop
               <div className="pk-grid">
                 {ids.map((id) => {
                   const n = count(id);
+                  const locked = isLocked(id);
                   return (
                     <div
                       key={id}
                       className="pk-tile"
-                      draggable
+                      data-locked={locked || undefined}
+                      draggable={!locked}
                       onDragStart={(e) => {
+                        if (locked) return e.preventDefault();
                         dragging.type = id;
                         e.dataTransfer.setData(CARD_MIME, id);
                         e.dataTransfer.setData("text/plain", id);
                         e.dataTransfer.effectAllowed = "copy";
                       }}
                       onDragEnd={() => (dragging.type = null)}
-                      title="Drag onto the dashboard"
+                      title={locked ? "Win this card in the Widget Pack on the Draw page" : "Drag onto the dashboard"}
                     >
                       <span className="pk-grip" aria-hidden="true">
                         ⋮⋮
@@ -95,9 +109,22 @@ export function CardPicker({ tab, all = false, instances, onAdd, onClose }: Prop
                         </b>
                         <small>{CARDS[id].blurb}</small>
                       </span>
-                      <button className="pk-add" aria-label={`Add ${CARDS[id].name}`} title="Add another copy" onClick={() => onAdd(id)}>
-                        +
-                      </button>
+                      {locked && widgetPrice(id) != null ? (
+                        <button
+                          type="button"
+                          className="pk-buy"
+                          aria-label={`Buy ${CARDS[id].name} for ${widgetPrice(id)} Income`}
+                          onClick={() => toast(buyWidget(id, CARDS[id].name).message)}
+                        >
+                          Buy · {widgetPrice(id)}
+                        </button>
+                      ) : locked ? (
+                        <em className="pk-lock">Widget Pack</em>
+                      ) : (
+                        <button className="pk-add" aria-label={`Add ${CARDS[id].name}`} title="Add another copy" onClick={() => onAdd(id)}>
+                          +
+                        </button>
+                      )}
                     </div>
                   );
                 })}

@@ -1,4 +1,10 @@
 import { createContext, memo, useContext, type ReactNode } from "react";
+import { Card } from "../cards/ui";
+import { widgetStatus } from "../state/gachaContent";
+import { buyWidget, useWidgetLock } from "../state/widgetStore";
+import { widgetPrice } from "../state/widgets";
+import { useToast } from "../state/Toast";
+import { CARDS } from "./layouts";
 import type { FeedItem, PlayersData, StationEvent, StationInfo } from "../lib/types";
 import { MediaCard } from "../cards/MediaCard";
 import { SpotifyCard } from "../cards/SpotifyCard";
@@ -42,6 +48,7 @@ export interface CardCtx {
   stopped: boolean;
   toasts: DiscordToasts;
   onOpenCalendar: (date?: string) => void;
+  onOpenDraw: () => void;
   onLook: (id: string, look: string) => void;
 }
 
@@ -166,5 +173,38 @@ export const CardCtxContext = createContext<CardCtx | null>(null);
 
 export function CardView({ inst }: { inst: CardInstance }) {
   const ctx = useContext(CardCtxContext);
-  return ctx ? <>{renderCardView(inst, ctx)}</> : null;
+  const isLocked = useWidgetLock();
+  if (!ctx) return null;
+  return isLocked(inst.type) ? <LockedCard type={inst.type} onOpenDraw={ctx.onOpenDraw} /> : <>{renderCardView(inst, ctx)}</>;
+}
+
+/** What a locked card shows in its place: its name, why it is locked, and the way to get it. */
+function LockedCard({ type, onOpenDraw }: { type: CardInstance["type"]; onOpenDraw: () => void }) {
+  const name = CARDS[type].name;
+  const status = widgetStatus(type);
+  const price = widgetPrice(type);
+  const toast = useToast();
+  return (
+    <Card title={name} sub="Locked" label={`${name}, locked`} className="locked-card">
+      <p className="locked-card-note">
+        {status === "Available"
+          ? `Win ${name} in the Widget Pack to use it here.`
+          : status === "Archived"
+            ? `${name} has left the Widget Pack. It stays usable for players who already have it.`
+            : `${name} is coming soon.`}
+      </p>
+      {status === "Available" && (
+        <div className="locked-card-act">
+          <button type="button" className="eb-btn" onClick={onOpenDraw}>
+            Open Draw
+          </button>
+          {price != null && (
+            <button type="button" className="eb-btn primary" onClick={() => toast(buyWidget(type, name).message)}>
+              Buy · {price} Credits
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
 }

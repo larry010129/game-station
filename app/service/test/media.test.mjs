@@ -131,3 +131,25 @@ test("toasts asks the helper for the toast list (force asks for all of it) and r
   child.stdout.write("not json\n");
   assert.equal(await r, null);
 });
+
+test("C6: a lost answer (timeout) keeps the album art; only 'nothing playing' clears it", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const { spawn, media } = mk();
+    const p = media.status();
+    await flush();
+    spawn.calls[0].child.stdout.write(line({ available: true, title: "T", status: 4, key: "k", art: "data:image/png;base64,iVBORw0" }));
+    const first = await p;
+    assert.ok(first.artId > 0);
+    // The next answer is lost: the helper still thinks it sent this track's art, so the service must keep it.
+    assert.deepEqual(await timeoutOnce(media), { available: false, error: "no answer" });
+    assert.ok(media.art().art, "art kept after a lost answer");
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("C6: the helper forgets the last track when nothing is playing, so the art is sent again", async () => {
+  const { MEDIA_SCRIPT } = await import("../media.mjs");
+  assert.match(MEDIA_SCRIPT, /if \(-not \$s\) \{ \$lastKey = ''/);
+});

@@ -6,8 +6,16 @@ import { listReleases } from "../api/contentApi";
 import { RELEASES_CHANGED } from "../components/PushScheduler";
 import { KIND_META, KIND_ORDER, addDays, calendarEntries, dayKey, parseDay, timeLeftText } from "../lib/calendarEvents";
 import { useDraft } from "../state/DraftContext";
-import type { ReleaseMeta } from "../types/draft";
-import { PageHeader, Panel } from "../ui/primitives";
+import {
+  CHECKIN_MAX_COUNT,
+  checkinPrizeErrors,
+  checkinPrizesOf,
+  type CheckinPrizeDraft,
+  type CmsDraft,
+  type CmsItem,
+  type ReleaseMeta,
+} from "../types/draft";
+import { Badge, Button, Field, Input, PageHeader, Panel, Select } from "../ui/primitives";
 
 /**
  * Calendar: every dated setting in the draft on one sideways-scrolling timeline, each bar as long as it runs. Built
@@ -15,7 +23,7 @@ import { PageHeader, Panel } from "../ui/primitives";
  * shows here at once; nothing is stored separately. Clicking a bar opens the page where it is set.
  */
 export function CalendarPage() {
-  const { draft } = useDraft();
+  const { draft, setDraft } = useDraft();
   const navigate = useNavigate();
   const [releases, setReleases] = useState<ReleaseMeta[]>([]);
   const [releaseError, setReleaseError] = useState(false);
@@ -132,7 +140,7 @@ export function CalendarPage() {
             />
             Banners and featured runs take their themes' colors; two themes split with a slash
           </li>
-          {KIND_ORDER.filter((k) => k === "region" || k === "release").map((k) => (
+          {KIND_ORDER.filter((k) => k === "region" || k === "checkin" || k === "release").map((k) => (
             <li key={k} className="flex items-center gap-2">
               <span aria-hidden className={cn("h-2 w-5 rounded-full", KIND_META[k].bar)} />
               {KIND_META[k].label}
@@ -146,6 +154,159 @@ export function CalendarPage() {
           {releaseError ? <li>Releases could not be loaded, so go-lives are missing.</li> : null}
         </ul>
       </Panel>
+
+      <CheckinEventPanel
+        value={draft.checkinEvent ?? null}
+        onChange={(next) => setDraft((d) => ({ ...d, checkinEvent: next }))}
+      />
+      <CheckinPrizesPanel draft={draft} onChange={(next) => setDraft((d) => ({ ...d, checkinPrizes: next }))} />
     </div>
+  );
+}
+
+/** Select value for a box: "regular", "special" or "item:<id>". */
+const prizeValue = (p: CheckinPrizeDraft) => (p.kind === "item" ? `item:${p.id}` : p.kind);
+
+/**
+ * What each check-in day pays, Day 1 to Day 7: Regular or Special Draw Tickets, or any item from the catalog, and how
+ * many. Day 7 is the big box in the app. A one-time item can only pay 1; a player who owns it already gets nothing more.
+ */
+function CheckinPrizesPanel({ draft, onChange }: { draft: CmsDraft; onChange: (next: CheckinPrizeDraft[] | undefined) => void }) {
+  const prizes = checkinPrizesOf(draft);
+  const errors = checkinPrizeErrors(draft);
+  const items: CmsItem[] = [...draft.items].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const set = (i: number, next: CheckinPrizeDraft) => onChange(prizes.map((p, j) => (j === i ? next : p)));
+  const choose = (i: number, value: string) => {
+    const count = prizes[i].count;
+    if (value === "regular" || value === "special") return set(i, { kind: value, count });
+    const id = value.slice(5);
+    const item = draft.items.find((x) => x.id === id);
+    set(i, { kind: "item", id, count: item && !item.stackable ? 1 : count });
+  };
+  return (
+    <Panel className="mt-5 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Check-in prizes by day</h2>
+          <p className="mt-1 max-w-2xl text-xs text-muted">
+            Pick what each box pays: Special or Regular Draw Tickets, or an item, and how many. Day 7 is the big box.
+            Special Tickets draw in the packs set to take them (Odds, Cards); Regular Tickets in the Regular Pack by default.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {draft.checkinPrizes ? (
+            <Button type="button" variant="ghost" onClick={() => onChange(undefined)}>
+              Reset to default
+            </Button>
+          ) : (
+            <Badge tone="neutral">App default</Badge>
+          )}
+          <Badge tone={errors.length ? "danger" : "ok"}>{errors.length ? `${errors.length} to fix` : "Ready"}</Badge>
+        </div>
+      </div>
+      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {prizes.map((p, i) => {
+          const item = p.kind === "item" ? draft.items.find((x) => x.id === p.id) : undefined;
+          const oneTime = item != null && !item.stackable;
+          return (
+            <li key={i} className={cn("rounded-lg border border-border/70 p-3", i === 6 && "sm:col-span-2 xl:col-span-1")}>
+              <div className="mb-2 text-xs font-semibold text-foreground">Day {i + 1}</div>
+              <div className="flex flex-col gap-2">
+                <Field label="Prize">
+                  <Select aria-label={`Day ${i + 1} prize`} value={prizeValue(p)} onChange={(e) => choose(i, e.target.value)}>
+                    <option value="special">Special Ticket</option>
+                    <option value="regular">Regular Ticket</option>
+                    <optgroup label="Items">
+                      {items.map((it) => (
+                        <option key={it.id} value={`item:${it.id}`}>
+                          {it.name}
+                          {it.stackable ? "" : " (one-time)"}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </Select>
+                </Field>
+                <Field label="Amount" hint={oneTime ? "One-time item: always 1" : undefined}>
+                  <Input
+                    aria-label={`Day ${i + 1} amount`}
+                    type="number"
+                    min={1}
+                    max={oneTime ? 1 : CHECKIN_MAX_COUNT}
+                    disabled={oneTime}
+                    value={p.count}
+                    onChange={(e) => set(i, { ...p, count: Math.round(Number(e.target.value) || 0) })}
+                  />
+                </Field>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {errors.length ? (
+        <ul className="mt-3 list-disc pl-5 text-xs text-destructive-foreground">
+          {errors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      ) : null}
+    </Panel>
+  );
+}
+
+/** "2026-12-01T10:00" for the next local midnight plus `days`. */
+function stampIn(days: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return `${dayKey(d)}T00:00`;
+}
+
+/**
+ * The daily check-in board as an event: the app lets players claim boxes only between the start and the end (their
+ * local time). With no event the board is always on.
+ */
+function CheckinEventPanel({
+  value,
+  onChange,
+}: {
+  value: { start: string; end: string } | null;
+  onChange: (next: { start: string; end: string } | null) => void;
+}) {
+  const missing = value != null && (!value.start || !value.end);
+  const bad = missing || (value != null && value.end <= value.start);
+  return (
+    <Panel className="mt-5 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Daily check-in event</h2>
+          <p className="mt-1 max-w-2xl text-xs text-muted">
+            Players can claim check-in boxes only inside this window, in their own local time. Outside it the board is
+            hidden and shows when the next event starts; tickets already held still work. Set what each day pays below.
+          </p>
+        </div>
+        {value ? (
+          <Badge tone={bad ? "danger" : "ok"}>{missing ? "Set both a start and an end" : bad ? "End must be after start" : "Scheduled"}</Badge>
+        ) : (
+          <Badge tone="neutral">Always on</Badge>
+        )}
+      </div>
+      {value ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Starts">
+            <Input type="datetime-local" value={value.start} onChange={(e) => onChange({ ...value, start: e.target.value })} />
+          </Field>
+          <Field label="Ends">
+            <Input type="datetime-local" value={value.end} onChange={(e) => onChange({ ...value, end: e.target.value })} />
+          </Field>
+          <Button type="button" variant="ghost" onClick={() => onChange(null)}>
+            Make always on
+          </Button>
+        </div>
+      ) : (
+        <Button type="button" onClick={() => onChange({ start: stampIn(1), end: stampIn(15) })}>
+          Set start and end
+        </Button>
+      )}
+    </Panel>
   );
 }

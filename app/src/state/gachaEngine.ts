@@ -7,6 +7,8 @@
 import { COUNTRIES, REGION_KEYS, REGIONS, type RegionKey, type ThemeTags } from "../content/brandTags.ts";
 import {
   BUNDLED_CONTENT,
+  cardPackOf,
+  widgetPackOf,
   getContent,
   isCompanyPack,
   itemById,
@@ -61,7 +63,11 @@ export const LOOK_COST = BUNDLED_CONTENT.lookCost;
 export type DrawResult =
   | { kind: "look"; id: string; brand: boolean; repeat: boolean; rainbow?: true }
   | { kind: "pick" }
-  | { kind: "item"; id: string; repeat: boolean };
+  | { kind: "item"; id: string; repeat: boolean }
+  /** A dashboard card skin from the Card Pack, at the stars it dropped as. */
+  | { kind: "card"; id: string; stars: 4 | 5; repeat: boolean }
+  /** A dashboard card itself, from the Widget Pack, at the stars it dropped as. */
+  | { kind: "widget"; id: string; stars: 4 | 5; repeat: boolean };
 
 export interface WeeklyPicks {
   week: string | null;
@@ -84,6 +90,10 @@ export interface GachaState {
   weeklyPicks: WeeklyPicks;
   /** One-shot Credits from v1 coupon migration; modal applies then clears. */
   pendingCredits: number;
+  /** Card Pack pity: draws since the last 4-star-or-better skin, and since the last 5-star skin. */
+  cardPity: { four: number; five: number };
+  /** Widget Pack pity, kept apart from the Card Pack's. */
+  widgetPity: { four: number; five: number };
 }
 
 export interface DrawOwned {
@@ -98,6 +108,11 @@ export interface DrawOwned {
   /** This period's company pair: default featuredBrand(now) for Brand; the Region Pack must pass featuredRegion(...).ids. */
   featured?: readonly string[];
   now?: Date;
+  /**
+   * How many more weekly unlock picks the player can hold (LOOKS_WAITING_CAP minus those waiting). A pick past it
+   * becomes a streak freeze and does not use the weekly cap, the same as a pick past the weekly cap. Absent: no limit.
+   */
+  pickRoom?: number;
 }
 
 export interface DrawPity {
@@ -119,8 +134,9 @@ export function pityFor(state: GachaState, pack: PackId): DrawPity {
   };
 }
 
-/** True for a rainbow (5-star) result: a featured company look or a rainbow Regular theme. */
+/** True for a rainbow (5-star) result: a featured company look, a rainbow Regular theme or a 5-star card skin. */
 export function isRainbowResult(r: DrawResult): boolean {
+  if (r.kind === "card" || r.kind === "widget") return r.stars === 5;
   return r.kind === "look" && (r.brand || r.rainbow === true);
 }
 
@@ -136,6 +152,8 @@ export const emptyGacha = (): GachaState => ({
   prisms: 0,
   weeklyPicks: { week: null, count: 0 },
   pendingCredits: 0,
+  cardPity: { four: 0, five: 0 },
+  widgetPity: { four: 0, five: 0 },
 });
 
 const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -150,6 +168,8 @@ export function cleanGacha(raw: unknown): GachaState {
   const lookPityRaw = o.lookPity as { regular?: unknown; brand?: unknown; region?: unknown } | undefined;
   const wp = o.weeklyPicks as { week?: unknown; count?: unknown } | undefined;
   const g = o.guaranteed as { brand?: unknown; region?: unknown } | undefined;
+  const cp = o.cardPity as { four?: unknown; five?: unknown } | undefined;
+  const wpity = o.widgetPity as { four?: unknown; five?: unknown } | undefined;
   return {
     v: 2,
     draws: num(o.draws),
@@ -165,6 +185,8 @@ export function cleanGacha(raw: unknown): GachaState {
       count: num(wp?.count),
     },
     pendingCredits: fromV1 ? pendingFromCoupons : num(o.pendingCredits),
+    cardPity: { four: num(cp?.four), five: num(cp?.five) },
+    widgetPity: { four: num(wpity?.four), five: num(wpity?.five) },
   };
 }
 
@@ -182,6 +204,12 @@ export function itemLabel(id: string): string {
   const def = itemById(id);
   if (!def) return id;
   return def.kind.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** "Wallpaper 3" from "wallpaper-03", "Streak Freeze" from "streak-freeze": an item's name as players see it. */
+export function itemDisplayName(id: string): string {
+  const n = id.match(/-(\d+)$/)?.[1];
+  return n && itemById(id) ? `${itemLabel(id)} ${Number(n)}` : itemLabel(id);
 }
 
 function mulberry32(seed: number): () => number {
@@ -205,8 +233,12 @@ function seededShuffle<T>(list: readonly T[], seed: number): T[] {
   return out;
 }
 
-function utcDay(d: Date): number {
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86_400_000;
+/**
+ * Day number of the user's LOCAL calendar date, so rotations turn over at local midnight like quest weeks and
+ * "days left". It counts calendar dates, not elapsed hours, so a daylight-saving change cannot shift it.
+ */
+function localDay(d: Date): number {
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000;
 }
 
 function epochDay(iso: string): number {
@@ -251,7 +283,7 @@ export function featuredBrand(now: Date = new Date(), content: GachaContent = ge
   if (special) return special.brandIds;
   const ids = content.brandThemeIds;
   const days = content.brandFortnightDays;
-  const period = Math.floor((utcDay(now) - epochDay(content.brandEpoch)) / days);
+  const period = Math.floor((localDay(now) - epochDay(content.brandEpoch)) / days);
   const safePeriod = period < 0 ? 0 : period;
   // Each cycle shows every pair once (68 ids → 34 fortnights), then reshuffles.
   const pairs = Math.max(1, Math.floor(ids.length / 2));
@@ -269,7 +301,7 @@ export function brandDaysLeft(now: Date = new Date(), content: GachaContent = ge
   const special = activeSpecial(now, content);
   if (special) return daysUntil(special.end, now);
   const days = content.brandFortnightDays;
-  const into = (utcDay(now) - epochDay(content.brandEpoch)) % days;
+  const into = (localDay(now) - epochDay(content.brandEpoch)) % days;
   const used = ((into % days) + days) % days;
   return days - used;
 }
@@ -293,7 +325,7 @@ export interface RegionFocus {
 }
 
 function weekIndex(now: Date, content: GachaContent): number {
-  return Math.max(0, Math.floor((utcDay(now) - epochDay(content.brandEpoch)) / 7));
+  return Math.max(0, Math.floor((localDay(now) - epochDay(content.brandEpoch)) / 7));
 }
 
 /**
@@ -401,7 +433,7 @@ function forceRegularLook(owned: DrawOwned, haveLooks: Set<string>, rand: () => 
   return { kind: "look", id: picked.id, brand: false, repeat: picked.repeat };
 }
 
-/** A featured look from the table row: any of the featured pair, owned or not (a repeat gives Special crystals). */
+/** A featured look from the table row: any of the featured pair, owned or not (a repeat gives Special fragments). */
 function forceBrandLookFrom(featured: readonly string[], haveLooks: Set<string>, rand: () => number): DrawResult {
   const picked = pickId(featured, false, haveLooks, rand);
   if (!picked) return { kind: "item", id: "streak-freeze", repeat: false };
@@ -422,16 +454,13 @@ function rainbowRegularLook(owned: DrawOwned, haveLooks: Set<string>, preferFres
 }
 
 /**
- * A forced 5-star (the guaranteed draw). Regular Pack: a rainbow Regular theme. Company packs: a featured look or a
- * rainbow Regular theme in the same proportion as their two rows. Forced picks prefer looks the player does not own.
+ * A forced 5-star (the guaranteed draw). Regular Pack: a rainbow Regular theme. Company packs (Brand and Region):
+ * always one of the pack's current featured looks, so the pity is a real guarantee (design D1). Forced picks prefer
+ * looks the player does not own. A company pack with nothing featured never gets here: its pity holds (rainbowHold).
  */
-function forcedFiveStar(pack: PackId, owned: DrawOwned, featured: readonly string[], haveLooks: Set<string>, rand: () => number, content: GachaContent): DrawResult {
-  if (!isCompanyPack(pack)) return rainbowRegularLook(owned, haveLooks, true, rand);
-  const w = packTable(pack, content).weights;
-  const f = w.brandTheme;
-  const r = (owned.rainbowPool ?? []).length > 0 ? (w.rainbowRegular ?? 0) : 0;
-  const featuredLook = featured.length > 0 && (r <= 0 || rand() * (f + r) < f);
-  return featuredLook ? forceBrandLook(featured, haveLooks, rand) : rainbowRegularLook(owned, haveLooks, true, rand);
+function forcedFiveStar(pack: PackId, owned: DrawOwned, featured: readonly string[], haveLooks: Set<string>, rand: () => number): DrawResult {
+  if (isCompanyPack(pack) && featured.length > 0) return forceBrandLook(featured, haveLooks, rand);
+  return rainbowRegularLook(owned, haveLooks, true, rand);
 }
 
 /**
@@ -526,7 +555,8 @@ interface PityRun {
  * in a company pack, every rainbow Regular theme in the Regular Pack.
  */
 function rainbowHold(company: boolean, featured: readonly string[], owned: DrawOwned, have: Set<string>): boolean {
-  if (company) return featured.length > 0 && featured.every((id) => have.has(id));
+  // Nothing featured right now: there is nothing to guarantee, so the counter waits instead of forcing every draw.
+  if (company) return featured.every((id) => have.has(id));
   return (owned.rainbowPool ?? []).every((id) => have.has(id));
 }
 
@@ -540,7 +570,10 @@ function stepPity(run: PityRun, r: DrawResult, company: boolean, featured: reado
     run.look += 1;
     if (r.kind === "pick") run.picks += 1;
   }
-  if (isRainbowResult(r)) {
+  // A company pack's pity counts toward a featured look, so only a featured look resets it (design D1). The Regular
+  // Pack counts toward any rainbow Regular theme.
+  const resets = company ? r.kind === "look" && r.brand : isRainbowResult(r);
+  if (resets) {
     run.rainbow = 0;
   } else if (!hold) {
     run.rainbow += 1;
@@ -574,16 +607,19 @@ export function drawMany(
     have: new Set(owned.looks),
   });
   const run = fresh();
+  const pickRoom = owned.pickRoom ?? Infinity;
+  /** No more picks: the weekly cap is reached, or this batch has filled every free waiting slot. */
+  const picksCapped = (r: PityRun) => r.picks >= content.weeklyPickCap || r.picks - weekPicks >= pickRoom;
 
   const results: DrawResult[] = [];
 
   for (let i = 0; i < count; i++) {
     const hold = rainbowHold(company, featured, owned, run.have);
-    const weeklyCapped = run.picks >= content.weeklyPickCap;
+    const weeklyCapped = picksCapped(run);
     let result: DrawResult;
 
     if (!hold && run.rainbow >= rainbowAt) {
-      result = forcedFiveStar(pack, owned, featured, run.have, rand, content);
+      result = forcedFiveStar(pack, owned, featured, run.have, rand);
     } else if (run.look >= content.lookPityAfter) {
       result = forceRegularLook(owned, run.have, rand);
     } else {
@@ -592,7 +628,7 @@ export function drawMany(
       result = rollOnce(pack, owned, run.have, haveItems, weeklyCapped, featured, fiveStar, rand, content);
     }
 
-    if (result.kind === "pick" && run.picks >= content.weeklyPickCap) {
+    if (result.kind === "pick" && picksCapped(run)) {
       result = { kind: "item", id: "streak-freeze", repeat: false };
     }
 
@@ -626,6 +662,11 @@ export function drawMany(
 
 export function crystalValueFor(result: DrawResult, content: GachaContent = getContent()): number {
   if (result.kind === "pick") return 0;
+  if (result.kind === "card" || result.kind === "widget") {
+    if (!result.repeat) return 0;
+    const cv = (result.kind === "widget" ? widgetPackOf(content) : cardPackOf(content)).crystalValues;
+    return result.stars === 5 ? cv.five : cv.four;
+  }
   if (result.kind === "look") {
     if (!result.repeat) return 0;
     const cv = content.crystalValues;
@@ -640,8 +681,8 @@ export function crystalValueFor(result: DrawResult, content: GachaContent = getC
 }
 
 /**
- * Which crystal a repeat pays, by what repeated (not by pack): a featured theme pays Special crystals (saved as
- * `prisms`); every other repeat (Regular themes 4- and 5-star, the custom upload, items) pays Regular crystals.
+ * Which crystal a repeat pays, by what repeated (not by pack): a featured theme pays Special fragments (saved as
+ * `prisms`); every other repeat (Regular themes 4- and 5-star, the custom upload, items) pays Regular fragments.
  */
 export function crystalKindFor(result: DrawResult): "regular" | "special" {
   return result.kind === "look" && result.brand ? "special" : "regular";

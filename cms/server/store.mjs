@@ -29,6 +29,22 @@ function sha256(buf) {
   return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
+/**
+ * Written to a temp file first, then renamed over the target, so a crash or kill mid-write cannot leave a
+ * half-written draft, manifest or current.json (the same pattern as the app service's writeJson). A failed write
+ * removes its temp file.
+ */
+export function writeFileAtomic(file, data) {
+  const tmp = `${file}.tmp-${process.pid}`;
+  try {
+    fs.writeFileSync(tmp, data);
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
 export function ensureDataLayout() {
   ensureKeypair();
   for (const dir of [
@@ -42,7 +58,7 @@ export function ensureDataLayout() {
     fs.mkdirSync(dir, { recursive: true });
   }
   if (!fs.existsSync(CURRENT_PATH)) {
-    fs.writeFileSync(CURRENT_PATH, JSON.stringify({ number: 0, publishedAt: null }, null, 2));
+    writeFileAtomic(CURRENT_PATH, JSON.stringify({ number: 0, publishedAt: null }, null, 2));
   }
 }
 
@@ -73,7 +89,7 @@ export function saveBannerUpload(buf, opts = {}) {
 
   const filename = `banner-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}${ext}`;
   const abs = path.join(BANNERS_UPLOAD_DIR, filename);
-  fs.writeFileSync(abs, buf);
+  writeFileAtomic(abs, buf);
   const url = `/uploads/banners/${filename}`;
   return { url, path: `uploads/banners/${filename}`, filename };
 }
@@ -117,7 +133,7 @@ export function writeDraft(draft) {
     ...draft,
     updatedAt: new Date().toISOString(),
   };
-  fs.writeFileSync(DRAFT_PATH, JSON.stringify(next, null, 2));
+  writeFileAtomic(DRAFT_PATH, JSON.stringify(next, null, 2));
 }
 
 export function listReleases() {
@@ -158,7 +174,8 @@ export function readBlob(hash) {
 function putBlob(buf) {
   const hash = sha256(buf);
   const p = path.join(BLOBS_DIR, hash);
-  if (!fs.existsSync(p)) fs.writeFileSync(p, buf);
+  // A blob is named by its hash, so an existing one is reused only if it still matches (a crash may have cut it short).
+  if (!fs.existsSync(p) || sha256(fs.readFileSync(p)) !== hash) writeFileAtomic(p, buf);
   return hash;
 }
 
@@ -243,10 +260,10 @@ export function publish(opts = {}) {
 
   const dir = releaseDir(number);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(signed, null, 2));
-  fs.writeFileSync(path.join(dir, "content.json"), JSON.stringify(bundle, null, 2));
+  writeFileAtomic(path.join(dir, "manifest.json"), JSON.stringify(signed, null, 2));
+  writeFileAtomic(path.join(dir, "content.json"), JSON.stringify(bundle, null, 2));
 
-  fs.writeFileSync(CURRENT_PATH, JSON.stringify({ number, publishedAt, effectiveAt }, null, 2));
+  writeFileAtomic(CURRENT_PATH, JSON.stringify({ number, publishedAt, effectiveAt }, null, 2));
   writeDraft(draft);
 
   return {
@@ -313,9 +330,9 @@ export function rollback(toNumber) {
   const signed = { manifest, signature, alg: "ed25519" };
   const dir = releaseDir(number);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(signed, null, 2));
-  fs.writeFileSync(path.join(dir, "content.json"), JSON.stringify(bundle, null, 2));
-  fs.writeFileSync(CURRENT_PATH, JSON.stringify({ number, publishedAt }, null, 2));
+  writeFileAtomic(path.join(dir, "manifest.json"), JSON.stringify(signed, null, 2));
+  writeFileAtomic(path.join(dir, "content.json"), JSON.stringify(bundle, null, 2));
+  writeFileAtomic(CURRENT_PATH, JSON.stringify({ number, publishedAt }, null, 2));
 
   return {
     ok: true,
@@ -331,6 +348,8 @@ export function currentInfo() {
   return {
     number,
     publishedAt: cur.publishedAt ?? null,
+    // When the current release goes live (CurrentReleaseInfo in cms/shared and app/src/content releaseTypes.ts).
+    effectiveAt: cur.effectiveAt ?? null,
     manifestPath: number > 0 ? `/releases/${number}/manifest.json` : null,
   };
 }

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player Level and XP</title>
+<style>
+:root { --bg:#f4f6f9; --panel:#fff; --ink:#1b2230; --muted:#5d6778; --line:#dde2ea; --accent:#3b7dd8; --accent2:#c2569b; }
+@media (prefers-color-scheme: dark) { :root { --bg:#11151c; --panel:#1a2029; --ink:#e6ebf3; --muted:#97a1b2; --line:#2a3340; --accent:#7fb2ff; --accent2:#f08ccf; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,"Segoe UI",sans-serif; }
+main { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+h1 { font-size:22px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 18px; }
+.grid { display:grid; grid-template-columns:320px 1fr; gap:16px; } @media (max-width:820px){ .grid{grid-template-columns:1fr;} }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 12px; }
+.row { margin-bottom:12px; } .row label { display:flex; justify-content:space-between; gap:8px; font-weight:600; }
+.row small { color:var(--muted); display:block; }
+input[type=number] { width:110px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); font:inherit; text-align:right; }
+input[type=range] { width:100%; accent-color:var(--accent); }
+button { border:1px solid var(--line); background:var(--bg); color:var(--ink); border-radius:999px; padding:4px 12px; cursor:pointer; font:inherit; }
+button:hover { border-color:var(--accent); }
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; } @media (max-width:700px){ .kpis{grid-template-columns:repeat(2,1fr);} }
+.kpi { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+.kpi b { display:block; font-size:19px; font-variant-numeric:tabular-nums; } .kpi span { color:var(--muted); font-size:12px; }
+canvas { width:100%; height:240px; display:block; }
+.scroll { max-height:380px; overflow:auto; }
+table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+th,td { padding:5px 8px; border-bottom:1px solid var(--line); text-align:right; } th:first-child,td:first-child{ text-align:left; }
+th { position:sticky; top:0; background:var(--panel); color:var(--muted); font-size:12px; }
+tr.mark td { background:color-mix(in srgb, var(--accent) 12%, transparent); font-weight:600; }
+.out { font-size:16px; } .out b { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>Player level and XP</h1>
+<p class="sub">Change a number on the left; the level table, chart and times update. Defaults are the decided pacing from <code>UI REFERENCE PLAN.md</code>.</p>
+<div class="grid">
+<div>
+  <div class="panel"><h2>XP needed per level</h2>
+    <div class="row"><label>Quick levels <input id="quickLevels" type="number" min="0" max="100" step="1"></label><small>First levels that are fast, so the first session shows progress.</small></div>
+    <div class="row"><label>Minutes per quick level <input id="quickMin" type="number" min="1" step="1"></label></div>
+    <div class="row"><label>XP per counted minute <input id="xpMin" type="number" min="1" step="1"></label></div>
+    <div class="row"><label>XP per level after that <input id="flatXp" type="number" min="1" step="50"></label><small id="flatHint"></small></div>
+    <div class="row"><label>Growth per level after quick (%) <input id="growth" type="number" min="0" max="10" step="0.1"></label><small>0 = flat curve. 1 = each level costs 1% more than the last.</small></div>
+  </div>
+  <div class="panel"><h2>How fast players earn</h2>
+    <div class="row"><select id="earnMode"><option value="1">MapleStory hunting rates by level</option><option value="0">Flat XP per counted minute</option></select></div>
+    <div class="row"><label>Earn boost (x) <input id="earnBoost" type="number" min="0" step="any"></label><small>Multiplies the earn rate only. The XP needed per level stays the real table.</small></div>
+    <div class="row"><label>Minimum % of a level per 10 min <input id="minPct" type="number" min="0" step="0.1"></label><small>Floor on earn: no level takes longer than 10 min / this. 0.5 = at most 33.3 h a level. 0 = no floor.</small></div>
+    <div class="row"><label>Maximum % of a level per 10 min <input id="maxPct" type="number" min="0" step="0.5"></label><small>Ceiling on earn, so early levels are not too fast: no level goes quicker than 10 min / this. 5 = at least 3.3 h a level. 0 = no ceiling.</small></div>
+    <div class="row"><label>Earn below level 200 (億 XP/h) <input id="earnLow" type="number" min="0.1" step="0.5"></label><small>My assumption: the source has no rates under level 200.</small></div>
+    <div class="row"><label>Fit: whole tree in (months) <input id="fitMonths" type="number" min="0.1" step="0.1"></label><small>At the hours a week set under "Player". Sets the boost (or the scale in flat mode) for you.</small><button id="fit" style="margin-top:4px">Fit earn</button></div>
+  </div>
+  <div class="panel"><h2>Cut the XP needed</h2>
+    <div class="row"><label>From level <input id="cutFrom" type="number" min="1" step="1"></label></div>
+    <div class="row"><label>Reduce XP needed by (%) <input id="cutPct" type="number" min="0" max="99" step="5"></label><small>Applies to the loaded table from that level on. 0 = real MapleStory numbers.</small></div>
+  </div>
+  <div class="panel"><h2>Paste your own XP table (e.g. MapleStory TMS)</h2>
+    <div class="row"><small>One line per level, starting at level 1. The last number on each line is used, so "12 1,234" works. Leave empty to use the settings above.</small></div>
+    <div class="row"><select id="tblMode"><option value="need">Numbers are XP to the next level</option><option value="total">Numbers are total XP at that level</option></select></div>
+    <textarea id="tbl" rows="6" style="width:100%;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:12px ui-monospace,monospace" placeholder="15&#10;34&#10;57&#10;..."></textarea>
+    <div class="row" style="margin-top:8px"><button id="loadMaple">Load MapleStory (KMS, level 1-300)</button> <button id="loadHsr">Load Honkai Star Rail (stretched to 300)</button></div>
+    <div class="row"><label>Scale the table by <input id="tblScale" type="number" min="0" step="any"></label><small>Leave at 1 to keep the real MapleStory XP needed. Only used in flat-earn mode.</small></div>
+    <small id="tblInfo"></small>
+  </div>
+  <div class="panel"><h2>Levels and points</h2>
+    <div class="row"><label>Max level <input id="maxLevel" type="number" min="2" max="1000" step="10"></label></div>
+    <div class="row"><label>Perk Points per level (flat) <input id="ppl" type="number" min="0" step="0.05"></label><small>Used only when the bands box below is empty.</small></div>
+    <div class="row"><label>Perk Points by level range</label><input id="ptsBands" type="text" style="width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:12px ui-monospace,monospace"><small>from-to:points per level, comma separated. More at the start, fewer later. Empty = flat.</small></div>
+    <div class="row"><label>Starting Perk Points <input id="startPts" type="number" min="0" step="1"></label></div>
+    <div class="row"><label>Tree total points <input id="treePts" type="number" min="1" step="1"></label><small>What a player can take: all classes to band III plus bands IV and V in 2 classes (2,131). The whole tree is 2,992.</small></div>
+  </div>
+  <div class="panel"><h2>Player</h2>
+    <div class="row"><label>App hours per week <output id="hrsOut"></output></label><input id="hrs" type="range" min="1" max="168" step="1"></div>
+    <div class="row"><button data-h="4">4 h light</button> <button data-h="9.7">9.7 h average</button> <button data-h="56">56 h reference</button> <button data-h="168">168 h always on</button></div>
+    <div class="row"><label>Season length (days) <input id="seasonDays" type="number" min="1" step="1"></label><small>About 3 months, 80 to 90 days.</small></div>
+    <div class="row"><label>Look up level <input id="lookLv" type="number" min="1" step="1"></label></div>
+  </div>
+  <button id="reset">Reset to decided values</button>
+</div>
+<div>
+  <div class="kpis" id="kpis"></div>
+  <div class="panel"><h2>Milestones at the chosen hours a week</h2><div id="mile"></div></div>
+  <div class="panel"><h2>Time to reach each level (months at the chosen hours a week)</h2><canvas id="chart"></canvas></div>
+  <div class="panel"><h2>Look up</h2><div class="out" id="look"></div></div>
+  <div class="panel"><h2>Level table</h2><div class="scroll"><table><thead><tr><th>Level</th><th>XP to next</th><th>Total XP</th><th>Perk Points</th><th>% level / 10 min</th><th>Time to reach</th><th>Days</th><th>Seasons</th><th>Years</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+</div>
+</div>
+</main>
+<script>
+const DEF = { quickLevels:10, quickMin:30, xpMin:30, flatXp:18650, growth:0, maxLevel:300, ppl:8.55, startPts:4, treePts:2131, hrs:56, lookLv:50, tblScale:1, fitMonths:11.2, earnMode:1, earnBoost:1, earnLow:10, minPct:0.5, cutFrom:200, cutPct:50, maxPct:4.2, seasonDays:90 };
+const DEF_BANDS = "2-50:12, 51-100:10, 101-150:9, 151-200:7, 201-240:5, 241-250:4, 251-262:1, 263-300:0";
+function ptsArr(v) {   // Perk Points held at each level, index L-1
+  const txt = document.getElementById("ptsBands").value.trim(), top = Math.max(v.maxLevel, 300), a = [v.startPts];
+  if (!txt) { for (let L = 2; L <= top; L++) a.push(a[L - 2] + v.ppl); return a; }
+  const per = {};
+  txt.split(",").forEach(seg => { const m = seg.trim().match(/^(\d+)\s*-\s*(\d+)\s*:\s*([\d.]+)$/); if (m) for (let L = +m[1]; L <= +m[2]; L++) per[L] = +m[3]; });
+  for (let L = 2; L <= top; L++) a.push(a[L - 2] + (per[L] ?? 0));
+  return a;
+}
+const levelForPtsA = (p, a) => { const i = a.findIndex(x => x >= p); return i < 0 ? a.length + 1 : i + 1; };
+const eff = (L, n, v) => { const base = v.earnMode && v.custom.length ? effRate(L, n, v) : v.xpMin * 60; return v.maxPct > 0 ? Math.min(base, n * v.maxPct * 0.06) : base; };   // XP per hour at level L for a level costing n, held between the floor and the ceiling
+const cutAt = (L, v) => (L >= v.cutFrom ? 1 - v.cutPct / 100 : 1);   // XP needed is cut by cutPct % from level cutFrom on
+const HSR = [450,500,550,610,670,720,780,840,900,960,1020,1070,1130,1190,1250,1310,1370,1430,1500,1600,1710,1830,1950,2080,2210,2350,2480,2620,2750,2850,2960,3080,3200,3330,3460,3600,3730,3870,4000,4140,4280,4430,4570,4710,4860,5000,5150,5300,5440,5700,6150,6630,7130,7640,8170,8700,9230,9780,10330]; // Honkai: Star Rail Trailblaze EXP to reach levels 2 to 60 (Push Square); 61-70 not found
+const hsrStretched = n => Array.from({ length: n }, (_, i) => { const x = i * (HSR.length - 1) / (n - 1), a = Math.floor(x), f = x - a; return Math.round(HSR[a] + (HSR[Math.min(a + 1, HSR.length - 1)] - HSR[a]) * f); });
+const BANDS = [[200,73],[205,118],[210,212],[215,209],[220,301],[225,288],[230,363],[235,432],[240,455],[245,485],[250,488],[255,565],[260,2080],[265,2500],[270,3000],[275,3550],[280,4550],[285,6200],[290,9300],[295,12500]]; // 億 XP per hour, MapleStory hunting rates (Namu Wiki, KMS)
+const rateAt = (L, v) => (L < 200 ? v.earnLow : BANDS.filter(b => b[0] <= L).pop()[1]) * 1e8 * v.earnBoost;   // XP per hour at level L
+const effRate = (L, n, v) => Math.max(rateAt(L, v), n * v.minPct / 100 * 6);   // ...but never less than minPct % of the level per 10 min
+const MAPLE = "15,34,57,92,135,372,560,840,1242,1242,1242,1242,1242,1242,1490,1788,2145,2574,3088,3705,4446,5335,6402,7682,9218,11061,13273,15927,19112,19112,19112,19112,19112,19112,22934,27520,33024,39628,47553,51357,55465,59902,64694,69869,75458,81494,88013,95054,102658,110870,119739,129318,139663,150836,162902,175934,190008,205208,221624,221624,221624,221624,221624,221624,238245,256113,275321,295970,318167,342029,367681,395257,424901,456768,488741,522952,559558,598727,640637,685481,733464,784806,839742,898523,961419,1028718,1100728,1177778,1260222,1342136,1429374,1522283,1621231,1726611,1838840,1958364,2085657,2221224,2365603,2365603,2365603,2365603,2365603,2365603,2519367,2683125,2857528,3043267,3241079,3451749,3676112,3915059,4169537,4440556,4729192,5036589,5363967,5712624,6083944,6479400,6900561,7349097,7826788,8335529,8877338,9454364,10068897,10723375,11420394,12162719,12953295,13795259,14691950,15646926,16663976,17747134,18900697,20129242,21437642,22777494,24201087,25713654,27320757,29028304,30842573,32770233,34818372,36994520,39306677,41763344,44373553,47146900,50093581,53224429,56550955,60085389,63840725,67830770,72070193,76574580,81360491,86445521,91848366,97588888,103688193,110168705,117054249,124370139,132143272,138750435,145687956,152972353,160620970,168652018,177084618,185938848,195235790,204997579,215247457,226009829,237310320,249175836,261634627,274716358,288452175,302874783,318018522,333919448,350615420,368146191,386553500,405881175,426175233,447483994,469858193,493351102,518018657,543919589,571115568,2207026470,2471869646,2768494003,3100713283,3472798876,3889534741,4356278909,4879032378,5464516263,6120258214,7344309856,8152183940,9048924173,10044305832,11149179473,13379015367,14583126750,15895608157,17326212891,18885572051,22662686461,24249074513,25946509728,27762765408,29706158986,35647390783,38142708137,40812697706,43669586545,46726457603,56071749123,57753901596,59486518643,61271114202,63109247628,75731097153,78003030067,80343120969,82753414598,85236017035,102283220442,105351717055,108512268566,111767636622,115120665720,138144798864,142289142829,146557817113,150954551626,155483188174,186579825808,192177220582,197942537199,203880813314,209997237713,216297154844,222786069489,229469651573,236353741120,243444353353,1731919984062,1749239183902,1766731575741,1784398891498,1802242880412,2342915744535,2366344901980,2390008350999,2413908434508,2438047518853,5412465491853,5466590146771,5521256048238,5576468608720,5632233294807,11377111255510,12514822381061,13766304619167,15142935081083,16657228589191,33647601750165,37012361925181,40713598117699,44784957929468,49263453722414,99512176519276,109463394171203,120409733588323,132450706947155,145695777641870,294305470836577,323736017920234,356109619712257,391720581683482,430892639851830,870403132500696,957443445750765,1053187790325841,1158506569358425,1737759854037637";
+const ids = Object.keys(DEF), el = Object.fromEntries(ids.map(i => [i, document.getElementById(i)]));
+let SEASON_DAYS = 90;   // one season, about 3 months (80 to 90 days); set in the Player panel
+const conv = h => { const d = h / 24; return `<td>${d < 10 ? d.toFixed(1) : fmt(d)}</td><td>${(d / SEASON_DAYS).toFixed(d / SEASON_DAYS < 10 ? 2 : 1)}</td><td>${(d / 365.25).toFixed(2)}</td>`; };
+const convText = h => { const d = h / 24; return `${d < 10 ? d.toFixed(1) : fmt(d)} days = ${(d / SEASON_DAYS).toFixed(1)} seasons (${SEASON_DAYS} days) = ${(d / 365.25).toFixed(2)} years`; };
+const fmt = n => Math.round(n).toLocaleString();
+const dur = h => h < 1 ? Math.round(h*60) + " min" : h < 48 ? h.toFixed(1) + " h" : h < 24*60 ? (h/24/7).toFixed(1) + " weeks" : h < 24*365*2 ? (h/24/30.44).toFixed(1) + " months" : (h/24/365.25).toFixed(1) + " years";
+function load() { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem("lvxp") || "{}")); } catch { return {...DEF}; } }
+function read() { const v = {}; ids.forEach(i => v[i] = Math.max(0, parseFloat(el[i].value) || 0)); return v; }
+function write(v) { ids.forEach(i => el[i].value = v[i]); }
+
+function parseTable() {
+  const nums = document.getElementById("tbl").value.split(/\r?\n/).map(l => (l.match(/\d[\d,]*(?:\.\d+)?/g) || []).pop()).filter(Boolean).map(s => parseFloat(s.replace(/,/g, "")));
+  if (document.getElementById("tblMode").value === "total") return nums.slice(1).map((n, i) => n - nums[i]);
+  return nums;
+}
+function build(v) {
+  const custom = v.custom;
+  if (custom && custom.length) {
+    const need = custom.slice(0, v.maxLevel - 1).map((n, i) => n * (v.tblScale || 1) * cutAt(i + 1, v));
+    while (need.length < v.maxLevel - 1) need.push(need[need.length - 1]);
+    const total = [0]; need.forEach((n, i) => total.push(total[i] + n));
+    return { need, total };
+  }
+  const need = [];                     // XP to go from level L to L+1, index L-1
+  for (let L = 1; L < v.maxLevel; L++) {
+    const k = L - v.quickLevels;
+    need.push(L <= v.quickLevels ? v.quickMin * v.xpMin : v.flatXp * Math.pow(1 + v.growth/100, Math.max(0, k - 1)));
+  }
+  const total = [0]; need.forEach((n, i) => total.push(total[i] + n));      // total XP at the start of level L = total[L-1]
+  return { need, total };
+}
+
+function render() {
+  const v = read(); try { localStorage.setItem("lvxp", JSON.stringify(v)); } catch {}
+  v.custom = parseTable(); SEASON_DAYS = Math.max(1, v.seasonDays || 90);
+  if (v.custom.length) { v.maxLevel = v.custom.length + 1; el.maxLevel.value = v.maxLevel; }
+  document.getElementById("tblInfo").textContent = v.custom.length ? "Using your table: " + v.custom.length + " levels, max level set to " + v.maxLevel + "." : "";
+  v.maxLevel = Math.max(2, Math.round(v.maxLevel)); v.quickLevels = Math.min(Math.round(v.quickLevels), v.maxLevel - 1);
+  const { need, total } = build(v), xpPerHour = v.xpMin * 60, perWeek = v.hrs;
+  const cum = [0]; need.forEach((n, i) => cum.push(cum[i] + n / eff(i + 1, n, v)));
+  const hrsFor = L => cum[L-1];
+  const pct10 = L => 100 * eff(L, need[Math.min(L, v.maxLevel - 1) - 1], v) / 6 / need[Math.min(L, v.maxLevel - 1) - 1];
+  const PA = ptsArr(v), pts = L => PA[Math.min(L, PA.length) - 1], levelForPts = p => levelForPtsA(p, PA);
+  const treeLv = Math.min(v.maxLevel, levelForPts(v.treePts));
+  document.getElementById("hrsOut").textContent = v.hrs + " h";
+  el.hrs.value = v.hrs;
+  document.getElementById("flatHint").textContent = "= " + (v.flatXp / xpPerHour).toFixed(1) + " counted hours per level at " + v.xpMin + " XP/min.";
+
+  const wk = h => h / perWeek;                       // weeks to put in h counted hours
+  const k = [
+    [pct10(treeLv).toFixed(2) + "%", "of a level per 10 min at level " + treeLv],
+    [fmt(total[v.maxLevel-1]), "XP to max level " + v.maxLevel],
+    [treeLv + (levelForPts(v.treePts) > v.maxLevel ? " (past max!)" : ""), "level that pays for the whole tree"],
+    [dur(hrsFor(treeLv) / perWeek * 7 * 24), "whole tree at " + v.hrs + " h/week"],
+  ];
+  document.getElementById("kpis").innerHTML = k.map(([b, s]) => `<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join("");
+
+  const L = Math.min(v.maxLevel, Math.max(1, Math.round(v.lookLv)));
+  document.getElementById("look").innerHTML = `Level <b>${L}</b>: needs <b>${fmt(total[L-1])}</b> total XP (${L < v.maxLevel ? fmt(need[L-1]) + " to the next level" : "max level"}), `
+    + `gives <b>${fmt(pts(L))}</b> Perk Points, and takes <b>${dur(hrsFor(L) / perWeek * 168)}</b> at ${v.hrs} h/week (<b>${convText(hrsFor(L) / perWeek * 168)}</b>).`;
+
+  const marks = new Set([1, v.quickLevels + 1, treeLv, v.maxLevel]); for (let i = 10; i < v.maxLevel; i += 10) marks.add(i);
+  let html = "";
+  for (let l = 1; l <= v.maxLevel; l++) html += `<tr class="${marks.has(l) && (l === treeLv || l === v.quickLevels + 1) ? "mark" : ""}"><td>${l}${l === treeLv ? " (tree paid)" : l === v.maxLevel ? " (max)" : ""}</td><td>${l < v.maxLevel ? fmt(need[l-1]) : "-"}</td><td>${fmt(total[l-1])}</td><td>${fmt(pts(l))} <small>(${Math.round(100 * Math.min(1, pts(l) / v.treePts))}%)</small></td><td>${l < v.maxLevel ? pct10(l).toFixed(2) + "%" : "-"}</td><td>${dur(hrsFor(l) / perWeek * 168)}</td>${conv(hrsFor(l) / perWeek * 168)}</tr>`;
+  document.getElementById("rows").innerHTML = html;
+  const ml = [30, 60, 100, 120, 150, 200, treeLv, 300].filter((l, i, arr) => l <= v.maxLevel && arr.indexOf(l) === i).sort((a, b) => a - b);
+  document.getElementById("mile").innerHTML = `<table><thead><tr><th>Level</th><th>Time</th><th>Days</th><th>Seasons</th><th>Perk Points</th><th>% of what a player can take</th></tr></thead><tbody>`
+    + ml.map(l => { const d = hrsFor(l) / perWeek * 168 / 24; return `<tr class="${l === treeLv ? "mark" : ""}"><td>${l}${l === treeLv ? " (all paid)" : ""}</td><td>${dur(hrsFor(l) / perWeek * 168)}</td><td>${d < 10 ? d.toFixed(1) : fmt(d)}</td><td>${(d / SEASON_DAYS).toFixed(2)}</td><td>${fmt(pts(l))}</td><td>${Math.round(100 * Math.min(1, pts(l) / v.treePts))}%</td></tr>`; }).join("")
+    + `</tbody></table>`;
+  draw(v, total, hrsFor, perWeek, treeLv);
+}
+
+function draw(v, total, hrsFor, perWeek, treeLv) {
+  const c = document.getElementById("chart"), r = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  c.width = w * r; c.height = h * r; const g = c.getContext("2d"); g.scale(r, r);
+  const css = getComputedStyle(document.documentElement), ink = css.getPropertyValue("--muted"), line = css.getPropertyValue("--line"), acc = css.getPropertyValue("--accent"), acc2 = css.getPropertyValue("--accent2");
+  const pad = { l: 52, r: 12, t: 10, b: 24 }, months = L => hrsFor(L) / perWeek * 7 / 30.44;
+  const maxM = Math.max(1, months(v.maxLevel)), X = L => pad.l + (L - 1) / (v.maxLevel - 1) * (w - pad.l - pad.r), Y = m => h - pad.b - m / maxM * (h - pad.t - pad.b);
+  g.font = "11px system-ui"; g.fillStyle = ink; g.strokeStyle = line; g.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) { const m = maxM * i / 4, y = Y(m); g.beginPath(); g.moveTo(pad.l, y); g.lineTo(w - pad.r, y); g.stroke(); g.textAlign = "right"; g.fillText(m >= 24 ? (m/12).toFixed(1) + " y" : m.toFixed(1) + " mo", pad.l - 6, y + 4); }
+  g.textAlign = "center"; for (let i = 0; i <= 5; i++) { const l = 1 + Math.round((v.maxLevel - 1) * i / 5); g.fillText("L" + l, X(l), h - 6); }
+  g.strokeStyle = acc; g.lineWidth = 2; g.beginPath();
+  for (let l = 1; l <= v.maxLevel; l++) { const x = X(l), y = Y(months(l)); l === 1 ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke();
+  if (treeLv <= v.maxLevel) { g.strokeStyle = acc2; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(treeLv), pad.t); g.lineTo(X(treeLv), h - pad.b); g.stroke(); g.setLineDash([]); g.fillStyle = acc2; g.textAlign = "left"; g.fillText("tree paid", X(treeLv) + 4, pad.t + 10); }
+}
+
+function fit() {
+  const v = read(), raw = parseTable(); if (!raw.length) return;
+  v.custom = raw;
+  const treeLv = levelForPtsA(v.treePts, ptsArr(v));
+  const target = v.fitMonths * 30.44 / 7 * v.hrs;                 // counted hours
+  const hoursAt = () => { let h = 0; for (let i = 0; i < treeLv - 1; i++) { const n = raw[i] * (v.earnMode ? 1 : v.tblScale) * cutAt(i + 1, v); h += n / eff(i + 1, n, v); } return h; };
+  const solve = set => { let lo = 1e-9, hi = 1e9; for (let k = 0; k < 200; k++) { const m = Math.sqrt(lo * hi); set(m); hoursAt() > target ? lo = m : hi = m; } return hi; };
+  if (v.earnMode) el.earnBoost.value = +solve(m => v.earnBoost = m).toPrecision(4);
+  else el.tblScale.value = +(1 / solve(m => v.tblScale = 1 / m)).toPrecision(4);   // bigger m = cheaper levels
+  render();
+}
+function init() {
+  let fresh = true; try { fresh = !localStorage.getItem("lvxp"); } catch {}
+  write(load());
+  try { document.getElementById("ptsBands").value = localStorage.getItem("lvxp-bands") ?? DEF_BANDS; } catch { document.getElementById("ptsBands").value = DEF_BANDS; }
+  document.getElementById("ptsBands").addEventListener("input", () => { try { localStorage.setItem("lvxp-bands", document.getElementById("ptsBands").value); } catch {} render(); });
+  ids.forEach(i => el[i].addEventListener("input", render));
+  ["tbl", "tblMode"].forEach(i => document.getElementById(i).addEventListener("input", render));
+  document.querySelectorAll("[data-h]").forEach(b => b.onclick = () => { el.hrs.value = b.dataset.h; render(); });
+  document.getElementById("reset").onclick = () => { write(DEF); document.getElementById("ptsBands").value = DEF_BANDS; try { localStorage.setItem("lvxp-bands", DEF_BANDS); } catch {} document.getElementById("loadMaple").click(); fit(); };
+  document.getElementById("loadMaple").onclick = () => { document.getElementById("tblMode").value = "need"; document.getElementById("tbl").value = MAPLE.split(",").join("\n"); el.tblScale.value = 1; el.earnMode.value = 1; el.cutPct.value = DEF.cutPct; render(); };
+  document.getElementById("loadHsr").onclick = () => { document.getElementById("tblMode").value = "need"; document.getElementById("tbl").value = hsrStretched(299).join("\n"); el.tblScale.value = 1; el.earnMode.value = 0; el.cutPct.value = 0; fit(); };
+  document.getElementById("fit").onclick = fit;
+  addEventListener("resize", render);
+  if (fresh) { document.getElementById("loadMaple").click(); fit(); } else render();
+}
+init();
+</script>
+</body>
+</html>

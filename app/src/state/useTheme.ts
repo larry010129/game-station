@@ -16,6 +16,7 @@ import {
   themeStatus,
 } from "./themeCatalog";
 import { trackQuest } from "./useQuests";
+import { cleanUnlocks } from "./unlocks";
 
 const KEY = "cs.theme";
 /** Before the wallpaper moved to IndexedDB, the whole picture lived here. */
@@ -207,7 +208,7 @@ export function useTheme() {
   const [favs, setFavs] = useState<string[]>(() => idList(saved.favs, 200));
   const [recent, setRecent] = useState<string[]>(() => idList(saved.recent, MAX_RECENT));
   const [hover, setHover] = useState<boolean>(() => saved.hover === true);
-  const [unlocks, setUnlocks] = useState<string[]>(() => idList(readJson<unknown>(UNLOCK_KEY, []), 50));
+  const [unlocks, setUnlocks] = useState<string[]>(() => cleanUnlocks(readJson<unknown>(UNLOCK_KEY, [])));
   /** A theme being previewed under the cursor; nothing is saved for it. */
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [image, setImageState] = useState<string | null>(null);

@@ -1,0 +1,78 @@
+/* Achievements: a row of category plaques under a soft spotlight, a medal tally, and the chosen category's list.
+   Medal colours are fixed metals (like the star tags); everything else comes from the theme. */
+
+.ach { --bronze: #c48a5a; --silver: #aab4c2; --gold: #e2b64c; display: flex; flex-direction: column; gap: 16px; padding-top: 18px; }
+.ach-head { display: flex; align-items: baseline; gap: 14px; }
+.ach-head h2 { font-size: 22px; font-weight: 500; }
+.ach-head p { color: var(--dim); font-size: 13.5px; }
+
+.ach-stage {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 26px 10px 22px; border-radius: var(--r); overflow: hidden;
+  background: radial-gradient(40% 90% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 75%), var(--glass-solid);
+  box-shadow: 0 0 0 1px var(--edge);
+}
+.ach-nav { display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 999px; background: var(--wash); color: var(--dim); z-index: 1; }
+.ach-nav:hover { background: var(--wash-2); color: var(--text); }
+.ach-nav svg { width: 20px; height: 20px; }
+
+.ach-plaques { display: flex; justify-content: center; align-items: center; gap: 14px; padding: 10px 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.ach-plaque {
+  scroll-snap-align: center; flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: 136px; height: 210px; padding: 20px 10px 16px; border: 0; border-radius: 14px; color: var(--text);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 9%, transparent), color-mix(in srgb, var(--text) 3%, transparent));
+  box-shadow: 0 0 0 1px var(--edge); opacity: 0.62;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s, box-shadow 0.25s;
+}
+.ach-plaque:hover { opacity: 0.85; }
+.ach-plaque[aria-selected="true"] {
+  opacity: 1; transform: translateY(-6px) scale(1.08);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, var(--glass-solid)), color-mix(in srgb, var(--text) 4%, var(--glass-solid)));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 22px 40px -24px rgb(0 0 0 / 0.65);
+}
+.ach-plaque:focus-visible { outline: 1.5px solid var(--text); outline-offset: 3px; }
+.ach-crest { position: relative; display: grid; place-items: center; width: 82px; height: 82px; margin-bottom: auto; }
+.ach-crest svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ach-crest circle { fill: none; stroke: color-mix(in srgb, var(--text) 22%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.ach-crest circle:first-child { stroke-dasharray: 2 4; }
+.ach-plaque[aria-selected="true"] .ach-crest circle:last-child { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ach-plaque[data-done] .ach-crest circle:last-child { stroke: var(--gold); }
+.ach-crest > .lucide { position: relative; width: 34px; height: 34px; color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+.ach-plaque-count { padding: 2px 10px; border-radius: 999px; background: var(--bg); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ach-plaque-name { font-size: 13.5px; font-weight: 500; line-height: 1.2; text-align: center; text-wrap: balance; }
+
+.ach-tally { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 18px; color: var(--dim); font-size: 13px; }
+.ach-tally > b { color: var(--text); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ach-medal { display: inline-flex; align-items: center; gap: 4px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ach-medal svg { width: 20px; height: 20px; }
+.ach-medal[data-tier="bronze"] svg, .ach-row-medal[data-tier="bronze"] { color: var(--bronze); }
+.ach-medal[data-tier="silver"] svg, .ach-row-medal[data-tier="silver"] { color: var(--silver); }
+.ach-medal[data-tier="gold"] svg, .ach-row-medal[data-tier="gold"] { color: var(--gold); }
+.ach-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.ach-list-wrap { display: flex; flex-direction: column; gap: 10px; }
+.ach-blurb { color: var(--dim); font-size: 13.5px; }
+.ach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ach-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--glass); box-shadow: 0 0 0 1px var(--edge); }
+.ach-row:not([data-done]) .ach-row-text b { color: color-mix(in srgb, var(--text) 82%, var(--bg)); }
+.ach-row-medal { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: color-mix(in srgb, currentColor 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 45%, transparent); }
+.ach-row:not([data-done]) .ach-row-medal { opacity: 0.55; }
+.ach-row-medal svg { width: 18px; height: 18px; }
+.ach-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ach-row-text b { font-size: 14px; font-weight: 500; }
+.ach-row-text small { color: var(--dim); font-size: 12.5px; }
+.ach-row-when { color: var(--good); font-size: 12px; white-space: nowrap; }
+.ach-row-prog { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 84px; }
+.ach-row-prog small { color: var(--mute); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ach-bar { display: block; width: 84px; height: 4px; border-radius: 4px; background: var(--wash-2); overflow: hidden; }
+.ach-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+
+@media (max-width: 720px) {
+  .ach-stage { grid-template-columns: minmax(0, 1fr); padding: 18px 4px; }
+  .ach-nav { display: none; }
+  .ach-plaques { justify-content: flex-start; padding: 12px 24px; }
+  .ach-plaque { width: 112px; height: 176px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ach-plaque { transition: none; }
+}

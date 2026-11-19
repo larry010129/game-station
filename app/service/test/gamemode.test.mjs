@@ -8,7 +8,7 @@ const BALANCED = "00000000-0000-0000-0000-000000000000";
 const EXE = "C:\\Games\\Overwatch\\Overwatch.exe";
 
 /** Everything is fake: an in-memory "disk", registry and power setting. No real system calls. */
-function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) {
+function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false, noOverwatch = false } = {}) {
   const env = {
     overlay,
     gpu, // registry value for EXE, null = absent
@@ -32,7 +32,7 @@ function makeEnv({ overlay = BALANCED, gpu = null, powerIgnored = false } = {}) 
     cleanFails: null,
   };
   const system = {
-    detectOverwatch: async () => ({ exe: EXE, appId: "1" }),
+    detectOverwatch: async () => (noOverwatch ? null : { exe: EXE, appId: "1" }),
     getPowerOverlay: async () => {
       if (env.readBroken) throw new Error("read-back boom");
       return env.overlay;
@@ -515,4 +515,31 @@ test("the new steps are known ids, and the ranked profile lists them in order", 
   const profiles = await make().describeProfiles();
   assert.deepEqual(profiles[0].steps.map((s) => s.id), ["power", "close", "trim", "memory", "gpu", "poll", "launch", "priority"]);
   assert.deepEqual(profiles[1].steps.map((s) => s.id), ["power", "close", "trim", "poll"]);
+});
+
+test("C1: without Overwatch installed, the Overwatch profile leaves out the steps that need it", async () => {
+  const { make } = makeEnv({ noOverwatch: true });
+  const gm = make();
+  const ranked = (await gm.describeProfiles()).find((p) => p.id === "ow-ranked");
+  const ids = ranked.steps.map((s) => s.id);
+  for (const id of ["gpu", "launch", "priority"]) assert.ok(!ids.includes(id), `${id} needs Overwatch`);
+  // With Overwatch present nothing changes.
+  const withOw = (await makeEnv().make().describeProfiles()).find((p) => p.id === "ow-ranked");
+  assert.deepEqual(
+    withOw.steps.map((s) => s.id),
+    ["power", "close", "trim", "memory", "gpu", "poll", "launch", "priority"],
+  );
+});
+
+test("C5: whenRecovered waits for start-up recovery, and gives up after its wait", async () => {
+  const { env, make } = makeEnv();
+  const gm = make();
+  assert.equal(await gm.whenRecovered(10), true, "no recovery running");
+  env.disk = { entries: [{ id: "x", step: { id: "power", label: "power" }, status: "applied", undo: { kind: "power", previous: BALANCED } }] };
+  const gm2 = make();
+  const run = gm2.recoverIfNeeded();
+  const waited = await gm2.whenRecovered(5000);
+  assert.equal(waited, true);
+  await run;
+  assert.equal(gm2.journal().entries.length, 0);
 });

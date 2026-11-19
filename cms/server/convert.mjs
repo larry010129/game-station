@@ -56,6 +56,43 @@ export function regionPackOf(draft) {
   return draft.packs?.region ?? { ...draft.packs.brand, id: "region" };
 }
 
+/**
+ * Card Pack → app shape (row chances as fractions). Absent in the draft: omitted, so the app keeps its bundled pack.
+ * Mirrors app CardPackContent (gachaContent.ts).
+ */
+export function cardPackToGacha(cp) {
+  if (!cp || typeof cp !== "object") return undefined;
+  const w = cp.weights || {};
+  return {
+    enabled: cp.enabled !== false,
+    ticket: cp.ticket === "regular" ? "regular" : "special",
+    priceOne: cp.priceOne,
+    priceTen: cp.priceTen,
+    weights: { five: (Number(w.five) || 0) / 100, four: (Number(w.four) || 0) / 100, better: (Number(w.better) || 0) / 100, common: (Number(w.common) || 0) / 100 },
+    fourPityAfter: cp.fourPityAfter,
+    fivePityAfter: cp.fivePityAfter,
+    ...(cp.softPity ? { softPity: { from: cp.softPity.from, curve: cp.softPity.curve } } : {}),
+    crystalValues: { four: cp.crystalValues?.four ?? 0, five: cp.crystalValues?.five ?? 0 },
+    skins: (Array.isArray(cp.skins) ? cp.skins : []).map((s) => ({ id: s.id, stars: s.stars, status: s.status })),
+    ...(cp.buy
+      ? { buy: { fourPrice: cp.buy.fourPrice ?? null, fivePrice: cp.buy.fivePrice ?? null, crystalPick: cp.buy.crystalPick !== false } }
+      : {}),
+  };
+}
+
+/**
+ * Widget Pack → app shape: the Card Pack's settings (row chances as fractions) plus `widgets: {id, stars, status}`.
+ * A card the release does not list is Free in the app. Absent in the draft: omitted.
+ */
+export function widgetPackToGacha(wp) {
+  if (!wp || typeof wp !== "object") return undefined;
+  const { skins: _skins, ...settings } = cardPackToGacha({ ...wp, skins: [] });
+  return {
+    ...settings,
+    widgets: (Array.isArray(wp.widgets) ? wp.widgets : []).map((w) => ({ id: w.id, stars: w.stars, status: w.status })),
+  };
+}
+
 /** Collect on-disk draft assets (banner art under data/uploads/…). */
 function collectAssetPaths(draft) {
   const out = [];
@@ -96,6 +133,7 @@ export function draftToContentBundle(draft) {
       lookPityAfter: econ.lookPityAfter,
       brandPityAfter: econ.brandPityAfter,
       rainbowPityAfter: typeof econ.rainbowPityAfter === "number" ? econ.rainbowPityAfter : 89,
+      creditBigAmount: typeof econ.creditBigAmount === "number" ? econ.creditBigAmount : 100,
       ...(econ.softPity ? { softPity: econ.softPity } : {}),
       ...(Array.isArray(draft.rainbowThemeIds) ? { rainbowThemeIds: [...new Set(draft.rainbowThemeIds)] } : {}),
       weeklyPickCap: econ.weeklyPickCap,
@@ -125,8 +163,21 @@ export function draftToContentBundle(draft) {
         brandIds: [...(s.brandIds || [])],
       })),
       regionPackEnabled: draft.regionPackEnabled !== false,
+      ...(draft.cardPack ? { cardPack: cardPackToGacha(draft.cardPack) } : {}),
+      ...(draft.widgetPack ? { widgetPack: widgetPackToGacha(draft.widgetPack) } : {}),
+      checkinEvent: draft.checkinEvent && draft.checkinEvent.start && draft.checkinEvent.end ? { start: draft.checkinEvent.start, end: draft.checkinEvent.end } : null,
+      // Per-day check-in prizes; absent in the draft: omitted, so the app keeps its default board.
+      ...(Array.isArray(draft.checkinPrizes)
+        ? {
+            checkinPrizes: draft.checkinPrizes.map((p) =>
+              p.kind === "item" ? { kind: "item", id: p.id, count: p.count } : { kind: p.kind, count: p.count },
+            ),
+          }
+        : {}),
       ...(draft.packTickets && Object.keys(draft.packTickets).length ? { packTickets: { ...draft.packTickets } } : {}),
       ...(Array.isArray(draft.regularExtraIds) && draft.regularExtraIds.length ? { regularExtraIds: [...new Set(draft.regularExtraIds)] } : {}),
+      // Kept off the app's Draw Wiki so new prizes are not spoiled; older apps ignore it.
+      ...(Array.isArray(draft.wikiHiddenIds) && draft.wikiHiddenIds.length ? { wikiHiddenIds: [...new Set(draft.wikiHiddenIds)] } : {}),
       regionWeek: draft.regionWeek
         ? {
             weekOf: draft.regionWeek.weekOf,

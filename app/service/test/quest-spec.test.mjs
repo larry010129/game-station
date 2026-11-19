@@ -2,8 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  QUESTS, RANKS, LOOKS_WAITING_CAP, addMinutes, canClaim, claim, cleanState, dayKey, emptyState, grantPick,
-  nextReset, progress, rankOf, recordArmed, recordCheckin, recordOnce, recordSession, takeLookPick,
+  QUESTS, INCOME_PER_HOUR, MINUTES_PER_INCOME, LOOKS_WAITING_CAP, addMinutes, canClaim, claim, cleanState, dayKey, emptyState, grantPick,
+  nextReset, progress, recordArmed, recordCheckin, recordOnce, recordSession, takeLookPick,
   visibleQuests, weekKey, monthKey,
 } from "../../src/state/questEngine.ts";
 
@@ -31,13 +31,10 @@ test("every spec quest exists with the spec reward and target", () => {
   assert.equal(QUESTS.length, Object.keys(want).length);
 });
 
-test("the rank table matches the spec", () => {
-  assert.deepEqual(RANKS.map((r) => [r.id, r.minutes, r.tasks, r.perCredit]), [["recruit", 0, 0, 6], ["regular", 180, 5, 5], ["veteran", 600, 15, 3], ["night", 1500, 40, 2]]);
-  assert.equal(rankOf({ minutesTotal: 180, tasksClaimed: 4 }).id, "recruit");
-  assert.equal(rankOf({ minutesTotal: 179, tasksClaimed: 5 }).id, "recruit");
-  assert.equal(rankOf({ minutesTotal: 180, tasksClaimed: 5 }).id, "regular");
-  assert.equal(rankOf({ minutesTotal: 600, tasksClaimed: 15 }).id, "veteran");
-  assert.equal(rankOf({ minutesTotal: 1500, tasksClaimed: 40 }).id, "night");
+test("there are no ranks: play pays one flat rate, 1 Income per 6 counted minutes", () => {
+  assert.equal(MINUTES_PER_INCOME, 6);
+  assert.equal(INCOME_PER_HOUR, 10);
+  assert.ok(QUESTS.every((x) => !("minRank" in x)), "no quest waits for a rank");
 });
 
 test("a daily claim pays once, then returns the next local day", () => {
@@ -58,15 +55,15 @@ test("a quest that is not done cannot be claimed", () => {
   assert.equal(claim(recordArmed(emptyState(), t), "arm", t).credits, 6);
 });
 
-test("counted minutes bank into Credits at the rank rate and keep the leftover", () => {
+test("counted minutes bank into Income at the flat rate and keep the leftover", () => {
   const t = at(2026, 11, 15, 20);
   let s = emptyState();
   let earned = 0;
   for (let i = 0; i < 14; i++) { const r = addMinutes(s, 1, t); s = r.state; earned += r.credits; }
   assert.equal(earned, 2, "14 minutes at 1 per 6 make 2 Credits");
   assert.equal(s.minuteBank, 2);
-  const night = { ...emptyState(), minutesTotal: 1500, tasksClaimed: 40 };
-  assert.equal(addMinutes(night, 10, t).credits, 5, "10 minutes at 1 per 2");
+  const longtime = { ...emptyState(), minutesTotal: 1500, tasksClaimed: 40 };
+  assert.equal(addMinutes(longtime, 12, t).credits, 2, "a long history pays the same rate");
 });
 
 test("minutes add to the day, so Thirty on the clock completes at 30", () => {
@@ -77,17 +74,16 @@ test("minutes add to the day, so Thirty on the clock completes at 30", () => {
   assert.equal(canClaim(s, q("thirty"), t), true);
 });
 
-test("a session under 60 seconds adds nothing; 45 minutes or more is a long watch (Veteran)", () => {
+test("a session under 60 seconds adds nothing; 45 minutes or more is a long watch", () => {
   const t = at(2026, 11, 15, 20);
   assert.equal(progress(recordSession(emptyState(), 59, t), q("longwatch"), t), 0);
   assert.equal(progress(recordSession(emptyState(), 44 * 60, t), q("longwatch"), t), 0);
   const long = recordSession(emptyState(), 45 * 60, t);
   assert.equal(progress(long, q("longwatch"), t), 1);
-  assert.equal(canClaim(long, q("longwatch"), t), false, "hidden below Veteran");
-  assert.equal(canClaim({ ...long, minutesTotal: 600, tasksClaimed: 15 }, q("longwatch"), t), true);
+  assert.equal(canClaim(long, q("longwatch"), t), true, "open to everyone");
 });
 
-test("Weekly look: 4 check-in days grant nothing, 5 grant one pick, once a week; the pick waits across weeks", () => {
+test("Weekly theme: 4 check-in days grant nothing, 5 grant one pick, once a week; the pick waits across weeks", () => {
   const mon = at(2026, 11, 9, 10);
   let s = emptyState();
   for (let d = 0; d < 4; d++) s = recordCheckin(s, new Date(mon.getTime() + day(d)));
@@ -122,12 +118,10 @@ test("weekly and monthly quests add up across days", () => {
   assert.equal(progress(s, q("threehour"), at(2026, 11, 16, 9)), 0);
 });
 
-test("Star a theme is hidden until Regular, then pays 12 and unlocks nothing", () => {
+test("Star a theme is open to everyone, pays 12 and unlocks nothing", () => {
   const t = at(2026, 11, 15);
-  let s = recordOnce(emptyState(), "star");
-  assert.equal(visibleQuests(s).some((x) => x.id === "star"), false);
-  assert.equal(canClaim(s, q("star"), t), false);
-  s = { ...s, minutesTotal: 180, tasksClaimed: 5 };
+  const s = recordOnce(emptyState(), "star");
+  assert.ok(visibleQuests("once").some((x) => x.id === "star"));
   const r = claim(s, "star", t);
   assert.equal(r.credits, 12);
   assert.equal(r.state.looksWaiting, 0);

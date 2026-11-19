@@ -179,7 +179,32 @@ export function createGameMode(config, sensors, log, deps = {}) {
     save();
   }
 
+  /** The start-up recovery while it runs (null before it starts and after it ends). */
+  let recovery = null;
+
+  /** Resolves true once start-up recovery is done (or never started), false if it is still running after `ms`. */
+  async function whenRecovered(ms) {
+    const running = recovery;
+    if (!running) return true;
+    let timer;
+    const timeout = new Promise((resolve) => (timer = setTimeout(() => resolve(false), ms)));
+    try {
+      return await Promise.race([running.then(() => true, () => true), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function recoverIfNeeded() {
+    const run = recoverLocked();
+    recovery = run;
+    run.finally(() => {
+      if (recovery === run) recovery = null;
+    }).catch(() => {});
+    return run;
+  }
+
+  function recoverLocked() {
     return locked(async () => {
       if (journalError) log(`!! ${journalError}`);
       if (!journal.entries.length) return { restored: 0, failed: 0 };
@@ -276,6 +301,9 @@ export function createGameMode(config, sensors, log, deps = {}) {
     };
 
     const off = new Set(config.disabledSteps ?? []);
+    // Without Overwatch installed, the steps that need it would fail after the apps were already closed, and
+    // closing apps is never undone. Leave them out so the rest of the profile can finish.
+    if (!ow) for (const id of ["gpu", "launch", "priority"]) off.add(id);
     return [ranked, streaming].map((p) => ({ ...p, steps: p.steps.filter((s) => !off.has(s.id)) }));
   }
 
@@ -482,6 +510,7 @@ export function createGameMode(config, sensors, log, deps = {}) {
 
   return {
     recoverIfNeeded,
+    whenRecovered,
     describeProfiles,
     applyStep: (step) => locked(() => applyLocked(step)),
     restoreStep: (step) => locked(() => restoreLocked(step)),

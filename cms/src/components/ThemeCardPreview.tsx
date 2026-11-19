@@ -30,7 +30,7 @@ export function StarTag({ stars }: { stars: 4 | 5 }) {
             ? "linear-gradient(100deg, #ff9db0, #ffd27a 28%, #9ef0b5 52%, #8fc3ff 74%, #c9a2ff)"
             : "linear-gradient(180deg, #f3cf6a, #d9a93a)",
       }}
-      title={stars === 5 ? "5★: company look or rainbow Regular theme (rainbow badge)" : "4★: standard Regular theme (gold badge)"}
+      title={stars === 5 ? "5★: company theme or rainbow Regular theme (rainbow badge)" : "4★: standard Regular theme (gold badge)"}
     >
       {stars}
       <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
@@ -75,7 +75,7 @@ export function ThemeCardPreview({ theme, rainbow = false }: { theme: CmsTheme; 
           </small>
         </span>
       </div>
-      <p className="text-xs text-muted">Card preview, as the app shows this look. Fonts the CMS has not loaded fall back.</p>
+      <p className="text-xs text-muted">Card preview, as the app shows this theme. Fonts the CMS has not loaded fall back.</p>
     </div>
   );
 }

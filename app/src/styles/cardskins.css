@@ -1,0 +1,358 @@
+/*
+ * Dashboard card skins (Card Pack prizes). A skin is a set of variables laid over the active theme's own card, so
+ * it reads on every theme: surface layers (--sk-layers, painted over var(--glass)), an edge colour, a shadow and an
+ * optional ring of light around the frame (--sk-ring, drawn by ::after and masked to the 1-2px border band so it
+ * never covers the card's content). 5-star skins move; Reduce motion (.calm) and prefers-reduced-motion stop them.
+ *
+ * Every skin is written once for two places: dashboard cards when the root wears it (data-card-skin), and any
+ * swatch that previews it (.skin-swatch[data-skin]).
+ */
+
+:root[data-card-skin] .cell > .t,
+.skin-swatch {
+  background: var(--sk-layers, linear-gradient(transparent, transparent)), var(--glass);
+  border-color: var(--sk-edge, var(--edge));
+  box-shadow: var(--sk-shadow, var(--card-shadow, none));
+}
+:root[data-card-skin] .cell > .t::after,
+.skin-swatch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--sk-ring-w, 1px);
+  background: var(--sk-ring, none);
+  background-size: var(--sk-ring-size, auto);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  z-index: 4;
+  animation: var(--sk-ring-anim, none);
+}
+
+/* ---------------------------------------------------------------- 4-star: still surfaces */
+
+:root[data-card-skin="carbon-weave"] .cell > .t,
+.skin-swatch[data-skin="carbon-weave"] {
+  --sk-layers:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.06), transparent 40%),
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.32) 0 3px, rgba(255, 255, 255, 0.025) 3px 6px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.28) 0 3px, rgba(255, 255, 255, 0.02) 3px 6px);
+  --sk-edge: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+:root[data-card-skin="brushed-steel"] .cell > .t,
+.skin-swatch[data-skin="brushed-steel"] {
+  --sk-layers:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.09), transparent 30%, rgba(255, 255, 255, 0.05) 62%, transparent 80%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px);
+  --sk-edge: color-mix(in srgb, #c9d3dd 40%, var(--edge));
+  --sk-ring: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.04) 45%);
+}
+
+:root[data-card-skin="blueprint"] .cell > .t,
+.skin-swatch[data-skin="blueprint"] {
+  --sk-layers:
+    linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px) 0 0 / 10px 10px,
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px) 0 0 / 10px 10px,
+    linear-gradient(color-mix(in srgb, var(--accent) 10%, transparent), transparent);
+  --sk-edge: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+:root[data-card-skin="velvet-night"] .cell > .t,
+.skin-swatch[data-skin="velvet-night"] {
+  --sk-layers:
+    radial-gradient(120% 90% at 20% 0%, rgba(118, 76, 196, 0.22), transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, rgba(0, 0, 0, 0.45), transparent 70%),
+    linear-gradient(rgba(14, 8, 28, 0.35), rgba(14, 8, 28, 0.35));
+  --sk-edge: rgba(150, 110, 230, 0.32);
+  --sk-shadow: 0 10px 30px -14px rgba(60, 20, 120, 0.7);
+}
+
+:root[data-card-skin="circuit-trace"] .cell > .t,
+.skin-swatch[data-skin="circuit-trace"] {
+  --sk-layers:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 34%, transparent) 0 2px, transparent 2px) 14px 0 / 2px 28% no-repeat,
+    linear-gradient(color-mix(in srgb, var(--accent) 34%, transparent) 0 2px, transparent 2px) 14px 28% / 26% 2px no-repeat,
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 60%, transparent) 0 3px, transparent 3.5px) calc(14px + 26% - 4px) calc(28% - 3px) / 8px 8px no-repeat,
+    linear-gradient(90deg, transparent 0 2px, color-mix(in srgb, var(--accent) 26%, transparent) 2px 4px, transparent 4px) right 18px bottom 0 / 4px 34% no-repeat,
+    linear-gradient(color-mix(in srgb, var(--accent) 26%, transparent) 0 2px, transparent 2px) right 18px bottom 34% / 22% 2px no-repeat,
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 50%, transparent) 0 3px, transparent 3.5px) right calc(18px + 22% - 4px) bottom calc(34% - 3px) / 8px 8px no-repeat;
+  --sk-edge: color-mix(in srgb, var(--accent) 30%, var(--edge));
+}
+
+:root[data-card-skin="frosted-glass"] .cell > .t,
+.skin-swatch[data-skin="frosted-glass"] {
+  --sk-layers: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03) 40%, rgba(255, 255, 255, 0.06));
+  --sk-edge: rgba(255, 255, 255, 0.22);
+  --sk-ring: linear-gradient(160deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, 0.25));
+  -webkit-backdrop-filter: blur(calc(var(--blur, 12px) + 10px)) saturate(140%);
+  backdrop-filter: blur(calc(var(--blur, 12px) + 10px)) saturate(140%);
+}
+
+:root[data-card-skin="scanline"] .cell > .t,
+.skin-swatch[data-skin="scanline"] {
+  --sk-layers:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 100% at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.35)),
+    linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent), color-mix(in srgb, var(--accent) 6%, transparent));
+  --sk-edge: color-mix(in srgb, var(--accent) 25%, var(--edge));
+}
+
+:root[data-card-skin="gilded-edge"] .cell > .t,
+.skin-swatch[data-skin="gilded-edge"] {
+  --sk-layers:
+    linear-gradient(#e3b13a, #e3b13a) 8px 8px / 14px 1.5px no-repeat,
+    linear-gradient(#e3b13a, #e3b13a) 8px 8px / 1.5px 14px no-repeat,
+    linear-gradient(#e3b13a, #e3b13a) right 8px bottom 8px / 14px 1.5px no-repeat,
+    linear-gradient(#e3b13a, #e3b13a) right 8px bottom 8px / 1.5px 14px no-repeat,
+    radial-gradient(100% 70% at 50% 0%, rgba(227, 177, 58, 0.08), transparent 70%);
+  --sk-edge: rgba(227, 177, 58, 0.55);
+  --sk-ring: linear-gradient(135deg, #f6d77c, #a8781c 40%, #f2cf6d 60%, #8a6114);
+}
+
+:root[data-card-skin="topo-lines"] .cell > .t,
+.skin-swatch[data-skin="topo-lines"] {
+  --sk-layers:
+    repeating-radial-gradient(ellipse 140% 90% at 85% 110%, transparent 0 16px, color-mix(in srgb, var(--text) 8%, transparent) 16px 17px),
+    repeating-radial-gradient(ellipse 90% 120% at -10% -20%, transparent 0 20px, color-mix(in srgb, var(--text) 6%, transparent) 20px 21px);
+  --sk-edge: color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+:root[data-card-skin="hex-mesh"] .cell > .t,
+.skin-swatch[data-skin="hex-mesh"] {
+  --sk-layers:
+    radial-gradient(120% 120% at 100% 0%, transparent 35%, var(--glass) 75%),
+    conic-gradient(from 90deg at 2px 2px, transparent 90deg, color-mix(in srgb, var(--accent) 22%, transparent) 0) 0 0 / 18px 18px,
+    linear-gradient(60deg, transparent 47%, color-mix(in srgb, var(--accent) 16%, transparent) 48% 52%, transparent 53%) 0 0 / 18px 31px,
+    linear-gradient(-60deg, transparent 47%, color-mix(in srgb, var(--accent) 16%, transparent) 48% 52%, transparent 53%) 0 0 / 18px 31px;
+  --sk-edge: color-mix(in srgb, var(--accent) 28%, var(--edge));
+}
+
+:root[data-card-skin="paper-grain"] .cell > .t,
+.skin-swatch[data-skin="paper-grain"] {
+  --sk-layers:
+    repeating-linear-gradient(8deg, rgba(255, 248, 230, 0.025) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(97deg, rgba(255, 248, 230, 0.02) 0 1px, transparent 1px 4px),
+    linear-gradient(rgba(244, 236, 214, 0.06), rgba(244, 236, 214, 0.03));
+  --sk-edge: rgba(244, 236, 214, 0.28);
+  --sk-ring: linear-gradient(rgba(244, 236, 214, 0.18), rgba(244, 236, 214, 0.18));
+  --sk-ring-w: 4px;
+}
+
+:root[data-card-skin="neon-rim"] .cell > .t,
+.skin-swatch[data-skin="neon-rim"] {
+  --sk-edge: var(--accent);
+  --sk-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 8px 26px -10px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 0 18px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+  --sk-layers: radial-gradient(100% 60% at 50% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%);
+}
+
+/* ---------------------------------------------------------------- 5-star: moving light */
+
+@keyframes sk-shift {
+  to { background-position: 200% 0; }
+}
+@keyframes sk-spin {
+  to { --sk-angle: 360deg; }
+}
+@keyframes sk-drift {
+  0% { background-position: 0 0, 0% 0%; }
+  100% { background-position: 0 0, 100% 100%; }
+}
+@property --sk-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+:root[data-card-skin="holo-foil"] .cell > .t,
+.skin-swatch[data-skin="holo-foil"] {
+  --sk-layers:
+    linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.07) 40%, transparent 55%),
+    linear-gradient(125deg, rgba(255, 92, 170, 0.1), rgba(255, 214, 92, 0.08), rgba(92, 255, 170, 0.08), rgba(92, 170, 255, 0.1), rgba(196, 92, 255, 0.1), rgba(255, 92, 170, 0.1)) 0 0 / 300% 300%;
+  --sk-edge: rgba(220, 200, 255, 0.4);
+  --sk-ring: linear-gradient(90deg, #ff5caa, #ffd65c, #5cffaa, #5caaff, #c45cff, #ff5caa);
+  --sk-ring-size: 200% 100%;
+  --sk-ring-anim: sk-shift 6s linear infinite;
+  --sk-card-anim: sk-drift 14s ease-in-out infinite alternate;
+}
+
+:root[data-card-skin="aurora-drift"] .cell > .t,
+.skin-swatch[data-skin="aurora-drift"] {
+  --sk-layers:
+    radial-gradient(60% 50% at 20% 10%, rgba(64, 224, 178, 0.18), transparent 70%) 0 0 / 200% 200%,
+    radial-gradient(55% 45% at 80% 30%, rgba(96, 140, 255, 0.16), transparent 70%) 0 0 / 200% 200%,
+    radial-gradient(70% 50% at 50% 100%, rgba(180, 96, 255, 0.14), transparent 70%) 0 0 / 200% 200%;
+  --sk-edge: rgba(96, 220, 200, 0.35);
+  --sk-ring: linear-gradient(90deg, rgba(64, 224, 178, 0.9), rgba(96, 140, 255, 0.8), rgba(180, 96, 255, 0.9), rgba(64, 224, 178, 0.9));
+  --sk-ring-size: 200% 100%;
+  --sk-ring-anim: sk-shift 10s linear infinite;
+  --sk-card-anim: sk-aurora 18s ease-in-out infinite alternate;
+}
+@keyframes sk-aurora {
+  0% { background-position: 0% 0%, 100% 0%, 50% 100%; }
+  100% { background-position: 60% 40%, 20% 60%, 80% 20%; }
+}
+
+:root[data-card-skin="solar-flare"] .cell > .t,
+.skin-swatch[data-skin="solar-flare"] {
+  --sk-layers: radial-gradient(90% 70% at 100% 0%, rgba(255, 150, 60, 0.16), transparent 65%);
+  --sk-edge: rgba(255, 160, 80, 0.3);
+  --sk-ring-w: 1.5px;
+  --sk-shadow: 0 10px 30px -16px rgba(255, 130, 40, 0.65);
+}
+/* The ring is written on ::after itself: --sk-angle animates there, and a var() resolves where it is declared. */
+:root[data-card-skin="solar-flare"] .cell > .t::after,
+.skin-swatch[data-skin="solar-flare"]::after {
+  background: conic-gradient(from var(--sk-angle), transparent 0 70%, rgba(255, 120, 40, 0.2) 78%, #ffb347 92%, #fff1c9 96%, transparent 100%);
+  animation: sk-spin 5s linear infinite;
+}
+
+:root[data-card-skin="prism-glass"] .cell > .t,
+.skin-swatch[data-skin="prism-glass"] {
+  --sk-layers:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 49.5%, rgba(255, 255, 255, 0.08) 50% 50.5%, transparent 51%),
+    conic-gradient(from var(--sk-angle) at 30% 20%, rgba(255, 90, 90, 0.08), rgba(255, 220, 90, 0.08), rgba(90, 255, 160, 0.08), rgba(90, 160, 255, 0.08), rgba(200, 90, 255, 0.08), rgba(255, 90, 90, 0.08));
+  --sk-edge: rgba(255, 255, 255, 0.3);
+  --sk-ring: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.05) 40%, rgba(160, 200, 255, 0.4) 70%, rgba(255, 255, 255, 0.6));
+  -webkit-backdrop-filter: blur(calc(var(--blur, 12px) + 6px)) saturate(160%);
+  backdrop-filter: blur(calc(var(--blur, 12px) + 6px)) saturate(160%);
+  --sk-card-anim: sk-spin 16s linear infinite;
+}
+
+:root[data-card-skin="molten-core"] .cell > .t,
+.skin-swatch[data-skin="molten-core"] {
+  --sk-layers:
+    radial-gradient(80% 40% at 50% 115%, rgba(255, 96, 32, 0.32), transparent 70%),
+    linear-gradient(100deg, transparent 0 30%, rgba(255, 120, 40, 0.18) 31%, transparent 33% 62%, rgba(255, 150, 60, 0.14) 63%, transparent 65%),
+    linear-gradient(rgba(20, 8, 4, 0.3), rgba(20, 8, 4, 0.3));
+  --sk-edge: rgba(255, 110, 40, 0.45);
+  --sk-shadow: 0 12px 28px -14px rgba(255, 80, 20, 0.75), inset 0 -10px 24px -16px rgba(255, 110, 40, 0.8);
+  --sk-ring: linear-gradient(0deg, #ff6a1f, rgba(255, 106, 31, 0.1) 60%);
+  --sk-card-anim: sk-glow 3.6s ease-in-out infinite alternate;
+}
+@keyframes sk-glow {
+  from { box-shadow: 0 12px 28px -14px rgba(255, 80, 20, 0.55), inset 0 -10px 24px -16px rgba(255, 110, 40, 0.6); }
+  to { box-shadow: 0 12px 32px -12px rgba(255, 80, 20, 0.9), inset 0 -12px 28px -14px rgba(255, 140, 60, 0.95); }
+}
+
+:root[data-card-skin="starfield"] .cell > .t,
+.skin-swatch[data-skin="starfield"] {
+  --sk-layers:
+    radial-gradient(1px 1px at 12% 22%, rgba(255, 255, 255, 0.8), transparent 1.5px) 0 0 / 220px 160px,
+    radial-gradient(1px 1px at 68% 14%, rgba(255, 255, 255, 0.6), transparent 1.5px) 0 0 / 220px 160px,
+    radial-gradient(1.5px 1.5px at 38% 64%, rgba(255, 255, 255, 0.75), transparent 2px) 0 0 / 220px 160px,
+    radial-gradient(1px 1px at 86% 72%, rgba(255, 255, 255, 0.55), transparent 1.5px) 0 0 / 220px 160px,
+    radial-gradient(1px 1px at 22% 88%, rgba(200, 220, 255, 0.6), transparent 1.5px) 0 0 / 220px 160px,
+    radial-gradient(1.5px 1.5px at 56% 38%, rgba(200, 220, 255, 0.7), transparent 2px) 0 0 / 220px 160px,
+    linear-gradient(rgba(6, 8, 22, 0.35), rgba(6, 8, 22, 0.35));
+  --sk-edge: rgba(170, 190, 255, 0.3);
+  --sk-ring: linear-gradient(180deg, rgba(170, 190, 255, 0.5), rgba(170, 190, 255, 0.05));
+  --sk-card-anim: sk-stars 40s linear infinite;
+}
+@keyframes sk-stars {
+  to { background-position: -220px 0, -220px 0, -440px 0, -440px 0, -220px 0, -440px 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-card-skin] .cell > .t,
+  :root[data-card-skin] .cell > .t::after,
+  .skin-swatch,
+  .skin-swatch::after {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------- swatch (preview of a skin) */
+
+.skin-swatch {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 6px;
+  overflow: hidden;
+  min-height: 92px;
+  padding: 10px 12px;
+  border: 1px solid var(--edge);
+  border-radius: min(var(--r, 12px), 14px);
+  color: var(--text);
+}
+.skin-swatch > * { position: relative; z-index: 1; }
+.skin-swatch-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); }
+.skin-swatch-bars { display: grid; align-content: end; gap: 5px; }
+.skin-swatch-bars i { display: block; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.skin-swatch-bars i:first-child { width: 72%; background: var(--accent); }
+.skin-swatch-bars i:last-child { width: 46%; }
+.skin-swatch-name { font-size: 13px; font-weight: 600; }
+
+/* Small swatches: reveal badges, the pack list and the Themes skin picker thumbnails. */
+.skin-swatch.skin-swatch-mini { min-height: 0; padding: 6px; gap: 0; grid-template-rows: 1fr; width: 100%; height: 100%; }
+.warp-pool-swatch.skin-swatch-mini { width: 28px; height: 22px; padding: 0; border-radius: 6px; }
+.gs-tile-skin { display: grid; place-items: stretch; padding: 8px; }
+.gs-tile-skin .skin-swatch-mini { border-radius: 8px; min-height: 40px; }
+
+/* A sample card on the Card Pack poster and in previews. */
+.skin-sample { min-height: 150px; padding: 14px 16px; border-radius: min(var(--r, 12px), 14px); align-content: stretch; }
+.skin-sample .skin-swatch-head { font-size: 12px; text-transform: none; }
+.skin-sample-big { align-self: center; white-space: nowrap; font-size: clamp(34px, 3.6vw, 56px); font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.skin-sample-big small { margin-left: 2px; font-size: 0.4em; font-weight: 500; color: var(--muted); }
+.warp-hero-skin .skin-sample { flex: 1; min-width: 0; height: 100%; }
+.warp-hero-skin[data-rainbow="true"] .skin-sample { box-shadow: var(--sk-shadow, 0 14px 30px -16px rgb(0 0 0 / 0.7)), 0 0 0 1px rgb(195 155 255 / 0.35); }
+
+/* The Cards tab in the Draw rail and the fanned minis in its info panel. */
+.warp-tab[data-kind="cards"] { --warp-hi: #8f7bff; }
+.warp-thumb.skins { gap: 4px; padding: 6px; }
+.warp-thumb.skins .skin-swatch-mini { flex: 1; border-radius: 6px; }
+.warp-mini.skin-swatch.skin-swatch-mini { position: absolute; width: 84px; height: 116px; padding: 8px; border-radius: 8px; }
+
+/* The Widget Pack: a dashboard card itself as a prize (rail thumb, result tile, poster sample). */
+.warp-tab[data-kind="widgets"] { --warp-hi: #5fd1c4; }
+.warp-thumb.widgets { gap: 4px; padding: 6px; }
+.widget-mini { display: grid; align-content: start; gap: 4px; flex: 1; min-width: 0; padding: 6px; border: 1px solid var(--edge-2); border-radius: 6px; background: color-mix(in srgb, var(--text) 7%, var(--bg)); }
+.widget-mini b { font-size: 11px; font-weight: 600; line-height: 1; }
+.widget-mini i { display: block; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+.widget-mini i:first-of-type { width: 70%; background: var(--accent); }
+.warp-mini.widget-mini { position: absolute; width: 84px; height: 116px; padding: 8px; border-radius: 8px; }
+.gs-tile-widget { display: grid; place-items: stretch; padding: 8px; }
+.gs-tile-widget .widget-mini { min-height: 40px; border-radius: 8px; }
+.widget-sample { display: flex; flex-direction: column; gap: 10px; min-height: 150px; padding: 14px 16px; border: 1px solid var(--edge-2); border-radius: min(var(--r, 12px), 14px); background: color-mix(in srgb, var(--text) 6%, var(--bg)); color: var(--text); }
+.widget-sample-head { display: flex; flex-direction: column; gap: 2px; }
+.widget-sample-head b { font-size: 16px; font-weight: 500; }
+.widget-sample-head small { color: var(--dim); font-size: 12px; }
+.widget-sample-blurb { font-size: 13px; line-height: 1.45; }
+.widget-sample-use { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--edge); color: var(--dim); font-size: 11.5px; line-height: 1.4; }
+.warp-hero-skin .widget-sample { flex: 1; min-width: 0; height: 100%; }
+
+/* Themes page: pick the skin every dashboard card wears. */
+.skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.skin-option { display: grid; gap: 4px; padding: 0 0 8px; border: 0; border-radius: 14px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.skin-option-art { height: 96px; min-height: 0; padding: 10px 12px; border-radius: 12px; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.skin-option-art .skin-sample-big { font-size: 26px; }
+.skin-option-plain { position: relative; display: grid; align-content: end; border: 1px solid var(--edge); background: var(--glass); }
+.skin-option-empty .skin-option-art { border: 1px dashed var(--edge-2, var(--edge)); background: none; }
+.skin-option-name { padding: 0 2px; font-size: 13px; font-weight: 600; }
+.skin-option small { display: flex; align-items: center; min-height: 18px; padding: 0 2px; font-size: 12px; color: var(--muted); }
+.skin-option:hover .skin-option-art { transform: translateY(-2px); }
+.skin-option[aria-checked="true"] .skin-option-art { outline: 2px solid var(--accent); outline-offset: 3px; }
+.skin-option:focus-visible { outline: none; }
+.skin-option:focus-visible .skin-option-art { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/*
+ * A moving skin's motion (--sk-card-anim) runs alongside the cards' own fade-in (boot.css: .boot-reveal .cell > *),
+ * never instead of it. Swatches have no fade-in.
+ */
+:root[data-card-skin] .boot-reveal .cell > .t { animation: boot-card 0.5s var(--ease) backwards, var(--sk-card-anim, none); }
+.skin-swatch { animation: var(--sk-card-anim, none); }
+
+/* Locked skins: the sample is dimmed until owned; the price or "Draw only" sits beside its stars. */
+.skin-locked-title { margin: 6px 0 0; font-size: 13px; font-weight: 500; color: var(--muted); }
+.skin-option-locked { cursor: default; }
+.skin-option-locked .skin-option-art { filter: saturate(0.55) brightness(0.72); }
+.skin-option-locked:hover .skin-option-art { transform: none; filter: none; }
+.skin-option-locked small { justify-content: space-between; gap: 8px; }
+.skin-buy { padding: 2px 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.skin-draw { font-size: 12px; }
+.gacha-pick li .skin-swatch-mini { width: 22px; height: 16px; padding: 0; border-radius: 4px; flex: none; }

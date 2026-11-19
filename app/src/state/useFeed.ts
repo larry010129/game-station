@@ -22,6 +22,9 @@ export function useFeed(paused: boolean, onNew?: (items: FeedItem[]) => void, ga
   const known = useRef<Set<string> | null>(null);
   const onNewRef = useRef(onNew);
   onNewRef.current = onNew;
+  /** The game shown now, so a slow answer for the game shown before can be recognised and dropped. */
+  const gameRef = useRef(game);
+  gameRef.current = game;
 
   const apply = useCallback((list: FeedItem[]) => {
     const sorted = byNewest(list);
@@ -68,9 +71,12 @@ export function useFeed(paused: boolean, onNew?: (items: FeedItem[]) => void, ga
   const checkNow = useCallback(async () => {
     setChecking(true);
     try {
-      apply(await refreshFeed(game));
+      const list = await refreshFeed(game);
+      // A full check can take a while. If the user switched games meanwhile, this list belongs to the other
+      // game: showing it would put its stories in this game's feed and announce every one of them as new.
+      if (gameRef.current === game) apply(list);
     } catch {
-      setError("Couldn't check for new stories. Is the service running?");
+      if (gameRef.current === game) setError("Couldn't check for new stories. Is the service running?");
     } finally {
       setChecking(false);
     }

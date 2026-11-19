@@ -15,6 +15,9 @@ import { CheckList, type CheckItem } from "@/components/ui/check-list";
 import { IndicatorStack, MainCard, MetricWidget, PackWidget } from "@/components/ui/widgets";
 import { useDraft } from "../state/DraftContext";
 import {
+  cardAndCheckinErrors,
+  checkinPrizeErrors,
+  cardPackOf,
   nearly100,
   packWeightSum,
   type CmsDraft,
@@ -70,10 +73,29 @@ function readiness(draft: CmsDraft, saved: { ok: boolean; note: string }): Check
   });
   items.push({
     id: "look-cost",
-    label: "Look cost is set",
+    label: "Theme cost is set",
     status: draft.economy.lookCost > 0 ? "ok" : "fail",
     value: draft.economy.lookCost > 0 ? `${draft.economy.lookCost}` : undefined,
-    note: "The cost to unlock one look must be above zero.",
+    note: "The cost to unlock one theme must be above zero.",
+  });
+  // Card Pack and check-in event: the same rules publish enforces (cardAndCheckinErrors), one row each.
+  const cardErrors = cardAndCheckinErrors(draft);
+  const card = cardErrors.filter((e) => e.startsWith("Card Pack"));
+  const checkin = [...cardErrors.filter((e) => e.startsWith("Check-in")), ...checkinPrizeErrors(draft)];
+  const cp = cardPackOf(draft);
+  items.push({
+    id: "card-pack",
+    label: "Card Pack is ready",
+    status: card.length ? "fail" : "ok",
+    value: cp.enabled ? undefined : "Off",
+    note: card.length ? `${card.join(". ")}. Fix it on Cards.` : "Odds total 100%, prices and pity are set, and at least one skin is Available.",
+  });
+  items.push({
+    id: "checkin-event",
+    label: "Check-in dates and prizes are valid",
+    status: checkin.length ? "fail" : "ok",
+    value: draft.checkinEvent ? undefined : "Always on",
+    note: checkin.length ? `${checkin.join(". ")}. Fix it on Calendar.` : "With no dates the daily check-in board is always on.",
   });
   items.push({
     id: "saved",

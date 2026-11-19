@@ -1,0 +1,11 @@
+# Generated output graphify should not index (rendered frames, icons, build caches)
+graphify-out/
+brag-output/
+gacha-remotion/out/
+**/src-tauri/icons/
+cms/.vite/
+cms/data/uploads/
+app/dist-gallery/
+*.mp4
+*.mp3
+*.webm

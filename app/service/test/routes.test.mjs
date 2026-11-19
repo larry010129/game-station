@@ -40,3 +40,25 @@ test("the route table has no duplicate-shaped or non-function entries", () => {
     assert.equal(typeof fn, "function", k);
   }
 });
+
+test("C5: game-mode status waits for startup recovery instead of reporting leftovers as still on", async () => {
+  const { d } = stubs();
+  let entries = [{ step: { id: "power" } }];
+  let finish;
+  const recovered = new Promise((r) => (finish = r));
+  d.gameMode = { ...d.gameMode, journal: () => ({ entries }), whenRecovered: async () => (await recovered, true) };
+  const r = createRoutes(d);
+  const pending = r["GET /api/gamemode/active"]();
+  // Recovery undoes the leftover step, then finishes.
+  entries = [];
+  finish();
+  const status = await pending;
+  assert.equal(status.active, false, "the leftovers were being undone, not on");
+
+  // Recovery still running past the wait: say so, and do not claim game mode is on.
+  entries = [{ step: { id: "power" } }];
+  d.gameMode.whenRecovered = async () => false;
+  const slow = await createRoutes(d)["GET /api/gamemode/active"]();
+  assert.equal(slow.active, false);
+  assert.equal(slow.recovering, true);
+});

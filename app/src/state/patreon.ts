@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { api } from "../lib/api";
-import { readJson, writeJson } from "../lib/storage";
+import { api } from "../lib/api.ts";
+import { readJson, writeJson } from "../lib/storage.ts";
 
 /** What the service reports about the Patreon sign-in (see service/patreon.mjs). */
 export interface PatreonStatus {
@@ -24,18 +24,42 @@ export interface Entitlement {
   basic: boolean;
   brand: boolean;
   tierName: string | null;
+  /** When Patreon last confirmed this answer (ms). The saved copy stops counting after ENTITLEMENT_GRACE_MS. */
+  checkedAt: number;
 }
+
+/** Same as the service's OFFLINE_GRACE_MS (service/patreon.mjs): a copy nobody has refreshed for this long is off. */
+export const ENTITLEMENT_GRACE_MS = 14 * 24 * 3600_000;
 
 const KEY = "cs.patreon";
-const NONE: Entitlement = { basic: false, brand: false, tierName: null };
+const none = (now: number): Entitlement => ({ basic: false, brand: false, tierName: null, checkedAt: now });
+/** A stable "no unlocks" for useSyncExternalStore's server snapshot. */
+const SERVER_NONE = none(0);
 
-function clean(raw: unknown): Entitlement {
+/**
+ * Reads a saved copy. Without a fresh answer from the service it lasts ENTITLEMENT_GRACE_MS, so a canceled pledge
+ * cannot keep its unlocks just because the service is not answering. A copy saved before `checkedAt` existed is
+ * kept and its grace starts now.
+ */
+export function cleanEntitlement(raw: unknown, now: number = Date.now()): Entitlement {
   const o = raw as Partial<Entitlement> | null;
-  if (!o || typeof o !== "object") return NONE;
-  return { basic: o.basic === true, brand: o.brand === true, tierName: typeof o.tierName === "string" ? o.tierName : null };
+  if (!o || typeof o !== "object") return none(now);
+  const checkedAt = typeof o.checkedAt === "number" && Number.isFinite(o.checkedAt) ? o.checkedAt : now;
+  if (now - checkedAt > ENTITLEMENT_GRACE_MS) return none(now);
+  return { basic: o.basic === true, brand: o.brand === true, tierName: typeof o.tierName === "string" ? o.tierName : null, checkedAt };
 }
 
-let cache: Entitlement = clean(readJson<unknown>(KEY, null));
+/** Reads the saved copy and, when it had no time or has expired, saves the cleaned copy back. */
+export function loadEntitlement(now: number = Date.now()): Entitlement {
+  const raw = readJson<unknown>(KEY, null);
+  const clean = cleanEntitlement(raw, now);
+  const rawAt = (raw as { checkedAt?: unknown } | null)?.checkedAt;
+  // An older save gets its grace from now: keep that time, or every launch would start the grace again.
+  if (raw != null && rawAt !== clean.checkedAt) writeJson(KEY, clean);
+  return clean;
+}
+
+let cache: Entitlement = loadEntitlement();
 const listeners = new Set<() => void>();
 const subscribe = (f: () => void) => {
   listeners.add(f);
@@ -46,11 +70,13 @@ const subscribe = (f: () => void) => {
 
 /** Records the service answer. Unlocks come only from Patreon, so nothing earned is ever written here. */
 export function setPatreonStatus(s: PatreonStatus): void {
-  const next: Entitlement = { basic: s.basic === true, brand: s.brand === true, tierName: s.tierName ?? null };
-  if (next.basic === cache.basic && next.brand === cache.brand && next.tierName === cache.tierName) return;
+  const checkedAt = typeof s.checkedAt === "number" ? s.checkedAt : Date.now();
+  const next: Entitlement = { basic: s.basic === true, brand: s.brand === true, tierName: s.tierName ?? null, checkedAt };
+  const same = next.basic === cache.basic && next.brand === cache.brand && next.tierName === cache.tierName;
   cache = next;
+  // Save every answer (its time too), so the grace counts from the service's last good check.
   writeJson(KEY, next);
-  listeners.forEach((f) => f());
+  if (!same) listeners.forEach((f) => f());
 }
 
 /** Reads the service Patreon state and mirrors the unlocks. Null when the service does not answer. */
@@ -81,7 +107,7 @@ export async function patreonLogout(): Promise<PatreonStatus> {
 
 /** The unlocks Patreon gives right now (Basic and Brand). Everything else, like earned looks, is separate. */
 export function usePatreonEntitlement(): Entitlement {
-  return useSyncExternalStore(subscribe, () => cache, () => NONE);
+  return useSyncExternalStore(subscribe, () => cache, () => SERVER_NONE);
 }
 
 /**

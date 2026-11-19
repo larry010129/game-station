@@ -74,18 +74,19 @@ export function grantInto(s: ItemsState, id: string): ItemsState {
 
 export const readItems = (): ItemsState => cleanItems(readJson<unknown>(ITEMS_KEY, null));
 
-function writeItems(s: ItemsState): void {
-  writeJson(ITEMS_KEY, s);
+/** False when the store refused the write. */
+function writeItems(s: ItemsState): boolean {
+  return writeJson(ITEMS_KEY, s);
 }
 
 /**
  * Persists a grant. Stackables always add; one-time already owned is a no-op
  * (caller awards crystals from `DrawResult.item.repeat`).
  */
-export function grantItem(id: string): void {
+export function grantItem(id: string): boolean {
   const prev = readItems();
   const next = grantInto(prev, id);
-  if (next !== prev) writeItems(next);
+  return next === prev ? true : writeItems(next);
 }
 
 /** Owned one-time ids (for drawMany `owned.items` / packExhausted). */

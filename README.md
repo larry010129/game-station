@@ -6,9 +6,9 @@
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)](#install)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB?logo=tauri&logoColor=white)](https://tauri.app)
-[![Version](https://img.shields.io/badge/version-0.2.0-informational)](app/src-tauri/tauri.conf.json)
+[![Version](https://img.shields.io/badge/version-0.3.0-informational)](app/src-tauri/tauri.conf.json)
 
-Live thermals and load · one-tap game mode with undo · Overwatch news & free leak feed · Counterwatch meta · media · calendar · Vault
+Live thermals and load · one-tap game mode with undo · Overwatch news & free leak feed · Counterwatch meta · media · calendar · Vault · Payroll quests, daily check-in, Season Pass, perks and a theme gacha
 
 </div>
 
@@ -41,6 +41,16 @@ No screenshot asset is checked into the repo yet. For UI reference, see [`design
 | **Media** | Windows now-playing, optional Spotify, Elgato Wave Link when running |
 | **Vault** | Sources, alerts, game-mode lists, appearance, backup/restore |
 | **Layout** | Arrange and resize cards; Home starts with a first-run set |
+| **Quests** | Daily, weekly, monthly and one-time quests. Payroll pays Income (10 an hour of counted play) and you claim each quest once |
+| **Check-in** | Its own page: a 7-day board (six boxes and a tall Day 7). Open the station each day to claim the next box; a missed day only pauses it. Boxes pay Draw Tickets or an item, set in the CMS, optionally as a dated event. The tab shows a dot when a box is ready |
+| **Pass** | Season Pass: 30 levels, a free row and a Patreon row, XP from play and quests |
+| **Perks** | A branching perk tree; Perk Points come from your player level (app time) |
+| **Draw** | Gacha machine for themes, card skins, dashboard cards and items. Credits and Draw Tickets cannot be bought |
+| **Wiki** | Every drawable prize and draw rule, built from the live content release, with a collection hub, odds and a live Showcase of each card; plus a Skill tree section with every class and node |
+| **News** | News and Notices boards with unread dots |
+| **Profile / Achievements** | Station ID, totals and equipped items; 22 achievements in 5 categories |
+| **Themes** | The look library (first 30 free) and card-skin picker |
+| **Language** | English or Traditional Chinese (繁體中文, Taiwan usage), switched in Vault. The top bar, tabs, Check-in and Quests are translated; other pages follow |
 
 ## Install
 
@@ -114,6 +124,12 @@ Do not delete `journal.json` while game mode is on, or undo is lost.
 | [app/docs/TROUBLESHOOTING.md](app/docs/TROUBLESHOOTING.md) | Ports, CORS, journal, empty feed, Rollup / SAC |
 | [app/README.md](app/README.md) | Service API, config keys, data folder, cards |
 | [app/docs/DEVELOPMENT.md](app/docs/DEVELOPMENT.md) | Contributor scripts, build, repo layout |
+| [app/docs/ADDING-CONTENT.md](app/docs/ADDING-CONTENT.md) | Adding cards, themes, skins and items |
+| [app/docs/content-updates.md](app/docs/content-updates.md) | Signed CMS releases, check-in event and prizes |
+| [PLAN.md](PLAN.md) | Product rules: looks, gacha, Patreon, earn, quests, check-in |
+| [UI REFERENCE PLAN.md](UI%20REFERENCE%20PLAN.md) | The eight UI slices, perk tree and player levels |
+| [NEXT SESSION.md](NEXT%20SESSION.md) | What to decide and build next |
+| [CHANGES INVENTORY.md](CHANGES%20INVENTORY.md) | Every changed area and where it is documented |
 
 For developers, see [DEVELOPMENT.md](app/docs/DEVELOPMENT.md).
 

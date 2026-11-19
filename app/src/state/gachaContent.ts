@@ -1,4 +1,5 @@
 import { idsTagged, isRegionKey } from "../content/brandTags.ts";
+import { CARD_SKINS, isCardSkinId } from "./cardSkins.ts";
 
 /**
  * Bundled gacha tables, items and prices (Phase 1). Data only — no React, storage or draws.
@@ -14,7 +15,7 @@ export const TICKET_KINDS: readonly TicketKind[] = ["regular", "special"];
 export const TICKET_NAME: Record<TicketKind, string> = { regular: "Regular Ticket", special: "Special Ticket" };
 
 /** Which ticket each pack takes when a release does not say: Regular for the Regular Pack, Special for the rest. */
-export const DEFAULT_PACK_TICKETS: Record<PackId, TicketKind> = { regular: "regular", brand: "special", region: "special" };
+export const DEFAULT_PACK_TICKETS: Record<PackId, TicketKind> = { regular: "special", brand: "special", region: "special" };
 
 /** True for the packs that give company (Brand-group) looks. */
 export const isCompanyPack = (pack: PackId): boolean => pack !== "regular";
@@ -144,6 +145,266 @@ export interface GachaContent {
    * Regular theme row in every pack and can be picked with Regular crystals. They stay out of Credit purchases.
    */
   regularExtraIds?: readonly string[];
+  /** CMS: prize ids (themes, card skins, items) kept off the Draw Wiki so they are not spoiled. Absent: none. */
+  wikiHiddenIds?: readonly string[];
+  /** CMS: a single Credits gain above this amount shows the cash bundle in place of the coins. Absent: 100. */
+  creditBigAmount?: number;
+  /** CMS Card Pack (dashboard card skins). Absent (older releases): the bundled BUNDLED_CARD_PACK. */
+  cardPack?: CardPackContent;
+  /**
+   * CMS Widget Pack: the dashboard cards themselves as prizes. Same rules as the Card Pack. A card it does not list is
+   * Free. Absent (older releases): BUNDLED_WIDGET_PACK, which lists none, so every card is Free.
+   */
+  widgetPack?: WidgetPackContent;
+  /**
+   * CMS check-in event: the daily check-in board can be claimed only from `start` until `end` (local times,
+   * "YYYY-MM-DDTHH:mm"). Absent or null: the board is always on.
+   */
+  checkinEvent?: CheckinEvent | null;
+  /**
+   * CMS: what each check-in day pays, Day 1 to Day 7: a Draw Ticket (Regular or Special) or an item from `items`, and
+   * how many. Absent: DEFAULT_CHECKIN_PRIZES.
+   */
+  checkinPrizes?: readonly CheckinPrize[];
+}
+
+/** One check-in box: tickets of a kind, or an item from the catalog. One-time items pay 1. */
+export type CheckinPrize = { kind: TicketKind; count: number } | { kind: "item"; id: string; count: number };
+
+/** The check-in board has seven boxes. */
+export const CHECKIN_DAYS = 7;
+/** The most of one thing a box can pay. */
+export const CHECKIN_MAX_COUNT = 99;
+
+/** Default board: Special Tickets every day, 2 on Day 3 and 3 on Day 7. */
+export const DEFAULT_CHECKIN_PRIZES: readonly CheckinPrize[] = [
+  { kind: "special", count: 1 },
+  { kind: "special", count: 1 },
+  { kind: "special", count: 2 },
+  { kind: "special", count: 1 },
+  { kind: "special", count: 1 },
+  { kind: "special", count: 1 },
+  { kind: "special", count: 3 },
+];
+
+/** True for seven well formed boxes; an item must be in `items`, and a one-time item pays exactly 1. */
+export function validCheckinPrizes(raw: unknown, items: readonly ItemDef[]): raw is CheckinPrize[] {
+  if (!Array.isArray(raw) || raw.length !== CHECKIN_DAYS) return false;
+  return raw.every((p) => {
+    if (!p || typeof p !== "object") return false;
+    const { kind, count, id } = p as Record<string, unknown>;
+    if (!(Number.isInteger(count) && (count as number) >= 1 && (count as number) <= CHECKIN_MAX_COUNT)) return false;
+    if (kind === "regular" || kind === "special") return true;
+    if (kind !== "item" || typeof id !== "string") return false;
+    const item = items.find((i) => i.id === id);
+    return !!item && (item.stackable || count === 1);
+  });
+}
+
+/** What each check-in day pays in this release. */
+export function checkinPrizesOf(content: GachaContent = active): readonly CheckinPrize[] {
+  return content.checkinPrizes ?? DEFAULT_CHECKIN_PRIZES;
+}
+
+/** When the check-in board runs, as local date-times "YYYY-MM-DDTHH:mm" (start inclusive, end exclusive). */
+export interface CheckinEvent {
+  start: string;
+  end: string;
+}
+
+export type CardSkinStatus = "Hidden" | "Available" | "Archived";
+
+/** A skin as one release runs it: its stars there and whether it can be drawn (Available), only kept (Archived) or not shown (Hidden). */
+export interface CardPackSkin {
+  id: string;
+  stars: 4 | 5;
+  status: CardSkinStatus;
+  /** CMS only: the row is locked against edits there. The app ignores it. */
+  locked?: boolean;
+}
+
+/**
+ * Buying a skin outright instead of drawing it. A price of null means that tier is draw-only. `crystalPick` lets
+ * Regular crystals (the Regular theme pick cost) buy a 4-star skin too.
+ */
+export interface CardBuy {
+  fourPrice: number | null;
+  fivePrice: number | null;
+  crystalPick: boolean;
+}
+
+/** A dashboard card as one release runs it. Free: anyone can add it. The rest are locked until owned. */
+export type WidgetStatus = "Free" | CardSkinStatus;
+
+export interface WidgetPackCard {
+  id: string;
+  stars: 4 | 5;
+  status: WidgetStatus;
+  /** CMS only: the row is locked against edits there. The app ignores it. */
+  locked?: boolean;
+}
+
+/** The Widget Pack: the Card Pack's rules, drawing dashboard cards (`widgets`) instead of skins. */
+export interface WidgetPackContent extends Omit<CardPackContent, "skins"> {
+  widgets: readonly WidgetPackCard[];
+}
+
+export const DEFAULT_CARD_BUY: CardBuy = { fourPrice: 300, fivePrice: null, crystalPick: true };
+
+/**
+ * The Card Pack: dashboard card skins at 4 and 5 stars, with items filling the other rows. It has its own price,
+ * ticket, odds and two pity counters (a 4-star-or-better guarantee and a 5-star guarantee with soft pity).
+ */
+export interface CardPackContent {
+  enabled: boolean;
+  /** The Draw Ticket the pack takes. */
+  ticket: TicketKind;
+  priceOne: number;
+  priceTen: number;
+  /** Row chances per draw (sum 1). Better and Common item rows use the Regular Pack's inner item weights. */
+  weights: { five: number; four: number; better: number; common: number };
+  /** A 4-star-or-better skin is forced after this many draws without one (9: by the 10th draw). */
+  fourPityAfter: number;
+  /** A 5-star skin is forced after this many draws without one (69: by the 70th draw). */
+  fivePityAfter: number;
+  /** Soft pity for the 5-star chance. Absent: no climb before the guaranteed draw. */
+  softPity?: SoftPity;
+  /** Regular crystals a repeat skin pays. */
+  crystalValues: { four: number; five: number };
+  /** The skins this release runs. Ids the app does not know are ignored. */
+  skins: readonly CardPackSkin[];
+  /** Buying skins outright. Absent: DEFAULT_CARD_BUY. */
+  buy?: CardBuy;
+}
+
+/** Card Pack default (GACHA REDESIGN.md, Card Pack): every bundled skin Available at its own stars. */
+export const BUNDLED_CARD_PACK: CardPackContent = {
+  enabled: true,
+  ticket: "special",
+  priceOne: 120,
+  priceTen: 1080,
+  weights: { five: 0.01, four: 0.1, better: 0.25, common: 0.64 },
+  fourPityAfter: 9,
+  fivePityAfter: 69,
+  softPity: { from: 60, curve: 1 },
+  crystalValues: { four: 2, five: 5 },
+  buy: DEFAULT_CARD_BUY,
+  skins: CARD_SKINS.map((s) => ({ id: s.id, stars: s.stars, status: "Available" as const })),
+};
+
+/** Widget Pack default: the Card Pack's numbers and no cards listed, so every card is Free until a release locks some. */
+export const BUNDLED_WIDGET_PACK: WidgetPackContent = (() => {
+  const { skins: _skins, ...rules } = BUNDLED_CARD_PACK;
+  return { ...rules, widgets: [] };
+})();
+
+const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/** True for a well formed check-in window whose end is after its start. */
+export function validCheckinEvent(e: unknown): e is CheckinEvent {
+  if (!e || typeof e !== "object") return false;
+  const { start, end } = e as Record<string, unknown>;
+  return typeof start === "string" && typeof end === "string" && LOCAL_DATETIME.test(start) && LOCAL_DATETIME.test(end) && start < end;
+}
+
+/** True for a well formed Card Pack table (`kind: "widgets"`: a Widget Pack, listing `widgets` that may be Free). */
+export function validCardPack(raw: unknown, kind: "skins" | "widgets" = "skins"): raw is CardPackContent {
+  if (!raw || typeof raw !== "object") return false;
+  const c = raw as CardPackContent;
+  if (typeof c.enabled !== "boolean" || !TICKET_KINDS.includes(c.ticket)) return false;
+  if (!(c.priceOne > 0) || !(c.priceTen > 0)) return false;
+  const w = c.weights;
+  if (!w || typeof w !== "object") return false;
+  for (const k of ["five", "four", "better", "common"] as const) if (!(typeof w[k] === "number" && w[k] >= 0)) return false;
+  if (Math.abs(w.five + w.four + w.better + w.common - 1) > 1e-9) return false;
+  if (!(Number.isInteger(c.fourPityAfter) && c.fourPityAfter >= 0)) return false;
+  if (!(Number.isInteger(c.fivePityAfter) && c.fivePityAfter >= 0)) return false;
+  if (c.softPity !== undefined) {
+    const sp = c.softPity;
+    if (!sp || !(Number.isInteger(sp.from) && sp.from >= 1)) return false;
+    if (!(typeof sp.curve === "number" && sp.curve >= SOFT_CURVE_MIN && sp.curve <= SOFT_CURVE_MAX)) return false;
+  }
+  const cv = c.crystalValues;
+  if (!cv || !(Number.isInteger(cv.four) && cv.four >= 0) || !(Number.isInteger(cv.five) && cv.five >= 0)) return false;
+  const list = kind === "widgets" ? (c as unknown as WidgetPackContent).widgets : c.skins;
+  if (!Array.isArray(list)) return false;
+  const seen = new Set<string>();
+  for (const s of list as readonly WidgetPackCard[]) {
+    if (!s || typeof s.id !== "string" || !s.id || seen.has(s.id)) return false;
+    if (s.stars !== 4 && s.stars !== 5) return false;
+    if (s.status !== "Hidden" && s.status !== "Available" && s.status !== "Archived" && !(kind === "widgets" && s.status === "Free")) return false;
+    if (s.locked !== undefined && typeof s.locked !== "boolean") return false;
+    seen.add(s.id);
+  }
+  if (c.buy !== undefined) {
+    const b = c.buy;
+    const price = (v: unknown) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0);
+    if (!b || typeof b !== "object" || !price(b.fourPrice) || !price(b.fivePrice) || typeof b.crystalPick !== "boolean") return false;
+  }
+  return true;
+}
+
+/** How skins can be bought in this release. */
+export function cardBuyOf(content: GachaContent = active): CardBuy {
+  return cardPackOf(content).buy ?? DEFAULT_CARD_BUY;
+}
+
+/** Credits to buy a skin now, or null when it cannot be bought (draw-only tier, or not Available). */
+export function skinPrice(id: string, content: GachaContent = active): number | null {
+  const s = cardPackSkins(content).find((x) => x.id === id);
+  if (!s || s.status !== "Available") return null;
+  const b = cardBuyOf(content);
+  return s.stars === 5 ? b.fivePrice : b.fourPrice;
+}
+
+/** The Card Pack of a release (the bundled one when the release has none). */
+export function cardPackOf(content: GachaContent = active): CardPackContent {
+  return content.cardPack ?? BUNDLED_CARD_PACK;
+}
+
+/** The Widget Pack of a release (the bundled one, listing no cards, when the release has none). */
+export function widgetPackOf(content: GachaContent = active): WidgetPackContent {
+  return content.widgetPack ?? BUNDLED_WIDGET_PACK;
+}
+
+/** A card's status in this release: Free when the Widget Pack does not list it. */
+export function widgetStatus(id: string, content: GachaContent = active): WidgetStatus {
+  return widgetPackOf(content).widgets.find((w) => w.id === id)?.status ?? "Free";
+}
+
+/** True when the Card Pack is on. */
+export const cardPackOn = (content: GachaContent = active): boolean => cardPackOf(content).enabled;
+
+/** Skins of the release the app knows (unknown ids dropped), with their stars and status. */
+export function cardPackSkins(content: GachaContent = active): CardPackSkin[] {
+  return cardPackOf(content).skins.filter((s) => isCardSkinId(s.id));
+}
+
+/** Skins that can be drawn now (Available), by stars. */
+export function drawableSkins(stars: 4 | 5, content: GachaContent = active): string[] {
+  return cardPackSkins(content)
+    .filter((s) => s.status === "Available" && s.stars === stars)
+    .map((s) => s.id);
+}
+
+/** The stars a skin has in this release (its bundled stars when the release does not list it). */
+export function skinStars(id: string, content: GachaContent = active): 4 | 5 {
+  return cardPackSkins(content).find((s) => s.id === id)?.stars ?? CARD_SKINS.find((s) => s.id === id)?.stars ?? 4;
+}
+
+/** True when the check-in window is open at `now` (no window: always). */
+export function checkinOpen(now: Date, content: GachaContent = active): boolean {
+  const e = content.checkinEvent;
+  if (!e) return true;
+  const at = localStamp(now);
+  return at >= e.start && at < e.end;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** A Date as a local "YYYY-MM-DDTHH:mm" stamp, comparable as a string with the check-in window. */
+export function localStamp(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 /** One run in the Brand Pack's featured queue. */
@@ -223,6 +484,9 @@ export const RAINBOW_THEME_IDS: readonly string[] = [
 /** Brand Pack rotation seed list: every theme whose tags include "brand" (content/brandTags.ts), in table order. */
 export const BRAND_THEME_IDS: readonly string[] = idsTagged("brand");
 
+/** Used when a release does not set `creditBigAmount`. Quests and the season pass pay 5 to 20 today, well under it. */
+export const CREDIT_BIG_AMOUNT_DEFAULT = 100;
+
 export const BUNDLED_CONTENT: GachaContent = {
   lookCost: 120,
   lookPityAfter: 9,
@@ -234,6 +498,7 @@ export const BUNDLED_CONTENT: GachaContent = {
   regularCrystalCost: 10,
   brandPrismCost: 5,
   couponCreditValue: 15,
+  creditBigAmount: CREDIT_BIG_AMOUNT_DEFAULT,
   crystalValues: { common: 1, better: 2, regularTheme: 3, brandTheme: 5, customUpload: 5 },
   brandEpoch: "2024-01-01",
   brandFortnightDays: 14,
@@ -299,6 +564,7 @@ export function validateContent(raw: unknown): raw is GachaContent {
     for (const [k, v] of Object.entries(c.packTickets)) if (!(k in DEFAULT_PACK_TICKETS) || !TICKET_KINDS.includes(v as TicketKind)) return false;
   }
   if (c.rainbowPityAfter !== undefined && !(typeof c.rainbowPityAfter === "number" && c.rainbowPityAfter >= 0)) return false;
+  if (c.creditBigAmount !== undefined && !(typeof c.creditBigAmount === "number" && Number.isFinite(c.creditBigAmount) && c.creditBigAmount >= 0)) return false;
   const cv = c.crystalValues;
   if (!cv || typeof cv !== "object") return false;
   for (const k of ["common", "better", "regularTheme", "brandTheme", "customUpload"] as const) if (!(typeof cv[k] === "number" && cv[k] >= 0)) return false;
@@ -316,10 +582,15 @@ export function validateContent(raw: unknown): raw is GachaContent {
     if (!Array.isArray(x) || !x.every((id) => typeof id === "string" && id.length > 0) || new Set(x).size !== x.length) return false;
     if (x.some((id) => c.brandThemeIds.includes(id))) return false;
   }
+  if (c.cardPack !== undefined && !validCardPack(c.cardPack)) return false;
+  if (c.widgetPack !== undefined && !validCardPack(c.widgetPack, "widgets")) return false;
+  if (c.checkinEvent !== undefined && c.checkinEvent !== null && !validCheckinEvent(c.checkinEvent)) return false;
+  if (c.checkinPrizes !== undefined && !validCheckinPrizes(c.checkinPrizes, Array.isArray(c.items) ? c.items : [])) return false;
   if (c.regularExtraIds !== undefined) {
     const x = c.regularExtraIds;
     if (!Array.isArray(x) || !x.every((id) => typeof id === "string" && id.length > 0) || new Set(x).size !== x.length) return false;
   }
+  if (c.wikiHiddenIds !== undefined && !(Array.isArray(c.wikiHiddenIds) && c.wikiHiddenIds.every((id) => typeof id === "string" && id.length > 0))) return false;
   const ids = new Set(c.items.map((i) => i.id));
   if (!ids.has("streak-freeze") || !ids.has("custom-upload")) return false;
   for (const pack of [c.packs.regular, c.packs.brand, ...(c.packs.region ? [c.packs.region] : [])]) {
@@ -362,6 +633,16 @@ export function ticketFor(pack: PackId, content = active): TicketKind {
 /** Theme ids the CMS added back into the Regular pool. */
 export function regularExtraIds(content = active): readonly string[] {
   return content.regularExtraIds ?? [];
+}
+
+/** A single Credits gain above this amount is a big one. Read at use time, so a new release takes effect at once. */
+export function creditBigAmount(content = active): number {
+  return content.creditBigAmount ?? CREDIT_BIG_AMOUNT_DEFAULT;
+}
+
+/** True when one gain of `amount` Credits is above the CMS amount. A gain of exactly that amount is not big. */
+export function isBigCreditGain(amount: number, content = active): boolean {
+  return amount > creditBigAmount(content);
 }
 
 /** Rainbow (5-star) Regular theme ids. A release without the list has none (no rainbow tier). */

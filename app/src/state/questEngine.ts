@@ -7,7 +7,6 @@
  */
 
 export type Period = "daily" | "weekly" | "monthly" | "once";
-export type RankId = "recruit" | "regular" | "veteran" | "night";
 
 /** What a quest counts. */
 export type Metric =
@@ -29,8 +28,6 @@ export interface QuestDef {
   metric: Metric;
   /** For one-time starters: which tracked action completes it. */
   event?: OnceEvent;
-  /** The lowest rank that sees this quest. */
-  minRank?: RankId;
 }
 
 export type OnceEvent = "look" | "calendar" | "vault" | "star";
@@ -41,10 +38,10 @@ export const QUESTS: readonly QuestDef[] = [
   { id: "checkin", period: "daily", title: "Station check-in", blurb: "Open the station once a day.", credits: 5, target: 1, metric: "checkin" },
   { id: "thirty", period: "daily", title: "Thirty on the clock", blurb: "30 counted minutes today.", credits: 8, target: 30, metric: "minutes" },
   { id: "arm", period: "daily", title: "Arm game mode", blurb: "Turn game mode on today.", credits: 6, target: 1, metric: "armed" },
-  { id: "longwatch", period: "daily", title: "Long watch", blurb: "One finished session of 45 minutes or more today.", credits: 12, target: 1, metric: "longSession", minRank: "veteran" },
-  { id: "nightwatch", period: "daily", title: "Night watch", blurb: "90 counted minutes today.", credits: 15, target: 90, metric: "minutes", minRank: "night" },
+  { id: "longwatch", period: "daily", title: "Long watch", blurb: "One finished session of 45 minutes or more today.", credits: 12, target: 1, metric: "longSession" },
+  { id: "nightwatch", period: "daily", title: "Night watch", blurb: "90 counted minutes today.", credits: 15, target: 90, metric: "minutes" },
 
-  { id: "weeklook", period: "weekly", title: "Weekly look", blurb: "Check in on 5 different days this week, then pick 1 locked look to unlock free.", credits: 0, target: 5, metric: "checkin" },
+  { id: "weeklook", period: "weekly", title: "Weekly theme", blurb: "Check in on 5 different days this week, then pick 1 locked theme to unlock free.", credits: 0, target: 5, metric: "checkin" },
   { id: "threehour", period: "weekly", title: "Three-hour week", blurb: "180 counted minutes this week.", credits: 12, target: 180, metric: "minutes" },
   { id: "armed3", period: "weekly", title: "Armed three times", blurb: "Game mode on, on 3 different days this week.", credits: 8, target: 3, metric: "armed" },
 
@@ -52,28 +49,16 @@ export const QUESTS: readonly QuestDef[] = [
   { id: "tenhour", period: "monthly", title: "Ten-hour month", blurb: "600 counted minutes this month.", credits: 20, target: 600, metric: "minutes" },
   { id: "armed8", period: "monthly", title: "Eight armed days", blurb: "Game mode on, on 8 different days this month.", credits: 15, target: 8, metric: "armed" },
 
-  { id: "look", period: "once", title: "Apply a look", blurb: "Apply any look.", credits: 15, target: 1, metric: "event", event: "look" },
+  { id: "look", period: "once", title: "Apply a theme", blurb: "Apply any theme.", credits: 15, target: 1, metric: "event", event: "look" },
   { id: "calendar", period: "once", title: "Open Calendar", blurb: "Open the Calendar page.", credits: 10, target: 1, metric: "event", event: "calendar" },
   { id: "vault", period: "once", title: "Open Vault", blurb: "Open the Vault.", credits: 10, target: 1, metric: "event", event: "vault" },
-  { id: "star", period: "once", title: "Star a theme", blurb: "Star a theme. Pays Credits; every look stays locked.", credits: 12, target: 1, metric: "event", event: "star", minRank: "regular" },
+  { id: "star", period: "once", title: "Star a theme", blurb: "Star a theme. Pays Income; every theme stays locked.", credits: 12, target: 1, metric: "event", event: "star" },
 ];
 
-export interface Rank {
-  id: RankId;
-  name: string;
-  /** Counted minutes and claimed tasks needed to reach it. */
-  minutes: number;
-  tasks: number;
-  /** One Credit per this many counted minutes. */
-  perCredit: number;
-}
-
-export const RANKS: readonly Rank[] = [
-  { id: "recruit", name: "Recruit", minutes: 0, tasks: 0, perCredit: 6 },
-  { id: "regular", name: "Regular", minutes: 180, tasks: 5, perCredit: 5 },
-  { id: "veteran", name: "Veteran", minutes: 600, tasks: 15, perCredit: 3 },
-  { id: "night", name: "Night", minutes: 1500, tasks: 40, perCredit: 2 },
-];
+/** Play pays 1 Income per this many counted minutes. The same for everyone (there are no ranks). */
+export const MINUTES_PER_INCOME = 6;
+/** Income per counted hour of play, before perks. */
+export const INCOME_PER_HOUR = 60 / MINUTES_PER_INCOME;
 
 /** What one local day recorded. Older days are pruned. */
 export interface DayLog {
@@ -161,25 +146,9 @@ export function nextReset(period: Period, d: Date): Date | null {
   return null;
 }
 
-// ---- rank -----------------------------------------------------------------------------------
-
-export function rankOf(s: Pick<QuestState, "minutesTotal" | "tasksClaimed">): Rank {
-  let best = RANKS[0];
-  for (const r of RANKS) if (s.minutesTotal >= r.minutes && s.tasksClaimed >= r.tasks) best = r;
-  return best;
-}
-
-export function nextRank(rank: Rank): Rank | null {
-  const i = RANKS.findIndex((r) => r.id === rank.id);
-  return RANKS[i + 1] ?? null;
-}
-
-const rankIndex = (id: RankId) => RANKS.findIndex((r) => r.id === id);
-
-/** Quests this rank can see. A rank-gated quest stays hidden until the rank is reached. */
-export function visibleQuests(s: QuestState, period?: Period): QuestDef[] {
-  const idx = rankIndex(rankOf(s).id);
-  return QUESTS.filter((q) => (!period || q.period === period) && (!q.minRank || rankIndex(q.minRank) <= idx));
+/** The quests of one period, or all of them. */
+export function visibleQuests(period?: Period): QuestDef[] {
+  return QUESTS.filter((q) => !period || q.period === period);
 }
 
 // ---- progress and claims --------------------------------------------------------------------
@@ -205,7 +174,7 @@ const claimKey = (q: QuestDef, now: Date) => `${q.id}:${periodKey(q.period, now)
 
 export const isClaimed = (s: QuestState, q: QuestDef, now: Date): boolean => s.claims[claimKey(q, now)] === true;
 export const isComplete = (s: QuestState, q: QuestDef, now: Date): boolean => progress(s, q, now) >= q.target;
-export const canClaim = (s: QuestState, q: QuestDef, now: Date): boolean => visibleQuests(s).some((v) => v.id === q.id) && isComplete(s, q, now) && !isClaimed(s, q, now);
+export const canClaim = (s: QuestState, q: QuestDef, now: Date): boolean => QUESTS.includes(q) && isComplete(s, q, now) && !isClaimed(s, q, now);
 
 /** Marks a claim paid. Returns the new state and the Credits to add (0 for the weekly look, which adds a waiting pick). */
 export function claim(s: QuestState, id: string, now: Date): { state: QuestState; credits: number } | null {
@@ -239,17 +208,42 @@ export function recordSession(s: QuestState, seconds: number, now: Date): QuestS
 }
 
 /**
- * Adds counted minutes. The rank rate turns banked minutes into Credits: returns the new state and the whole
- * Credits earned (leftover minutes stay banked). The rank used is the one before these minutes are added.
+ * Adds counted minutes. Every MINUTES_PER_INCOME banked minutes pay 1 Income: returns the new state and the whole
+ * Income earned (leftover minutes stay banked).
  */
 export function addMinutes(s: QuestState, minutes: number, now: Date): { state: QuestState; credits: number } {
   const m = Math.max(0, Math.floor(minutes));
   if (m === 0) return { state: s, credits: 0 };
-  const rate = rankOf(s).perCredit;
+  const rate = MINUTES_PER_INCOME;
   const bank = s.minuteBank + m;
   const credits = Math.floor(bank / rate);
   const state = withDay({ ...s, minutesTotal: s.minutesTotal + m, minuteBank: bank - credits * rate }, now, (d) => ({ ...d, minutes: d.minutes + m }));
   return { state, credits };
+}
+
+/**
+ * The longest gap between two play-clock ticks that still counts as play. The clock ticks every 15 s, and a hidden
+ * window's timers can slow to about once a minute, so normal gaps are well under this. A longer gap means the PC
+ * slept or the app was suspended; only this much of it is counted.
+ */
+export const MAX_TICK_GAP_MS = 3 * 60_000;
+
+/** Counted play time of one game session: awake time between ticks, not wall-clock time since it started. */
+export interface PlayClock {
+  lastTick: number;
+  activeMs: number;
+  /** Whole minutes already paid out. */
+  counted: number;
+}
+
+export const startPlayClock = (now: number): PlayClock => ({ lastTick: now, activeMs: 0, counted: 0 });
+
+/** Advances the clock to `now`. `due` is the whole minutes to pay now. */
+export function tickPlayClock(c: PlayClock, now: number): { clock: PlayClock; due: number } {
+  const gap = Math.min(Math.max(0, now - c.lastTick), MAX_TICK_GAP_MS);
+  const activeMs = c.activeMs + gap;
+  const whole = Math.floor(activeMs / 60_000);
+  return { clock: { lastTick: now, activeMs, counted: whole }, due: whole - c.counted };
 }
 
 /** Spends one waiting weekly-look pick. */

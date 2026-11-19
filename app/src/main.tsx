@@ -17,10 +17,20 @@ import "./styles/extras.css";
 import "./styles/station-ui.css";
 import "./styles/gacha-stage.css";
 import "./styles/calendar-tw.css";
+import "./styles/cardskins.css";
+import "./styles/showcase.css";
+import "./styles/news.css";
+import "./styles/hub.css";
+import "./styles/profile.css";
+import "./styles/achievements.css";
+import "./styles/pass.css";
+import "./styles/checkin.css";
+import "./styles/quests.css";
 import { App } from "./App";
 import { AppBoundary, AppErrorScreen } from "./components/ErrorBoundary";
 import { hydrateContentFromStore } from "./content/updateContent.ts";
 import { ToastProvider } from "./state/Toast";
+import { CelebrateProvider } from "./state/Celebrate";
 
 // Restore the last applied CMS content (if any) before the first paint / draws.
 hydrateContentFromStore();
@@ -36,6 +46,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AppBoundary>
       <ToastProvider>
+        <CelebrateProvider>
         {showErrorPreview ? (
           <AppErrorScreen message="Rendered more hooks than during the previous render." />
         ) : showDemo && BootDemo ? (
@@ -45,6 +56,7 @@ createRoot(document.getElementById("root")!).render(
         ) : (
           <App />
         )}
+        </CelebrateProvider>
       </ToastProvider>
     </AppBoundary>
   </StrictMode>,

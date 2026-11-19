@@ -120,9 +120,13 @@ export function createRoutes(d) {
       "GET /api/sessions": async () => sessions.snapshot(),
       "GET /api/gamemode/history": async () => ({ runs: sessions.gameModeHistory() }),
       "GET /api/gamemode/active": async () => {
+        // At start-up the service undoes steps left from a crash. Until that is done the journal still lists them,
+        // and reading it now would report game mode as on while it is being turned off. Wait for it (briefly).
+        const recovered = gameMode.whenRecovered ? await gameMode.whenRecovered(5000) : true;
         const { entries } = gameMode.journal();
         return {
-          active: entries.length > 0,
+          active: recovered && entries.length > 0,
+          recovering: !recovered,
           steps: entries.map((e) => e.step).filter(Boolean),
         };
       },

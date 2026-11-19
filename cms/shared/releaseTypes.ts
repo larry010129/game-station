@@ -68,6 +68,8 @@ export interface GachaContentLike {
   lookPityAfter: number;
   brandPityAfter: number;
   rainbowPityAfter?: number;
+  /** A single Credits gain above this shows the cash bundle in the app, not the coins. Absent: 100. */
+  creditBigAmount?: number;
   /** 0..1 */
   promotedChance?: number;
   rainbowThemeIds?: readonly string[];

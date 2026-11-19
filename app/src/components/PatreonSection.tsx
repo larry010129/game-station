@@ -2,7 +2,7 @@ import { openLink } from "../lib/openLink";
 
 /** The public tiers. Prices and benefits are set on Patreon; the app only turns on Basic and Brand. */
 const TIERS = [
-  { name: "Bronze", price: "$2.99", gives: "Basic Theme: every preset look" },
+  { name: "Bronze", price: "$2.99", gives: "Basic Theme: every preset theme" },
   { name: "Silver", price: "$5.99", gives: "Basic and Brand Theme, Discord" },
   { name: "Gold", price: "$9.99", gives: "Everything in Silver, plus a channel to request a design or update" },
   { name: "Diamond", price: "$11.99", gives: "Everything in Gold, plus early access to the beta" },
@@ -29,7 +29,7 @@ export function PatreonSection() {
     <section className="patreon" aria-labelledby="patreon-title">
       <header className="patreon-head">
         <h3 id="patreon-title">Patreon</h3>
-        <p>Paid tiers unlock looks and the brand-colour editor. They never add Credits.</p>
+        <p>Paid tiers unlock themes and the brand-colour editor. They never add Income.</p>
       </header>
 
       <ul className="patreon-tiers">

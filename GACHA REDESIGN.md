@@ -1,3 +1,5 @@
+> **Status (2026-11-18):** this is the original gacha design and its numbers are older. The live rules are in `PLAN.md` (Gacha) and the Wiki shows the live odds. The app now says Income for the currency and uses the 5-star rainbow, not gold, for the top tier; the gold Brand prism described below is superseded.
+
 # Gacha drop redesign (Draw Theme)
 
 Replace placeholder coupons with two separate draws, the **Regular Pack** and the **Brand Pack**, each with its own price, odds and pity. Every draw gives something useful, the odds are published in the UI, and each outcome has its own reveal in the capsule machine.
@@ -105,7 +107,7 @@ The Brand Pack lists **Regular theme** and **Brand theme** as two separate rows,
 
 **Look pity (separate counter per pack).** After **9** draws in a pack without any look, the next draw in that pack **forces a Regular theme you do not own** (a repeat, giving crystals, only if none are left). Reset that pack's counter on every look. A look is therefore guaranteed within 10 draws in each pack. A Brand theme never comes from this rule.
 
-**Brand pity (Brand Pack only): a Brand theme within 70 draws.** The Brand Pack keeps a second counter of draws since the last Brand theme. After **69** draws without one, the 70th draw **is a Brand theme** (one of this fortnight's unowned two). 70 is a middle value for your 60 to 80 range and is a single constant to change. Reset on every Brand theme. The counter carries across a fortnight change, and holds its value (no counting) while both featured themes are owned. At 150 Credits a draw the worst case is about 10,500 Credits, so check how fast Credits are earned before settling the number.
+**Brand pity (Brand Pack only): a Brand theme within 70 draws.** The Brand Pack keeps a second counter of draws since the last Brand theme. After **69** draws without one, the 70th draw **is a Brand theme** (one of this fortnight's unowned two). 70 is a middle value for your 60 to 80 range and is a single constant to change. Reset on every Brand theme, and only on a Brand theme: a rainbow Regular theme won in the Brand Pack does not reset it (round 5, design D1; the Region Pack's pity works the same way toward its featured looks). The counter carries across a fortnight change, and holds its value (no counting) while both featured themes are owned. At 150 Credits a draw the worst case is about 10,500 Credits, so check how fast Credits are earned before settling the number.
 
 **Brand rotation: 2 Brand themes every 2 weeks.** The Brand Pack can only give 2 of the 28 Brand themes at a time, and the two change every 14 days. 28 themes at 2 a fortnight is exactly 14 fortnights per full cycle.
 - By default the two are worked out from the date, not stored, so they are the same on every PC and need no server. Each period number (days since a fixed start date, divided by 14) picks 2 themes from a shuffle that is seeded by the period. **The CMS can publish an explicit schedule that overrides this.** The date rule is the fallback when no schedule is published and when the PC is offline.
@@ -146,6 +148,42 @@ flowchart TD
   dup -->|no| keep[Added to your collection]
   cry --> ex[10 crystals or 5 Brand prisms buy a pick]
 ```
+
+## Card Pack (dashboard card skins)
+
+A fourth pack in the Draw tab. Its prizes are **card skins**: a skin restyles every card on the dashboard (surface, frame, edge light) on top of whichever theme is active, so it reads on every theme. Players put one on from **Themes → Card skins**. Skin art is CSS in the app (`app/src/styles/cardskins.css`), so a new skin needs an app update; the CMS **Cards** tab switches skins on and off, sets their stars and runs the pack.
+
+**Price and ticket:** 120 Credits, or 1,080 for ten. Takes a **Special Ticket** (the CMS can change it).
+
+| Row | Chance per draw | What the player gets |
+| --- | --- | --- |
+| 5-star card skin | 1% | One of the Available 5-star skins (moving light) |
+| 4-star card skin | 10% | One of the Available 4-star skins (still surfaces) |
+| Better item | 25% | Same mix as the Regular Pack (wallpaper 70%, boot 20%, layout slot 10%) |
+| Common item | 64% | Same mix as the Regular Pack (streak freeze 30%, alert sound 50%, font 10%, flair 10%) |
+
+**Pity:**
+- **4-star or better at least every 10 draws.** The 10th draw without a skin keeps its normal (soft-pity) 5-star chance; otherwise it is a 4-star skin (one you do not own when one is left). This also makes every ten-draw hold at least one skin.
+- **5-star guaranteed by draw 70** since the last 5-star skin. **Soft pity** from draw 60: the 5-star chance climbs evenly from 1% to 100% at draw 70. A 5-star resets both counters; a 4-star resets only the 4-star counter.
+- Simulated over 3 million draws: one 5-star skin every 46.8 draws on average (about 5,600 Credits at 120 a draw, about 5,050 buying ten at a time); most land in the soft-pity stretch from draw 60 to 69. A 4-star turns up about every 7 draws (6.9), and any skin about every 6, never more than 10 apart. Effective shares: 5-star 2.1%, 4-star 14.5%, Better item 23.5%, Common item 59.9%.
+- A tier with no Available skin has no row and no guarantee; its share is spread over the other rows in proportion.
+
+**Repeats:** a skin you already own pays **Regular crystals**: 2 for a 4-star, 5 for a 5-star. No skin is ever sold for Credits and no skin gives Credits back.
+
+**Skins (bundled, all Available):**
+
+| Stars | Skins |
+| --- | --- |
+| 5-star (6, animated) | Holo Foil, Aurora Drift, Solar Flare, Prism Glass, Molten Core, Starfield |
+| 4-star (12, still) | Carbon Weave, Brushed Steel, Blueprint, Velvet Night, Circuit Trace, Frosted Glass, Scanline, Gilded Edge, Topo Lines, Hex Mesh, Paper Grain, Neon Rim |
+
+5-star skins stop moving under Reduce motion and the system reduced-motion setting. Each Available 5-star skin has a 1/6 share of the 1% row (about 0.17% per draw); each Available 4-star skin a 1/12 share of the 10% row (about 0.83%).
+
+**Release fields:** `gacha.cardPack` (`enabled`, `ticket`, `priceOne`, `priceTen`, `weights` as fractions, `fourPityAfter: 9`, `fivePityAfter: 69`, `softPity`, `crystalValues`, `skins` with `id`, `stars`, `status`). A release without it uses the bundled pack; unknown skin ids are ignored by the app.
+
+## Daily check-in event
+
+Every check-in box pays **Special Tickets** (1, 1, 2, 1, 1, 1, 3 over the seven days). Regular Tickets earned before stay spendable. The CMS can run the board as an event with a **start and an end** (Calendar → Daily check-in event; release field `gacha.checkinEvent`, local date-times `YYYY-MM-DDTHH:mm`, end exclusive). Outside the window the boxes are hidden and the board says when the next event starts; held tickets still work on Draw. No window means the board is always on.
 
 ## Crystals (two kinds)
 

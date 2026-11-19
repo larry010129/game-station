@@ -18,6 +18,13 @@ const BuyCreditsPage = lazy(() => import("./pages/BuyCreditsPage").then((m) => (
 const ThemesPage = lazy(() => import("./pages/ThemesPage").then((m) => ({ default: m.ThemesPage })));
 const DrawPage = lazy(() => import("./pages/DrawPage").then((m) => ({ default: m.DrawPage })));
 const VaultPage = lazy(() => import("./pages/VaultPage").then((m) => ({ default: m.VaultPage })));
+const WikiPage = lazy(() => import("./pages/WikiPage").then((m) => ({ default: m.WikiPage })));
+const NewsPage = lazy(() => import("./pages/NewsPage").then((m) => ({ default: m.NewsPage })));
+const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
+const AchievementsPage = lazy(() => import("./pages/AchievementsPage").then((m) => ({ default: m.AchievementsPage })));
+const CheckinPage = lazy(() => import("./pages/CheckinPage").then((m) => ({ default: m.CheckinPage })));
+const PassPage = lazy(() => import("./pages/PassPage").then((m) => ({ default: m.PassPage })));
+const PerksPage = lazy(() => import("./pages/PerksPage").then((m) => ({ default: m.PerksPage })));
 import { useSmartAlerts } from "./state/useSmartAlerts";
 import { useDashboard } from "./layout/useDashboard";
 import { SplitView } from "./layout/SplitView";
@@ -29,6 +36,14 @@ import { usePlayers } from "./state/usePlayers";
 import { TopBar } from "./components/TopBar";
 import { refreshPatreon } from "./state/patreon";
 import { trackQuest, useQuestTracking } from "./state/useQuests";
+import { ProfilePanel } from "./components/ProfilePanel";
+import { AchievementWatcher } from "./state/useAchievements";
+import { PassWatcher } from "./state/useSeasonPass";
+import { PlayerLevelWatcher } from "./state/usePlayerLevel";
+import { listNotices, useNewsRead } from "./state/useNewsRead";
+import { unreadCount } from "./state/newsRead";
+import { useCheckinReady } from "./state/useCheckinBoard";
+import { useLang, useT } from "./lib/i18n";
 import { useToast } from "./state/Toast";
 import { isQuiet, usePerformanceGate, useStoredFlag } from "./state/useEnvironment";
 import { useEvents, type NewEvent } from "./state/useEvents";
@@ -46,6 +61,8 @@ import { useWindowView } from "./state/useWindowView";
 import type { FeedItem, StationInfo } from "./lib/types";
 import { GAME_IDS, GAMES } from "./lib/games";
 import { api } from "./lib/api";
+import { useApplyCardSkin } from "./state/cardSkinStore";
+import { recordFreePlaced } from "./state/widgetStore";
 
 const MODE_LABEL: Record<Phase, string> = {
   off: "Standby",
@@ -103,6 +120,8 @@ function StationApp({
   const gate = usePerformanceGate();
   const toast = useToast();
   const [calm, setCalm] = useStoredFlag("cs.reduceMotion", false);
+  // The equipped Card Pack skin goes on the page root, where styles/cardskins.css dresses every dashboard card.
+  useApplyCardSkin();
   const [stopped, setStopped] = useState(false);
 
   const seedEvents = useMemo<NewEvent[]>(() => [{ kind: "info", text: "Sensors linked (this pc), sampling every 1 s", t: Date.now() - 2_000 }], []);
@@ -245,23 +264,38 @@ function StationApp({
     [split.setTab],
   );
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const openProfile = useCallback(() => setProfileOpen(true), []);
+  const closeProfile = useCallback(() => setProfileOpen(false), []);
+  const newsRead = useNewsRead();
+  const notices = useMemo(listNotices, []);
+  const newsUnread = unreadCount(newsRead.state, feed.items) + unreadCount(newsRead.state, notices);
+  const checkinReady = useCheckinReady();
+  const T = useT();
+  const lang = useLang();
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   /** Card tabs, the tabs the user added, then the page tabs. Game tab label follows the active game. */
   const tabs = useMemo(
     () =>
-      [...TABS.filter((t) => t.kind === "cards"), ...nav.custom, ...TABS.filter((t) => t.kind === "page" && t.id !== "themes" && t.id !== "draw" && t.id !== "vault" && t.id !== "buy-credits")].map(({ id, label }) => ({
+      [...TABS.filter((t) => t.kind === "cards"), ...nav.custom, ...TABS.filter((t) => t.kind === "page" && t.id !== "themes" && t.id !== "vault" && t.id !== "buy-credits" && t.id !== "profile" && t.id !== "achievements")].map(({ id, label }) => ({
         id,
-        label: id === "overwatch" ? activeGame.pack.tabLabel : label,
+        label: id === "overwatch" ? activeGame.pack.tabLabel : T(`tab.${id}`, undefined, label),
+        ...(id === "news" ? { count: newsUnread } : {}),
+        ...(id === "checkin" ? { count: checkinReady ? 1 : 0 } : {}),
       })),
-    [nav.custom, activeGame.pack.tabLabel],
+    [nav.custom, activeGame.pack.tabLabel, newsUnread, checkinReady, T],
   );
   // A pane can show any page, including Themes, Vault, and Support, which the top bar reaches by control.
   const paneOptions = useMemo(
     () =>
-      [...tabs, ...TABS.filter((t) => t.id === "themes" || t.id === "draw" || t.id === "vault" || t.id === "buy-credits").map(({ id, label }) => ({ id, label }))].map((t) => ({
+      [...tabs, ...TABS.filter((t) => t.id === "themes" || t.id === "vault" || t.id === "buy-credits" || t.id === "profile" || t.id === "achievements").map(({ id, label }) => ({ id, label: T(`tab.${id}`, undefined, label) }))].map((t) => ({
         value: t.id,
         label: t.label,
       })),
-    [tabs],
+    [tabs, T],
   );
   const openPane = useCallback(() => split.add(tabs.map((t) => t.id)), [split.add, tabs]);
   const removeNavTab = useCallback(
@@ -323,6 +357,12 @@ function StationApp({
     [selectTab],
   );
 
+  const openDraw = useCallback(() => selectTab("draw"), [selectTab]);
+  // A card placed while it is Free counts as owned, so a later Widget Pack lock in the CMS never takes it away.
+  useEffect(() => {
+    recordFreePlaced(dash.instances.map((i) => i.type));
+  }, [dash.instances]);
+
   const saveDisplayName = useCallback((next: string) => {
     const clipped = next.slice(0, 40);
     setDisplayName(clipped);
@@ -354,9 +394,10 @@ function StationApp({
       stopped,
       toasts,
       onOpenCalendar: openCalendar,
+      onOpenDraw: openDraw,
       onLook: dash.setLook,
     }),
-    [store, players.data, players.failed, feed.items, feed.error, feed.checking, feed.checkNow, events, gm.profiles, gm.profile, gm.setProfileId, gm.phase, gm.status, gm.start, gm.stop, stopped, toasts, openCalendar, dash.setLook],
+    [store, players.data, players.failed, feed.items, feed.error, feed.checking, feed.checkNow, events, gm.profiles, gm.profile, gm.setProfileId, gm.phase, gm.status, gm.start, gm.stop, stopped, toasts, openCalendar, openDraw, dash.setLook],
   );
   // The grid gets a render function that never changes; each card reads `ctx` from context (see CardView).
   const renderCard = useCallback((inst: CardInstance): ReactNode => <CardView inst={inst} />, []);
@@ -407,15 +448,26 @@ function StationApp({
       />
     ),
     themes: () => <ThemesPage look={look} onOpenDraw={() => selectTab("draw")} />,
-    draw: () => <DrawPage owned={look.unlocks} onWin={(id) => look.unlock(id)} onBack={() => selectTab("themes")} />,
+    draw: () => <DrawPage owned={look.unlocks} onWin={(id) => look.unlock(id)} />,
+    wiki: () => <WikiPage owned={look.unlocks} onOpenDraw={() => selectTab("draw")} onOpenAchievements={() => selectTab("achievements")} onOpenPerks={() => selectTab("perks")} />,
+    news: () => <NewsPage />,
+    achievements: () => <AchievementsPage />,
+    pass: () => <PassPage onNav={selectTab} />,
+    perks: () => <PerksPage />,
+    profile: () => <ProfilePage displayName={displayName} look={look.active} unlocked={look.unlocks.length} onNav={selectTab} />,
     calendar: () => <CalendarPage />,
     credits: () => <CreditsPage />,
     "buy-credits": () => <BuyCreditsPage />,
-    quests: () => <QuestsPage onOpenThemes={() => selectTab("themes")} onOpenDraw={() => selectTab("draw")} />,
+    quests: () => <QuestsPage onOpenThemes={() => selectTab("themes")} onOpenCheckin={() => selectTab("checkin")} onNav={selectTab} />,
+    checkin: () => <CheckinPage onOpenDraw={() => selectTab("draw")} onNav={selectTab} />,
   };
 
   return (
     <StationContext.Provider value={stationValue}>
+      <AchievementWatcher />
+      <PassWatcher />
+      <PlayerLevelWatcher />
+      {profileOpen && <ProfilePanel displayName={displayName} newsUnread={newsUnread} onNav={selectTab} onClose={closeProfile} />}
       <Backdrop image={look.image} />
       <div className={rootClass}>
         <TopBar
@@ -426,7 +478,7 @@ function StationApp({
           games={GAME_IDS.map((id) => ({ id, label: GAMES[id].label }))}
           onGame={activeGame.setGame}
           displayName={displayName}
-          modeLabel={stopped ? "Stopped" : MODE_LABEL[gm.phase]}
+          modeLabel={stopped ? T("mode.stopped") : T(`mode.${gm.phase}`, undefined, MODE_LABEL[gm.phase])}
           calm={calm}
           onCalm={() => setCalm(!calm)}
           stopped={stopped}
@@ -435,6 +487,7 @@ function StationApp({
           onEdit={toggleEdit}
           onTheme={() => selectTab("themes")}
           onVault={() => selectTab("vault")}
+          onProfile={openProfile}
           onBuyCredits={() => selectTab("buy-credits")}
           onSplit={openPane}
           panes={split.panes.length}
@@ -564,7 +617,13 @@ function TabBody({
   const onBp = useCallback((bp: string) => onBreakpoint(paneId, bp), [onBreakpoint, paneId]);
   const onDropCard = useCallback((type: CardId, at: { x: number; y: number }, bp: "lg" | "md") => addCard(tab, type, at, bp), [addCard, tab]);
 
-  if (isPage) return <Suspense fallback={null}>{page(tab as PageTabId)}</Suspense>;
+  // Pages get the card context too, so a page can show a live dashboard card (the Wiki's showcase does).
+  if (isPage)
+    return (
+      <CardCtxContext.Provider value={ctx}>
+        <Suspense fallback={null}>{page(tab as PageTabId)}</Suspense>
+      </CardCtxContext.Provider>
+    );
   return (
     <div>
       {shown.length === 0 && (

@@ -169,7 +169,8 @@ test("featuredBrand returns 2 themes, stable within 14 days, changes after, cove
   const seen = new Set();
   const pairs = BUNDLED_CONTENT.brandThemeIds.length / 2;
   for (let i = 0; i < pairs; i++) {
-    const day = new Date(Date.UTC(2024, 0, 1 + i * 14));
+    // Local noon on each fortnight's first day: rotations follow the local calendar (round 5, B6).
+    const day = new Date(2024, 0, 1 + i * 14, 12);
     for (const id of featuredBrand(day)) seen.add(id);
   }
   assert.equal(seen.size, BUNDLED_CONTENT.brandThemeIds.length, "one full cycle covers every Brand theme");
@@ -375,20 +376,20 @@ test("company packs: featured and rainbow Regular are two rows, with no carry-ov
   assert.equal(featured.results[0].brand, true);
   const rainbow = drawMany(PACK_BRAND, 1, withRainbow(), pity0(), seq(0.142, 0.0));
   assert.deepEqual(rainbow.results[0], { kind: "look", id: "rain-a", brand: false, rainbow: true, repeat: false });
-  assert.equal(rainbow.pity.brand, 0, "any 5-star resets rainbow pity");
+  // Design D1 (round 5): a company pack's pity counts toward a featured look, so a rainbow Regular theme does not reset it.
+  assert.equal(rainbow.pity.brand, 1, "only a featured look resets a company pack's pity");
   // The next pull rolls the same rows again: a rainbow Regular theme does not make the next 5-star featured.
   const again = drawMany(PACK_BRAND, 1, withRainbow(), rainbow.pity, seq(0.142, 0.0));
   assert.equal(again.results[0].rainbow, true);
   assert.equal(again.pity.guaranteed, false);
 });
 
-test("the guaranteed 5-star in a company pack splits by the two rows", () => {
-  // Featured 0.01 and rainbow Regular 0.005: a forced 5-star is featured when rand * 0.015 < 0.01.
+test("the guaranteed 5-star in a company pack is always a featured look (design D1)", () => {
   const pity = { look: 0, brand: 69, weeklyPicks: { week: null, count: 0 } };
   const f = drawMany(PACK_BRAND, 1, withRainbow(), pity, seq(0.5, 0.0));
   assert.equal(f.results[0].brand, true);
   const r = drawMany(PACK_BRAND, 1, withRainbow(), pity, seq(0.8, 0.0));
-  assert.equal(r.results[0].rainbow, true);
+  assert.equal(r.results[0].brand, true, "before round 5 this roll gave a rainbow Regular theme");
   // Without rainbow Regular themes the forced 5-star is always featured.
   const only = drawMany(PACK_BRAND, 1, owned({ rainbowPool: [] }), pity, seq(0.8, 0.0));
   assert.equal(only.results[0].brand, true);

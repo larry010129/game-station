@@ -6,7 +6,7 @@
 import { bannerArtUrl } from "../components/BannerArtPreview";
 import { COUNTRIES, regionName, specialQueueOf, type CmsDraft, type ReleaseMeta } from "../types/draft";
 
-export type CalendarKind = "banner" | "featured" | "region" | "release";
+export type CalendarKind = "banner" | "featured" | "region" | "checkin" | "release";
 
 export interface CalendarEntry {
   id: string;
@@ -36,11 +36,12 @@ export const KIND_META: Record<CalendarKind, { label: string; bar: string; dot: 
   banner: { label: "Banner", bar: "bg-primary", dot: "bg-primary" },
   featured: { label: "Brand featured run", bar: "bg-warning", dot: "bg-warning" },
   region: { label: "Region week", bar: "bg-info", dot: "bg-info" },
+  checkin: { label: "Check-in event", bar: "bg-[#e3b13a]", dot: "bg-[#e3b13a]" },
   release: { label: "Release goes live", bar: "bg-success", dot: "bg-success" },
 };
 
 /** Lane order on the grid, so one run stays on one line across a week. */
-export const KIND_ORDER: CalendarKind[] = ["banner", "featured", "region", "release"];
+export const KIND_ORDER: CalendarKind[] = ["banner", "featured", "region", "checkin", "release"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -172,6 +173,24 @@ export function calendarEntries(draft: CmsDraft, releases: ReleaseMeta[]): Calen
       last: addDays(rw.weekOf, 7 * (rw.weeks ?? 1) - 1),
       link: "/odds",
       off,
+    });
+  }
+
+  const ck = draft.checkinEvent;
+  if (ck && ISO_DAY.test(ck.start.slice(0, 10)) && ISO_DAY.test(ck.end.slice(0, 10))) {
+    // The end is exclusive: an event ending at 00:00 runs through the day before.
+    const endDay = ck.end.slice(0, 10);
+    const last = ck.end.slice(11) === "00:00" ? addDays(endDay, -1) : endDay;
+    const start = ck.start.slice(0, 10);
+    out.push({
+      id: `checkin:${ck.start}`,
+      kind: "checkin",
+      title: "Daily check-in",
+      detail: `Check-in event ${ck.start.replace("T", " ")} to ${ck.end.replace("T", " ")}`,
+      start,
+      last,
+      link: "/calendar",
+      invalid: ck.end <= ck.start,
     });
   }
 
