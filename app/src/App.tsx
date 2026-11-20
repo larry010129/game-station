@@ -37,6 +37,7 @@ import { TopBar } from "./components/TopBar";
 import { refreshPatreon } from "./state/patreon";
 import { trackQuest, useQuestTracking } from "./state/useQuests";
 import { ProfilePanel } from "./components/ProfilePanel";
+import { UpdateGate } from "./components/UpdateGate";
 import { AchievementWatcher } from "./state/useAchievements";
 import { PassWatcher } from "./state/useSeasonPass";
 import { PlayerLevelWatcher } from "./state/usePlayerLevel";
@@ -467,6 +468,7 @@ function StationApp({
       <AchievementWatcher />
       <PassWatcher />
       <PlayerLevelWatcher />
+      <UpdateGate />
       {profileOpen && <ProfilePanel displayName={displayName} newsUnread={newsUnread} onNav={selectTab} onClose={closeProfile} />}
       <Backdrop image={look.image} />
       <div className={rootClass}>

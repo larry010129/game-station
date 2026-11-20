@@ -196,3 +196,33 @@ test("a foreign release is dropped when the new host has no release yet", async 
     await host.close();
   }
 });
+
+import { gateAfter, noticeDue, scheduledDue, UPDATE_NOTICE_LEAD_MS } from "../../src/content/updateContent.ts";
+
+const none = { scheduled: null, reload: null };
+
+test("gate: a scheduled release is remembered, and a start-up update needs no reload", () => {
+  const at = new Date("2026-11-20T12:00:00Z").toISOString();
+  const sched = gateAfter(none, { state: "scheduled", number: 1, next: 2, at }, false);
+  assert.deepEqual(sched.scheduled, { number: 2, at: Date.parse(at) });
+  assert.equal(gateAfter(none, { state: "updated", number: 2 }, false).reload, null);
+});
+
+test("gate: an update applied while the app is open asks for a reload and clears the schedule", () => {
+  const prev = { scheduled: { number: 2, at: 1 }, reload: null };
+  assert.deepEqual(gateAfter(prev, { state: "updated", number: 2 }, true), { scheduled: null, reload: { number: 2 } });
+  assert.deepEqual(gateAfter(prev, { state: "current", number: 2 }, true), { scheduled: null, reload: null });
+  assert.equal(gateAfter(prev, { state: "failed", detail: "x" }, true), prev);
+});
+
+test("gate: heads-up from 30 minutes before go-live, popup at go-live", () => {
+  const at = 1_000_000_000_000;
+  const g = { scheduled: { number: 2, at }, reload: null };
+  assert.equal(noticeDue(g, at - UPDATE_NOTICE_LEAD_MS - 1), false);
+  assert.equal(noticeDue(g, at - UPDATE_NOTICE_LEAD_MS), true);
+  assert.equal(noticeDue(g, at - 1), true);
+  assert.equal(noticeDue(g, at), false);
+  assert.equal(scheduledDue(g, at - 1), false);
+  assert.equal(scheduledDue(g, at), true);
+  assert.equal(noticeDue(none, at), false);
+});

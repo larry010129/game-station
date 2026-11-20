@@ -1,0 +1,24 @@
+/* Forced-reload popup and the 30-minute heads-up chip (components/UpdateGate.tsx). */
+.ug-scrim { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(6px); animation: ug-fade 0.28s var(--ease) both; }
+.ug-card { width: min(380px, 100%); border: 1px solid var(--edge); border-radius: var(--r); background: var(--glass-solid); box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7); overflow: hidden; animation: ug-rise 0.36s var(--ease) both; }
+.ug-head { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 24px 22px; text-align: center; }
+.ug-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.ug-mark .i { width: 24px; height: 24px; }
+.ug-head h2 { margin: 0; font-size: 18px; font-weight: 500; text-wrap: balance; }
+.ug-badge { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); color: var(--good); font-size: 12px; font-weight: 400; }
+.ug-foot { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 20px 24px 24px; background: var(--wash); }
+.ug-foot p { margin: 0; max-width: 32ch; color: var(--dim); font-size: 14px; line-height: 1.5; text-align: center; text-wrap: balance; }
+.ug-btn { min-height: 44px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--text); color: var(--on-text); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: transform 0.15s var(--ease), opacity 0.15s; }
+.ug-btn:hover { opacity: 0.9; }
+.ug-btn:active { transform: scale(0.97); }
+.ug-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.ug-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ug-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ug-pulse 1.8s ease-in-out infinite; }
+
+@keyframes ug-fade { from { opacity: 0; } }
+@keyframes ug-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes ug-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .ug-scrim, .ug-card, .ug-dot { animation: none; }
+}

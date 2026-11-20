@@ -58,7 +58,7 @@ export function getLastContentUpdateStatus(): ContentUpdateStatus {
  * Hydrate from localStorage, then (when enabled) check the CMS for a newer release.
  * Always resolves; never throws.
  */
-export async function runContentUpdate(
+async function runContentUpdateInner(
   signal?: AbortSignal,
   host: string | readonly string[] | null = releaseHosts(),
 ): Promise<ContentUpdateStatus> {
@@ -179,3 +179,75 @@ export function resetContentUpdateStatus(): void {
 }
 
 export { BUNDLED_RELEASE_NUMBER, hydrateContentFromStore };
+
+/**
+ * What the screen needs to know about updates: the next scheduled go-live time (for the time chip) and whether a
+ * release went live while the app was open (the player must reload). Plain data, so tests need no screen.
+ */
+export interface ContentGate {
+  scheduled: { number: number; at: number } | null;
+  reload: { number: number } | null;
+}
+
+/** The gate after an update check. `inSession` is false for the check that runs at start-up: that one needs no reload. */
+export function gateAfter(prev: ContentGate, status: ContentUpdateStatus, inSession: boolean): ContentGate {
+  switch (status.state) {
+    case "scheduled":
+      return { ...prev, scheduled: { number: status.next, at: Date.parse(status.at) } };
+    case "updated":
+      return { scheduled: null, reload: inSession ? { number: status.number } : prev.reload };
+    case "current":
+      return { ...prev, scheduled: null };
+    default:
+      return prev;
+  }
+}
+
+/** The heads-up shows this long before a scheduled release goes live. */
+export const UPDATE_NOTICE_LEAD_MS = 30 * 60_000;
+
+/** True while a scheduled release is 30 minutes or less away (and not yet live): show the time chip. */
+export function noticeDue(gate: ContentGate, now: number): boolean {
+  return !!gate.scheduled && gate.scheduled.at > now && gate.scheduled.at - now <= UPDATE_NOTICE_LEAD_MS;
+}
+
+/** True once a scheduled release's go-live time has come. */
+export function scheduledDue(gate: ContentGate, now: number): boolean {
+  return !!gate.scheduled && gate.scheduled.at <= now;
+}
+
+let gate: ContentGate = { scheduled: null, reload: null };
+let firstRunDone = false;
+const gateListeners = new Set<() => void>();
+
+export function getContentGate(): ContentGate {
+  return gate;
+}
+
+export function subscribeContentGate(fn: () => void): () => void {
+  gateListeners.add(fn);
+  return () => {
+    gateListeners.delete(fn);
+  };
+}
+
+/** Test helper: back to a fresh app start. */
+export function resetContentGate(): void {
+  gate = { scheduled: null, reload: null };
+  firstRunDone = false;
+  gateListeners.forEach((f) => f());
+}
+
+export async function runContentUpdate(
+  signal?: AbortSignal,
+  host?: string | readonly string[] | null,
+): Promise<ContentUpdateStatus> {
+  const status = host === undefined ? await runContentUpdateInner(signal) : await runContentUpdateInner(signal, host);
+  const next = gateAfter(gate, status, firstRunDone);
+  firstRunDone = true;
+  if (next !== gate) {
+    gate = next;
+    gateListeners.forEach((f) => f());
+  }
+  return status;
+}

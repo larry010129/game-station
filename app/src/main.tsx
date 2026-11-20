@@ -26,6 +26,7 @@ import "./styles/achievements.css";
 import "./styles/pass.css";
 import "./styles/checkin.css";
 import "./styles/quests.css";
+import "./styles/update-gate.css";
 import { App } from "./App";
 import { AppBoundary, AppErrorScreen } from "./components/ErrorBoundary";
 import { hydrateContentFromStore } from "./content/updateContent.ts";
