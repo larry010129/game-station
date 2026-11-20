@@ -5,6 +5,7 @@
  * Set VITE_RELEASES_BASE to point a dev run at another host (for example a local CMS on localhost:1430).
  * Every release is checked against the matching public key before it is used (see verifyRelease.ts).
  */
+import { EXE_VERSION, majorOf } from "./exeUpdate.ts";
 import { DEV_CONTENT_PUBLIC_KEY_SPKI_B64, PROD_CONTENT_PUBLIC_KEY_SPKI_B64 } from "./devPublicKey.ts";
 
 /** Local CMS release host (see GACHA REDESIGN.md -> Testing the CMS locally). */
@@ -54,8 +55,8 @@ export function releaseSourceOf(base: string): string {
   return RELEASE_HOSTS.includes(base) ? "cloudflare" : `custom:${base}`;
 }
 
-/** Every release is an app version: 1.<release number> (release 0 = the bundled 1.0, release 1 = 1.1, ...). */
-export const APP_VERSION_MAJOR = 1;
+/** Every release is an app version: <exe major>.<release number> (release 0 = the bundled 1.0, release 1 = 1.1, ...). */
+export const APP_VERSION_MAJOR = majorOf(EXE_VERSION);
 export const appVersionOf = (release: number): string => `${APP_VERSION_MAJOR}.${release}`;
 
 /** First release host (kept for callers that want one address). */

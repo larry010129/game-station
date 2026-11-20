@@ -9,18 +9,20 @@ Two kinds of update:
 
 Type 2 is **in-game only**: no manual download path. Restart is forced.
 
+**Type 2 only moves on a MAJOR version** (1.x -> 2.x). A newer minor or patch exe on GitHub is ignored by the app; those changes ship as content releases (type 1). Shown version = `<exe major>.<release number>`, for example exe 1.0.0 + release 5 = `1.5`.
+
 ## What the app does
 
 1. At start (installed app only, not a browser) it reads
    `https://github.com/larry010129/game-station/releases/latest/download/latest.json`.
-2. `latest.version` > the running exe version? A popup opens that cannot be closed (Escape and Tab are held).
+2. `latest.version` has a higher **major** than the running exe (1.x -> 2.x)? A popup opens that cannot be closed (Escape and Tab are held).
 3. It downloads the installer (about 25 MB), checks the signature against the public key in `tauri.conf.json`,
    installs (passive mode) and restarts itself.
 4. The download fails? The popup stays with **Retry**. The check itself fails (offline)? Nothing blocks: the app runs on
    the current exe.
 
-Content releases can name the oldest exe they work with: `manifest.minAppVersion`. An older exe does **not** apply that
-release; it updates itself first (type 2), then comes back for the content.
+Content releases can name the oldest exe they work with: `manifest.minAppVersion` (only its major counts, e.g. `"2.0"`).
+An exe with a lower major does **not** apply that release; it updates itself first (type 2), then comes back for the content.
 
 Code: `src/content/exeUpdate.ts` (rules and state machine), `src/state/useExeUpdate.ts`, popup in
 `src/components/UpdateGate.tsx`, content check in `src/content/updateContent.ts`, Rust plugins in `src-tauri/src/lib.rs`.
@@ -35,9 +37,9 @@ Code: `src/content/exeUpdate.ts` (rules and state machine), `src/state/useExeUpd
 ## Ship a new exe
 
 ```powershell
-# 1. Same version in all three, e.g. 0.4.0
+# 1. Major bump only (e.g. 1.0.0 -> 2.0.0), same version in all three
 #    src-tauri/tauri.conf.json  "version"
-#    package.json               "version"
+#    package.json               "version"  (and package-lock.json)
 #    src-tauri/Cargo.toml       version
 # 2. Build, signed
 $env:TAURI_SIGNING_PRIVATE_KEY = "C:\Users\e1253\.tauri\command-station-updater.key"
@@ -47,7 +49,7 @@ npm run tauri build
 npm run release:exe -- "What changed"
 ```
 
-Then on GitHub (`larry010129/game-station`): Releases -> Draft a new release -> tag `v0.4.0` -> upload the three files
+Then on GitHub (`larry010129/game-station`): Releases -> Draft a new release -> tag `v2.0.0` -> upload the three files
 the script printed (installer, `.sig`, `latest.json`) -> Publish. The release must be the **latest** one (not a pre-release),
 and the repo must stay **public**.
 

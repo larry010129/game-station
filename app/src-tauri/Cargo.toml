@@ -1,6 +1,6 @@
 [package]
 name = "command-station"
-version = "0.3.0"
+version = "1.0.0"
 description = "Command Station: Overwatch hub, live panel and one-tap game mode"
 edition = "2021"
 

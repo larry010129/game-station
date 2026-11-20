@@ -23,5 +23,5 @@ export const VERSION = (() => {
       // not there: try the next
     }
   }
-  return "0.3.0";
+  return "1.0.0";
 })();
