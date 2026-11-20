@@ -9,7 +9,6 @@ import { Icon } from "./Icon";
 import { PatronMenu } from "./PatronMenu";
 import { useT } from "../lib/i18n";
 import { Segmented } from "./Segmented";
-import { UpdateChip } from "./UpdateGate";
 
 interface Props {
   tab: TabId;
@@ -101,7 +100,6 @@ export const TopBar = memo(function TopBar({ tab, tabs, onTab, game, games, onGa
         </button>{" "}
         · <b>{modeLabel}</b>
       </span>
-      <UpdateChip />
       <div className="status">
         <span className="meta">
           <Clock />

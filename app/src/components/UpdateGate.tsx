@@ -67,8 +67,11 @@ export function UpdateGate() {
   return exe.blocking ? <ExePopup /> : null;
 }
 
-/** Top-bar chip, shown from 30 minutes before a scheduled release goes live: a countdown to the go-live time. */
-export function UpdateChip() {
+/**
+ * Heads-up banner, shown from 30 minutes before a scheduled release goes live: a slim dark bar across the top of the
+ * page with a small mark, one line, and the countdown underlined where a link would sit.
+ */
+export function UpdateBanner() {
   const T = useT();
   const { noticeAt, mustReload } = useUpdateGate();
   const now = useClock();
@@ -77,9 +80,14 @@ export function UpdateChip() {
   const mm = String(Math.floor(left / 60000)).padStart(2, "0");
   const ss = String(Math.floor((left % 60000) / 1000)).padStart(2, "0");
   return (
-    <span className="ug-chip" role="status" title={T("update.chipTitle", { at: clockTime(noticeAt) })}>
-      <span className="ug-dot" aria-hidden="true" />
-      {T("update.chip", { time: `${mm}:${ss}` })}
-    </span>
+    <div className="ug-banner" role="status">
+      <svg className="i" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 0 1 9 9h-9z" />
+      </svg>
+      <p>
+        {T("update.banner", { at: clockTime(noticeAt).slice(0, 5) })} <b>{T("update.bannerIn", { time: `${mm}:${ss}` })}</b>
+      </p>
+    </div>
   );
 }
