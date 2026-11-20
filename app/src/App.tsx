@@ -1,6 +1,10 @@
 import { Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BootScreen } from "./boot/BootScreen";
 import { useBoot } from "./boot/useBoot";
+import type { BootState } from "./boot/types";
+import { appVersionOf } from "./content/contentSettings";
+import { useExeUpdate } from "./state/useExeUpdate";
+import { useUpdateGate } from "./state/useUpdateGate";
 import { Dashboard } from "./layout/Dashboard";
 import { EditBar } from "./layout/EditBar";
 import { LayoutManager } from "./layout/LayoutManager";
@@ -81,20 +85,42 @@ export function App() {
   const onInfo = useCallback((p: StationInfo) => setInfo(p), []);
   const boot = useBoot({ cards, onInfo });
 
+  // A content release went live: the loading screen comes back with a Reload button and the app stays locked under it
+  // (the app is not loaded in until the page reloads). A new exe (the other update) has its own popup and wins.
+  const T = useT();
+  const gate = useUpdateGate();
+  const exe = useExeUpdate();
+  const updating = gate.mustReload && !exe.blocking;
+  const cover: BootState = updating
+    ? {
+        ...boot,
+        phase: "update",
+        progress: 1,
+        problem: null,
+        update: {
+          line: gate.number != null ? `${T("update.title")} · ${T("update.badge", { n: appVersionOf(gate.number) })}` : T("update.title"),
+          hint: T("update.body"),
+          action: T("update.reload"),
+          onReload: () => window.location.reload(),
+        },
+      }
+    : boot;
+
   // The dashboard mounts as soon as the start-up info exists and fills in under the cover.
   const under = useRef<HTMLDivElement>(null);
+  const locked = covered || updating;
   useLayoutEffect(() => {
-    if (under.current) under.current.inert = covered;
-  }, [covered, info]);
+    if (under.current) under.current.inert = locked;
+  }, [locked, info]);
 
   return (
     <>
       {info && (
-        <div ref={under} className={covered ? "boot-under" : "boot-reveal"} aria-hidden={covered || undefined}>
+        <div ref={under} className={covered ? "boot-under" : "boot-reveal"} aria-hidden={locked || undefined}>
           <StationApp info={info} look={look} windowView={windowView} onCards={setCards} />
         </div>
       )}
-      {covered && <BootScreen state={boot} image={look.image} onExited={() => setCovered(false)} />}
+      {(covered || updating) && <BootScreen state={cover} image={look.image} onExited={() => setCovered(false)} />}
     </>
   );
 }

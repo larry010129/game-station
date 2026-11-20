@@ -20,6 +20,7 @@ export const STATUS_WORD: Record<StepStatus, string> = {
 };
 
 export function headline(state: BootState): string {
+  if (state.phase === "update") return state.update?.line ?? "New update is live";
   if (state.phase === "error") return state.problem ?? "Something stopped the startup.";
   if (state.phase === "ready") return "All systems online";
   if (state.phase === "connecting") return "Reaching the local service…";
@@ -50,9 +51,26 @@ export function BootScreen({
   const [equipped] = useState(() => (style === undefined ? readBootStyle() : style));
   const exited = useRef(onExited);
   exited.current = onExited;
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const leaving = state.phase === "ready";
   const failed = state.phase === "error";
+  const updating = state.phase === "update" && !!state.update;
+
+  // A release went live: the only way on is the Reload button. Escape and Tab are held on it.
+  useEffect(() => {
+    if (!updating) return;
+    const button = () => rootRef.current?.querySelector<HTMLButtonElement>(".boot-update button");
+    button()?.focus();
+    const hold = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Tab") {
+        e.preventDefault();
+        button()?.focus();
+      }
+    };
+    window.addEventListener("keydown", hold, true);
+    return () => window.removeEventListener("keydown", hold, true);
+  }, [updating]);
 
   useEffect(() => {
     if (!leaving) return;
@@ -63,20 +81,24 @@ export function BootScreen({
   const pct = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
   const line = headline(state);
   const noSignal = failed && state.steps[0]?.status !== "online";
-  const cls = `boot${leaving ? " out" : ""}${failed ? " bad" : ""}${state.short ? " short" : ""}`;
+  const cls = `boot${leaving ? " out" : ""}${failed ? " bad" : ""}${state.short ? " short" : ""}${updating ? " updating" : ""}`;
   const linking = state.steps.find((s) => s.status === "linking");
 
   const alert = failed ? (
     <StationAlert className="boot-stopped" tone="alert" action={{ label: "Try again", onClick: state.retry }}>
       {line}
     </StationAlert>
+  ) : updating && state.update ? (
+    <StationAlert className="boot-stopped boot-update" tone="notice" action={{ label: state.update.action, onClick: state.update.onReload }}>
+      {state.update.hint}
+    </StationAlert>
   ) : null;
   const Stage = equipped ? STYLE_STAGES[equipped] : PlainStage;
-  const chip = failed ? (noSignal ? "No signal" : "Stopped") : leaving ? "Ready" : linking ? "Working" : "Starting";
+  const chip = updating ? "Update" : failed ? (noSignal ? "No signal" : "Stopped") : leaving ? "Ready" : linking ? "Working" : "Starting";
   const stage: StageProps = { state, pct, line, failed, leaving, noSignal, chip };
 
   return (
-    <div className={cls} aria-busy={!leaving && !failed} data-boot-style={equipped ?? undefined}>
+    <div ref={rootRef} className={cls} aria-busy={!leaving && !failed && !updating} data-boot-style={equipped ?? undefined}>
       <Backdrop image={image} />
 
       <div className="boot-work" aria-hidden={leaving || undefined}>

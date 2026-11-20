@@ -21,7 +21,18 @@ export interface BootStep {
 /** connecting: waiting for the service. booting: service answered, steps running.
  *  ready: reveal now (the screen plays its exit, then calls onExited).
  *  error: no signal after the wait, or a required step failed; retry() is live. */
-export type BootPhase = "connecting" | "booting" | "ready" | "error";
+export type BootPhase = "connecting" | "booting" | "ready" | "error" | "update";
+
+/** The "update" phase: a content release went live and the player must reload. The app stays locked behind the cover. */
+export interface BootUpdate {
+  /** Headline, for example "New update is live · Version 1.3". */
+  line: string;
+  /** One line under the headline. */
+  hint: string;
+  /** The button's label. */
+  action: string;
+  onReload: () => void;
+}
 
 export interface BootState {
   phase: BootPhase;
@@ -33,4 +44,6 @@ export interface BootState {
   /** Warm restart: play the short version. */
   short: boolean;
   retry: () => void;
+  /** Set only in the "update" phase. */
+  update?: BootUpdate;
 }
