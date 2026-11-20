@@ -6,10 +6,11 @@
  * Offline or any failure: keep current content, never throw to the boot UI.
  */
 
-import { releaseHosts } from "./contentSettings.ts";
+import { releaseHosts, releaseSourceOf } from "./contentSettings.ts";
 import { applySignedRelease } from "./applyRelease.ts";
 import {
   BUNDLED_RELEASE_NUMBER,
+  clearAppliedRelease,
   currentReleaseNumber,
   hydrateContentFromStore,
   readAppliedRelease,
@@ -70,7 +71,6 @@ export async function runContentUpdate(
       return lastStatus;
     }
 
-    const have = currentReleaseNumber();
     // Use the first host that answers; the rest are backups (for example an address kept alive after a domain change).
     let base = hosts[0];
     let remote = 0;
@@ -95,7 +95,18 @@ export async function runContentUpdate(
       return lastStatus;
     }
 
+    // Release numbers only compare within one line of releases. A release saved from another host (an old local CMS,
+    // or saved before the source was recorded) must not block this host's lower numbers: start again from the bundle.
+    const source = releaseSourceOf(base);
+    const stored = readAppliedRelease();
+    const foreign = !!stored && stored.source !== source;
+    const have = foreign ? BUNDLED_RELEASE_NUMBER : currentReleaseNumber();
+
     if (!(remote > have)) {
+      if (foreign) {
+        clearAppliedRelease();
+        hydrateContentFromStore();
+      }
       lastStatus = { state: "current", number: have };
       return lastStatus;
     }
@@ -135,7 +146,7 @@ export async function runContentUpdate(
     }
     const target = signed.manifest.number;
 
-    const applied = readAppliedRelease();
+    const applied = foreign ? null : readAppliedRelease();
     // Skip unchanged asset blobs; always re-fetch content.json so apply has a body to validate.
     const knownHashes = new Map(
       (applied?.files ?? []).filter((f) => f.path !== "content.json").map((f) => [f.path, f.hash.toLowerCase()]),
@@ -146,7 +157,7 @@ export async function runContentUpdate(
       return lastStatus;
     }
 
-    const result = await applySignedRelease(signed, changed, knownHashes);
+    const result = await applySignedRelease(signed, changed, knownHashes, source);
     if (!result.ok) {
       lastStatus = { state: "rejected", number: target, reason: result.reason };
       return lastStatus;

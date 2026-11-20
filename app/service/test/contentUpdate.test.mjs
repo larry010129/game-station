@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { applySignedRelease } from "../../src/content/applyRelease.ts";
 import {
   BUNDLED_RELEASE_NUMBER,
+  writeAppliedRelease,
   clearAppliedRelease,
   currentReleaseNumber,
   getWhatsNewEntries,
@@ -116,13 +117,13 @@ test("hash mismatch rejects without applying", async () => {
 });
 
 /** A stand-in release host that serves the fixture release as number 2. */
-async function fixtureHost() {
+async function fixtureHost(number = 2) {
   const server = http.createServer((req, res) => {
     const send = (type, body) => {
       res.writeHead(200, { "content-type": type });
       res.end(body);
     };
-    if (req.url === "/releases/current") return send("application/json", JSON.stringify({ number: 2 }));
+    if (req.url === "/releases/current") return send("application/json", JSON.stringify({ number }));
     if (req.url === "/releases/2/manifest.json") return send("application/json", JSON.stringify(signed));
     if (req.url === `/releases/blobs/${signed.manifest.contentHash}`) return send("application/octet-stream", contentText);
     res.writeHead(404).end();
@@ -153,6 +154,44 @@ test("update uses the first host that answers, not a later one", async () => {
   try {
     const status = await runContentUpdate(undefined, host.url);
     assert.equal(status.state, "updated");
+  } finally {
+    await host.close();
+  }
+});
+
+test("a release saved from another host does not block this host's lower number", async () => {
+  // An old local CMS got the app to release 12 (saved without a source).
+  assert.equal((await applySignedRelease(signed, new Map([["content.json", contentText]]))).ok, true);
+  writeAppliedRelease({ ...readAppliedRelease(), number: 12 });
+  assert.equal(currentReleaseNumber(), 12);
+  const host = await fixtureHost(2);
+  try {
+    assert.deepEqual(await runContentUpdate(undefined, host.url), { state: "updated", number: 2 });
+    assert.equal(currentReleaseNumber(), 2);
+    assert.equal(readAppliedRelease()?.source, `custom:${host.url}`);
+  } finally {
+    await host.close();
+  }
+});
+
+test("same host, same number: nothing to download", async () => {
+  const host = await fixtureHost(2);
+  try {
+    assert.equal((await runContentUpdate(undefined, host.url)).state, "updated");
+    assert.deepEqual(await runContentUpdate(undefined, host.url), { state: "current", number: 2 });
+  } finally {
+    await host.close();
+  }
+});
+
+test("a foreign release is dropped when the new host has no release yet", async () => {
+  assert.equal((await applySignedRelease(signed, new Map([["content.json", contentText]]))).ok, true);
+  assert.equal(getContent().packs.regular.priceOne, 110);
+  const host = await fixtureHost(0);
+  try {
+    assert.deepEqual(await runContentUpdate(undefined, host.url), { state: "current", number: 0 });
+    assert.equal(readAppliedRelease(), null);
+    assert.equal(getContent().packs.regular.priceOne, 100);
   } finally {
     await host.close();
   }

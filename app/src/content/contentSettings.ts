@@ -46,6 +46,14 @@ export function releaseHosts(): string[] {
   return [...RELEASE_HOSTS];
 }
 
+/**
+ * Which line of releases a host belongs to. Every address in RELEASE_HOSTS serves the same releases ("cloudflare");
+ * any other host (a local CMS, a test host) is its own line. Release numbers only compare within one line.
+ */
+export function releaseSourceOf(base: string): string {
+  return RELEASE_HOSTS.includes(base) ? "cloudflare" : `custom:${base}`;
+}
+
 /** First release host (kept for callers that want one address). */
 export function releasesBaseUrl(): string | null {
   return releaseHosts()[0] ?? null;

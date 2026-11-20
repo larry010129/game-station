@@ -51,6 +51,7 @@ export async function applySignedRelease(
   signed: SignedManifest,
   bodies: ReadonlyMap<string, string | Uint8Array>,
   knownHashes: ReadonlyMap<string, string> = new Map(),
+  source?: string,
 ): Promise<ApplyResult> {
   if (!(await verifySignedManifest(signed))) {
     return { ok: false, reason: "bad signature" };
@@ -98,6 +99,7 @@ export async function applySignedRelease(
     changelog: changelogFromBundle(bundle, manifest.notes),
     notes: manifest.notes ?? "",
     appliedAt: new Date().toISOString(),
+    ...(source ? { source } : {}),
   };
 
   if (!writeAppliedRelease(applied)) return { ok: false, reason: "could not persist release" };

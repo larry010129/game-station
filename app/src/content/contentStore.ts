@@ -22,6 +22,8 @@ export interface AppliedRelease {
   changelog: ReleaseChangelog;
   notes: string;
   appliedAt: string;
+  /** Release line it came from (see releaseSourceOf). Absent on releases saved before this field existed. */
+  source?: string;
 }
 
 function isAppliedRelease(v: unknown): v is AppliedRelease {
