@@ -6,7 +6,7 @@
  * Offline or any failure: keep current content, never throw to the boot UI.
  */
 
-import { releasesBaseUrl } from "./contentSettings.ts";
+import { releaseHosts } from "./contentSettings.ts";
 import { applySignedRelease } from "./applyRelease.ts";
 import {
   BUNDLED_RELEASE_NUMBER,
@@ -57,24 +57,40 @@ export function getLastContentUpdateStatus(): ContentUpdateStatus {
  * Hydrate from localStorage, then (when enabled) check the CMS for a newer release.
  * Always resolves; never throws.
  */
-export async function runContentUpdate(signal?: AbortSignal, host: string | null = releasesBaseUrl()): Promise<ContentUpdateStatus> {
+export async function runContentUpdate(
+  signal?: AbortSignal,
+  host: string | readonly string[] | null = releaseHosts(),
+): Promise<ContentUpdateStatus> {
   try {
     hydrateContentFromStore();
-    // `host` defaults to the release host for this build; tests pass a stand-in.
-    const base = host;
-    if (!base) {
+    // `host` defaults to the release hosts for this build (newest first); tests pass a stand-in.
+    const hosts = host == null ? [] : typeof host === "string" ? [host] : [...host];
+    if (hosts.length === 0) {
       lastStatus = { state: "skipped", detail: "content updates disabled (no release host configured)" };
       return lastStatus;
     }
 
     const have = currentReleaseNumber();
-    let remote: number;
-    try {
-      remote = await fetchCurrentNumber(base, signal);
-    } catch (e) {
+    // Use the first host that answers; the rest are backups (for example an address kept alive after a domain change).
+    let base = hosts[0];
+    let remote = 0;
+    let lastError: unknown = null;
+    let reached = false;
+    for (const h of hosts) {
+      try {
+        remote = await fetchCurrentNumber(h, signal);
+        base = h;
+        reached = true;
+        break;
+      } catch (e) {
+        lastError = e;
+        if (signal?.aborted) break;
+      }
+    }
+    if (!reached) {
       lastStatus = {
         state: "failed",
-        detail: e instanceof Error ? e.message : "could not reach release host",
+        detail: lastError instanceof Error ? lastError.message : "could not reach release host",
       };
       return lastStatus;
     }

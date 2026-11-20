@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import http from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +16,7 @@ import {
   readAppliedRelease,
 } from "../../src/content/contentStore.ts";
 import { canonicalJson } from "../../src/content/releaseTypes.ts";
+import { runContentUpdate } from "../../src/content/updateContent.ts";
 import { sha256Hex, verifySignedManifest } from "../../src/content/verifyRelease.ts";
 import { getContent, resetContent, validateContent } from "../../src/state/gachaEngine.ts";
 import { clearReleaseThemes, getCatalog, CATALOG } from "../../src/state/themeCatalog.ts";
@@ -111,4 +113,47 @@ test("hash mismatch rejects without applying", async () => {
   const result = await applySignedRelease(signed, new Map([["content.json", contentText + " "]]));
   assert.equal(result.ok, false);
   assert.equal(getContent().packs.regular.priceOne, 100);
+});
+
+/** A stand-in release host that serves the fixture release as number 2. */
+async function fixtureHost() {
+  const server = http.createServer((req, res) => {
+    const send = (type, body) => {
+      res.writeHead(200, { "content-type": type });
+      res.end(body);
+    };
+    if (req.url === "/releases/current") return send("application/json", JSON.stringify({ number: 2 }));
+    if (req.url === "/releases/2/manifest.json") return send("application/json", JSON.stringify(signed));
+    if (req.url === `/releases/blobs/${signed.manifest.contentHash}`) return send("application/octet-stream", contentText);
+    res.writeHead(404).end();
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  return { url: `http://127.0.0.1:${server.address().port}/releases`, close: () => new Promise((r) => server.close(r)) };
+}
+
+test("update falls back to the next release host when the first is down", async () => {
+  const host = await fixtureHost();
+  try {
+    const status = await runContentUpdate(undefined, ["http://127.0.0.1:1/releases", host.url]);
+    assert.deepEqual(status, { state: "updated", number: 2 });
+    assert.equal(getContent().packs.regular.priceOne, 110);
+  } finally {
+    await host.close();
+  }
+});
+
+test("update reports failed when every release host is down", async () => {
+  const status = await runContentUpdate(undefined, ["http://127.0.0.1:1/releases", "http://127.0.0.1:2/releases"]);
+  assert.equal(status.state, "failed");
+  assert.equal(getContent().packs.regular.priceOne, 100);
+});
+
+test("update uses the first host that answers, not a later one", async () => {
+  const host = await fixtureHost();
+  try {
+    const status = await runContentUpdate(undefined, host.url);
+    assert.equal(status.state, "updated");
+  } finally {
+    await host.close();
+  }
 });

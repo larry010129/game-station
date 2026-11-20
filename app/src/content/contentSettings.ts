@@ -13,6 +13,12 @@ export const DEV_RELEASES_BASE = "http://localhost:1430/releases";
 /** Public release host on Cloudflare (command-station-releases Worker, read-only). */
 export const PROD_RELEASES_BASE = "https://command-station-releases.yuzi010129.workers.dev/releases";
 
+/**
+ * Release hosts to try, newest first. When a custom domain is added, put it FIRST and keep the old address as a
+ * backup: an installed app only knows the addresses it was built with, so a retired address strands it.
+ */
+export const RELEASE_HOSTS: readonly string[] = [PROD_RELEASES_BASE];
+
 /** True in a Vite dev run, or when Node runs the code (tests, scripts). False in a built app. */
 export function isDevLike(): boolean {
   try {
@@ -29,15 +35,20 @@ export function contentUpdatesEnabled(): boolean {
   return true;
 }
 
-/** Base URL for release fetches. */
-export function releasesBaseUrl(): string | null {
+/** Release hosts to try, in order. A dev run can force one host with VITE_RELEASES_BASE. */
+export function releaseHosts(): string[] {
   try {
     const override = import.meta.env?.VITE_RELEASES_BASE;
-    if (isDevLike() && typeof override === "string" && override) return override;
+    if (isDevLike() && typeof override === "string" && override) return [override];
   } catch {
     /* not Vite */
   }
-  return PROD_RELEASES_BASE;
+  return [...RELEASE_HOSTS];
+}
+
+/** First release host (kept for callers that want one address). */
+export function releasesBaseUrl(): string | null {
+  return releaseHosts()[0] ?? null;
 }
 
 /** Public keys (SPKI, base64) a release may be signed with. The dev key is trusted in dev runs only. */

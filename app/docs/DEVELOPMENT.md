@@ -54,4 +54,4 @@ New dashboard cards, themes, card skins and items: see [ADDING-CONTENT.md](ADDIN
 
 ## Content updates (CMS, Phase 3)
 
-Dev builds can pull signed releases from the local CMS at `http://localhost:1430/releases`. See [content-updates.md](content-updates.md). Production host and signing key are TBD.
+Every run (dev and built) pulls signed releases from the Cloudflare release host, which the web CMS (`https://command-station-cms.yuzi010129.workers.dev`, repo `command-station-cms`) publishes to. `VITE_RELEASES_BASE` points a dev run at another host. See [content-updates.md](content-updates.md).
