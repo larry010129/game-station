@@ -54,6 +54,10 @@ export function releaseSourceOf(base: string): string {
   return RELEASE_HOSTS.includes(base) ? "cloudflare" : `custom:${base}`;
 }
 
+/** Every release is an app version: 1.<release number> (release 0 = the bundled 1.0, release 1 = 1.1, ...). */
+export const APP_VERSION_MAJOR = 1;
+export const appVersionOf = (release: number): string => `${APP_VERSION_MAJOR}.${release}`;
+
 /** First release host (kept for callers that want one address). */
 export function releasesBaseUrl(): string | null {
   return releaseHosts()[0] ?? null;

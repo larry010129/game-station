@@ -1,6 +1,7 @@
 import { readJson, removeKey, writeJson } from "../lib/storage.ts";
 import { resetContent, setContent, type GachaContent, validateContent } from "../state/gachaContent.ts";
 import { clearReleaseThemes, setReleaseThemes } from "../state/themeCatalog.ts";
+import { appVersionOf } from "./contentSettings.ts";
 import type { ReleaseFileEntry } from "./releaseTypes.ts";
 
 const STORE_KEY = "cs.content.release";
@@ -78,7 +79,7 @@ export function getWhatsNewEntries(): { id: string; title: string; body: string 
   const entries: { id: string; title: string; body: string }[] = [];
   const bodyNotes = changelog.notes || notes;
   if (bodyNotes) {
-    entries.push({ id: `release-${number}-notes`, title: `Release ${number}`, body: bodyNotes });
+    entries.push({ id: `release-${number}-notes`, title: `Version ${appVersionOf(number)}`, body: bodyNotes });
   }
   const pushList = (kind: string, items: string[] | undefined) => {
     if (!items?.length) return;

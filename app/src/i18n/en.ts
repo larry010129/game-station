@@ -51,7 +51,7 @@ export const EN: Readonly<Record<string, string>> = {
   "top.support": "Support",
   "top.yourName": "Your name",
   "update.title": "New update is live",
-  "update.badge": "Release {n}",
+  "update.badge": "Version {n}",
   "update.body": "The station was updated. Reload to use the new content.",
   "update.reload": "Reload now",
   "update.chip": "Update in {time}",

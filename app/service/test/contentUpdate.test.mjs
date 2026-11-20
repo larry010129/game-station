@@ -67,7 +67,7 @@ test("applySignedRelease sets content and persists What's new", async () => {
   assert.equal(getCatalog(), CATALOG);
   assert.deepEqual(readAppliedRelease()?.themes ?? [], []);
   const whats = getWhatsNewEntries();
-  assert.ok(whats.some((e) => /Release 2/.test(e.title)));
+  assert.ok(whats.some((e) => /Version 1\.2/.test(e.title)));
   assert.ok(whats.some((e) => /110/.test(e.body)));
 });
 

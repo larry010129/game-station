@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { clockTime } from "../lib/format";
+import { appVersionOf } from "../content/contentSettings";
 import { useT } from "../lib/i18n";
 import { useClock } from "../state/useEnvironment";
 import { useUpdateGate } from "../state/useUpdateGate";
@@ -37,7 +38,7 @@ function ReloadPopup({ number }: { number: number | null }) {
             </svg>
           </span>
           <h2 id="ug-title">{T("update.title")}</h2>
-          {number != null && <span className="ug-badge">{T("update.badge", { n: number })}</span>}
+          {number != null && <span className="ug-badge">{T("update.badge", { n: appVersionOf(number) })}</span>}
         </div>
         <div className="ug-foot">
           <p id="ug-body">{T("update.body")}</p>

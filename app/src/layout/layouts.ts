@@ -7,7 +7,7 @@ export interface CardDef {
   blurb: string;
   size: [number, number];
   min: [number, number];
-  /** Shown on a fresh install. Everything else is added from the Cards list. */
+  /** Shown on a fresh install (only Players online). Everything else is added from the Cards list. */
   on?: boolean;
   /** Ways the card can be drawn. The user picks one per card on the dashboard. */
   looks?: readonly { id: string; name: string }[];
@@ -23,14 +23,14 @@ export const CLOCK_LOOKS = [
 ] as const;
 
 export const CARDS = {
-  gpu: { name: "GPU", group: "This PC", blurb: "Temperature with a limit gauge", size: [6, 4], min: [3, 4], on: true },
-  load: { name: "Load", group: "This PC", blurb: "CPU and GPU load", size: [3, 5], min: [3, 5], on: true },
-  uplink: { name: "Uplink", group: "Connection", blurb: "Ping to the region and your router", size: [3, 4], min: [3, 4], on: true },
+  gpu: { name: "GPU", group: "This PC", blurb: "Temperature with a limit gauge", size: [6, 4], min: [3, 4] },
+  load: { name: "Load", group: "This PC", blurb: "CPU and GPU load", size: [3, 5], min: [3, 5] },
+  uplink: { name: "Uplink", group: "Connection", blurb: "Ping to the region and your router", size: [3, 4], min: [3, 4] },
   chart: { name: "Players online", group: "Overwatch", blurb: "Hourly players and the world map", size: [12, 22], min: [8, 10], on: true },
-  alerts: { name: "Alerts and events", group: "This PC", blurb: "What happened this session", size: [6, 9], min: [4, 6], on: true },
-  gamemode: { name: "Game mode", group: "Game", blurb: "One-tap game mode with undo", size: [6, 11], min: [5, 9], on: true },
-  feed: { name: "Overwatch feed", group: "Overwatch", blurb: "News, patch notes and leaks", size: [6, 9], min: [5, 6], on: true },
-  media: { name: "Now playing", group: "Media", blurb: "Spotify and other media: title, art, play, skip", size: [6, 9], min: [4, 7], on: true },
+  alerts: { name: "Alerts and events", group: "This PC", blurb: "What happened this session", size: [6, 9], min: [4, 6] },
+  gamemode: { name: "Game mode", group: "Game", blurb: "One-tap game mode with undo", size: [6, 11], min: [5, 9] },
+  feed: { name: "Overwatch feed", group: "Overwatch", blurb: "News, patch notes and leaks", size: [6, 9], min: [5, 6] },
+  media: { name: "Now playing", group: "Media", blurb: "Spotify and other media: title, art, play, skip", size: [6, 9], min: [4, 7] },
   calendar: { name: "Calendar", group: "Tools", blurb: "Month at a glance and what is next. Click to open the calendar", size: [6, 12], min: [4, 9] },
   spotify: { name: "Spotify control", group: "Media", blurb: "Play, skip, volume, shuffle and device for any Spotify account", size: [6, 12], min: [4, 9] },
   wavelink: { name: "Wave Link", group: "Media", blurb: "Elgato Wave Link 3: mic mute, mix and channel volumes", size: [6, 24], min: [4, 12] },
@@ -45,16 +45,16 @@ export const CARDS = {
   season: { name: "Season countdown", group: "Overwatch", blurb: "Days left in the season", size: [6, 6], min: [4, 5] },
   steam: { name: "Steam news", group: "Overwatch", blurb: "Latest Overwatch posts on Steam", size: [6, 9], min: [4, 7] },
   queue: { name: "Best time to play", group: "Overwatch", blurb: "Busy and quiet hours in your time zone", size: [6, 8], min: [4, 7] },
-  airesearch: { name: "Leak feed", group: "Overwatch", blurb: "Hourly leak headlines from Google News, Reddit and YouTube", size: [6, 20], min: [4, 10], on: true },
-  tierlist: { name: "Hero tier list", group: "Meta", blurb: "S to F tiers from Counterwatch, by role", size: [6, 20], min: [4, 9], on: true },
-  mappicks: { name: "Map hero picks", group: "Meta", blurb: "Pick a map: most played and best win-rate heroes", size: [6, 20], min: [4, 9], on: true },
+  airesearch: { name: "Leak feed", group: "Overwatch", blurb: "Hourly leak headlines from Google News, Reddit and YouTube", size: [6, 20], min: [4, 10] },
+  tierlist: { name: "Hero tier list", group: "Meta", blurb: "S to F tiers from Counterwatch, by role", size: [6, 20], min: [4, 9] },
+  mappicks: { name: "Map hero picks", group: "Meta", blurb: "Pick a map: most played and best win-rate heroes", size: [6, 20], min: [4, 9] },
   bestpicks: { name: "Best pick per role", group: "Meta", blurb: "The strongest hero for tank, damage and support", size: [6, 11], min: [4, 8] },
-  heroprofile: { name: "Hero profile", group: "Meta", blurb: "OW: poke/rush/dive · Apex: poke/dive/sustain + ALS pick rate", size: [12, 22], min: [6, 16], on: true },
+  heroprofile: { name: "Hero profile", group: "Meta", blurb: "OW: poke/rush/dive · Apex: poke/dive/sustain + ALS pick rate", size: [12, 22], min: [6, 16] },
   session: { name: "Session timer", group: "Game", blurb: "How long you have played, with a break reminder", size: [6, 6], min: [4, 5] },
   playhistory: { name: "Play history", group: "Game", blurb: "Hours per day this week", size: [6, 8], min: [4, 7] },
   report: { name: "Session report", group: "Game", blurb: "Ping, load and temperature of your last session", size: [6, 8], min: [4, 7] },
   gmhistory: { name: "Game mode history", group: "Game", blurb: "Past runs and what they changed", size: [6, 8], min: [4, 7] },
-  clocks: { name: "World clock", group: "Tools", blurb: "Time where your teammates are, in five looks you can switch", size: [6, 11], min: [4, 8], on: true, looks: CLOCK_LOOKS },
+  clocks: { name: "World clock", group: "Tools", blurb: "Time where your teammates are, in five looks you can switch", size: [6, 11], min: [4, 8], looks: CLOCK_LOOKS },
   cost: { name: "App cost", group: "This PC", blurb: "How much CPU and memory this app uses, against its budget", size: [6, 8], min: [4, 7] },
   library: { name: "Game library", group: "Game", blurb: "Installed Steam games and Battle.net, one-tap play", size: [6, 12], min: [4, 8] },
   discord: { name: "Discord", group: "Media", blurb: "Who is in your voice channel, and your Discord notifications", size: [6, 16], min: [4, 11] },
