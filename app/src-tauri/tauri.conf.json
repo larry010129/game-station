@@ -31,8 +31,16 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY1Q0ZERDJFNUNBM0JEODYKUldTR3ZhTmNMdDNQOVZoZm1ybTFaZTY2MnpLaG14amJlNllDaWp2dURrSXdGM1JDUUYwdU1lL1gK",
+      "endpoints": ["https://github.com/larry010129/game-station/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "externalBin": ["binaries/node"],

@@ -1,5 +1,6 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
+import { checkExeUpdateAtStart } from "./content/exeUpdate";
 import "@fontsource/outfit/200.css";
 import "@fontsource/outfit/300.css";
 import "@fontsource/outfit/400.css";
@@ -42,6 +43,9 @@ const showDemo = BootDemo != null && new URLSearchParams(location.search).get("b
 
 // Preview the "Something went wrong" screen without a crash: http://localhost:1420/?errorPreview=1 (any build; it only draws the screen).
 const showErrorPreview = new URLSearchParams(location.search).get("errorPreview") === "1";
+
+// Update type 2: ask GitHub Releases whether a newer exe exists (installed app only). A newer one blocks with a popup.
+checkExeUpdateAtStart();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -8,6 +8,7 @@
 
 import { releaseHosts, releaseSourceOf } from "./contentSettings.ts";
 import { applySignedRelease } from "./applyRelease.ts";
+import { checkExeUpdateAtStart, needsNewerExe } from "./exeUpdate.ts";
 import {
   BUNDLED_RELEASE_NUMBER,
   clearAppliedRelease,
@@ -24,6 +25,8 @@ export type ContentUpdateStatus =
   /** The newest release is scheduled for later: content stays at `number` until `at` (ISO), then the app switches. */
   | { state: "scheduled"; number: number; next: number; at: string }
   | { state: "rejected"; number: number; reason: string }
+  /** The release needs a newer exe than this one. Content stays as it is until the exe updates (update type 2). */
+  | { state: "needs-exe"; number: number; min: string }
   | { state: "failed"; detail: string };
 
 let lastStatus: ContentUpdateStatus = { state: "skipped", detail: "not run" };
@@ -145,6 +148,14 @@ async function runContentUpdateInner(
       return lastStatus;
     }
     const target = signed.manifest.number;
+
+    // A release can name the oldest exe it works with. An older exe updates itself first (forced), then comes back for content.
+    const min = signed.manifest.minAppVersion;
+    if (needsNewerExe(min)) {
+      checkExeUpdateAtStart();
+      lastStatus = { state: "needs-exe", number: have, min: min as string };
+      return lastStatus;
+    }
 
     const applied = foreign ? null : readAppliedRelease();
     // Skip unchanged asset blobs; always re-fetch content.json so apply has a body to validate.

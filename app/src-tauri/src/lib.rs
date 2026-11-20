@@ -95,8 +95,12 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
         .manage(Sidecar(Mutex::new(None)))
         .setup(|app| {
+            // Self-update of the installed exe (checked by the dashboard at start-up; see docs/exe-updates.md).
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             if cfg!(debug_assertions) {
                 return Ok(());
             }
