@@ -34,6 +34,18 @@ export const EN: Readonly<Record<string, string>> = {
   "tab.vault": "Vault",
   "tab.profile": "Profile",
   "tab.achievements": "Achievements",
+  "tab.whatsnew": "What's new",
+  "whatsnew.title": "What's new",
+  "whatsnew.sub": "The updates and release notes of the version you are using.",
+  "whatsnew.installed": "Installed {when}",
+  "whatsnew.notes": "Release notes",
+  "whatsnew.noNotes": "This release has no notes.",
+  "whatsnew.updates": "Updates",
+  "whatsnew.themes": "Themes",
+  "whatsnew.items": "Items",
+  "whatsnew.odds": "Odds",
+  "whatsnew.banners": "Banners",
+  "whatsnew.none": "No update installed yet. You are on the version that came with the app.",
 
   // Game mode phases in the top bar
   "mode.off": "Standby",

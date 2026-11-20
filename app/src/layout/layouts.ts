@@ -87,6 +87,7 @@ export const TABS = [
   { id: "vault", label: "Vault", kind: "page", note: "Vault is settings, not a card layout." },
   { id: "profile", label: "Profile", kind: "page", note: "Profile is a page, not a card layout." },
   { id: "achievements", label: "Achievements", kind: "page", note: "Achievements is a page, not a card layout." },
+  { id: "whatsnew", label: "What's new", kind: "page", note: "What's new is a page, not a card layout." },
 ] as const;
 export type BuiltinTabId = (typeof TABS)[number]["id"];
 /** A built-in tab id, or the id of a tab the user added in the Vault. */

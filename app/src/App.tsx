@@ -7,7 +7,6 @@ import { useExeUpdate } from "./state/useExeUpdate";
 import { useContentStatus, useUpdateGate } from "./state/useUpdateGate";
 import { runContentUpdate } from "./content/updateContent";
 import { CONTENT } from "./boot/bootSteps";
-import { openNewsBoard } from "./state/useNewsRead";
 import { Dashboard } from "./layout/Dashboard";
 import { EditBar } from "./layout/EditBar";
 import { LayoutManager } from "./layout/LayoutManager";
@@ -27,6 +26,7 @@ const DrawPage = lazy(() => import("./pages/DrawPage").then((m) => ({ default: m
 const VaultPage = lazy(() => import("./pages/VaultPage").then((m) => ({ default: m.VaultPage })));
 const WikiPage = lazy(() => import("./pages/WikiPage").then((m) => ({ default: m.WikiPage })));
 const NewsPage = lazy(() => import("./pages/NewsPage").then((m) => ({ default: m.NewsPage })));
+const WhatsNewPage = lazy(() => import("./pages/WhatsNewPage").then((m) => ({ default: m.WhatsNewPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const AchievementsPage = lazy(() => import("./pages/AchievementsPage").then((m) => ({ default: m.AchievementsPage })));
 const CheckinPage = lazy(() => import("./pages/CheckinPage").then((m) => ({ default: m.CheckinPage })));
@@ -322,7 +322,7 @@ function StationApp({
   /** Card tabs, the tabs the user added, then the page tabs. Game tab label follows the active game. */
   const tabs = useMemo(
     () =>
-      [...TABS.filter((t) => t.kind === "cards"), ...nav.custom, ...TABS.filter((t) => t.kind === "page" && t.id !== "themes" && t.id !== "vault" && t.id !== "buy-credits" && t.id !== "profile" && t.id !== "achievements")].map(({ id, label }) => ({
+      [...TABS.filter((t) => t.kind === "cards"), ...nav.custom, ...TABS.filter((t) => t.kind === "page" && t.id !== "themes" && t.id !== "vault" && t.id !== "buy-credits" && t.id !== "profile" && t.id !== "achievements" && t.id !== "whatsnew")].map(({ id, label }) => ({
         id,
         label: id === "overwatch" ? activeGame.pack.tabLabel : T(`tab.${id}`, undefined, label),
         ...(id === "news" ? { count: newsUnread } : {}),
@@ -333,7 +333,7 @@ function StationApp({
   // A pane can show any page, including Themes, Vault, and Support, which the top bar reaches by control.
   const paneOptions = useMemo(
     () =>
-      [...tabs, ...TABS.filter((t) => t.id === "themes" || t.id === "vault" || t.id === "buy-credits" || t.id === "profile" || t.id === "achievements").map(({ id, label }) => ({ id, label: T(`tab.${id}`, undefined, label) }))].map((t) => ({
+      [...tabs, ...TABS.filter((t) => t.id === "themes" || t.id === "vault" || t.id === "buy-credits" || t.id === "profile" || t.id === "achievements" || t.id === "whatsnew").map(({ id, label }) => ({ id, label: T(`tab.${id}`, undefined, label) }))].map((t) => ({
         value: t.id,
         label: t.label,
       })),
@@ -494,6 +494,7 @@ function StationApp({
     wiki: () => <WikiPage owned={look.unlocks} onOpenDraw={() => selectTab("draw")} onOpenAchievements={() => selectTab("achievements")} onOpenPerks={() => selectTab("perks")} />,
     news: () => <NewsPage />,
     achievements: () => <AchievementsPage />,
+    whatsnew: () => <WhatsNewPage />,
     pass: () => <PassPage onNav={selectTab} />,
     perks: () => <PerksPage />,
     profile: () => <ProfilePage displayName={displayName} look={look.active} unlocked={look.unlocks.length} onNav={selectTab} />,
@@ -539,7 +540,7 @@ function StationApp({
           onTrim={trimMemory}
           trimming={trimming}
         />
-        <WhatsNewBanner onOpen={() => { openNewsBoard("notices"); selectTab("news"); }} />
+        <WhatsNewBanner onOpen={() => selectTab("whatsnew")} />
         {stopped && (
           <NoticeBar tone="alert">Monitoring is stopped. Nothing is being sampled until you press the power button again.</NoticeBar>
         )}

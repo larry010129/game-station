@@ -49,30 +49,3 @@ export function listNotices(): Notice[] {
   const fromRelease = getWhatsNewEntries();
   return fromRelease.length > 0 ? fromRelease : [...CONTENT_CHANGELOG];
 }
-
-/** Which News board to open next ("notices" holds What's new). Set before switching to the News tab; read once on mount. */
-export type NewsBoard = "news" | "notices";
-const BOARD_EVENT = "cs-news-board";
-let pendingBoard: NewsBoard | null = null;
-
-export function openNewsBoard(board: NewsBoard): void {
-  pendingBoard = board;
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(BOARD_EVENT));
-}
-
-/** Looks without clearing: a React initializer can run twice in development, so the page clears it after mounting. */
-export function peekNewsBoard(): NewsBoard | null {
-  return pendingBoard;
-}
-
-export function clearNewsBoard(): void {
-  pendingBoard = null;
-}
-
-export function takeNewsBoard(): NewsBoard | null {
-  const b = pendingBoard;
-  pendingBoard = null;
-  return b;
-}
-
-export const NEWS_BOARD_EVENT = BOARD_EVENT;

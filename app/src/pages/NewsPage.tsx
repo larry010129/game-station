@@ -8,7 +8,7 @@ import type { FeedItem, FeedKind } from "../lib/types";
 import { PLATFORM_NAME, PlatformIcon, platformOf } from "../components/PlatformIcon";
 import { isUnread, unreadCount } from "../state/newsRead";
 import { useContentStatus } from "../state/useUpdateGate";
-import { clearNewsBoard, listNotices, NEWS_BOARD_EVENT, peekNewsBoard, takeNewsBoard, useNewsRead, type Notice } from "../state/useNewsRead";
+import { listNotices, useNewsRead, type Notice } from "../state/useNewsRead";
 
 type Board = "news" | "notices";
 
@@ -33,19 +33,7 @@ const kindLabel = (k: Entry["kind"]) => (k === "notice" ? "Notice" : FEED_KIND_L
 export function NewsPage() {
   const feed = useContext(CardCtxContext)?.feed;
   const { state: read, mark } = useNewsRead();
-  const [board, setBoard] = useState<Board>(() => peekNewsBoard() ?? "news");
-  useEffect(() => {
-    clearNewsBoard();
-  }, []);
-  // "See what's new" while this page is already open.
-  useEffect(() => {
-    const go = () => {
-      const b = takeNewsBoard();
-      if (b) setBoard(b);
-    };
-    window.addEventListener(NEWS_BOARD_EVENT, go);
-    return () => window.removeEventListener(NEWS_BOARD_EVENT, go);
-  }, []);
+  const [board, setBoard] = useState<Board>("news");
   const [kind, setKind] = useState<FeedKind | "all">("all");
   const [picked, setPicked] = useState<Partial<Record<Board, string>>>({});
   const boardId = useId();

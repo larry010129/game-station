@@ -1,0 +1,24 @@
+/* What's new page (pages/WhatsNewPage.tsx): version, release notes, and what changed. */
+.whatsnew { display: flex; flex-direction: column; gap: 14px; max-width: 78ch; }
+.whatsnew-head { display: flex; flex-direction: column; gap: 6px; }
+.whatsnew-head h2 { margin: 0; font-size: 28px; font-weight: 400; letter-spacing: -0.02em; }
+.whatsnew-head p { margin: 0; color: var(--dim); font-size: 13px; }
+
+.whatsnew-version { display: flex; align-items: center; gap: 12px; }
+.whatsnew-badge { padding: 4px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); color: var(--good); font-size: 13px; }
+.whatsnew-version small { color: var(--mute); font-size: 12px; }
+
+.whatsnew-panel { padding: 16px 18px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--glass); display: flex; flex-direction: column; gap: 12px; }
+.whatsnew-panel h3 { margin: 0; font-size: 13px; font-weight: 500; }
+.whatsnew-notes { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-line; text-wrap: pretty; }
+.whatsnew-none { margin: 0; font-size: 13px; color: var(--dim); }
+
+.whatsnew-group { display: flex; flex-direction: column; gap: 8px; }
+.whatsnew-group h4 { margin: 0; font-size: 12.5px; font-weight: 500; color: var(--dim); }
+.whatsnew-group h4 small { margin-left: 4px; color: var(--mute); font-weight: 400; }
+.whatsnew-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.whatsnew-chips li { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--edge); background: var(--wash); font-size: 12.5px; }
+
+.whatsnew-plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.whatsnew-plain li { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--dim); }
+.whatsnew-plain strong { font-weight: 500; color: var(--text); }
