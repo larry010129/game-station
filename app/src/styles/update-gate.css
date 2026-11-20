@@ -33,3 +33,4 @@
 .notice-bar-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .notice-bar-link:hover { opacity: 0.8; }
 .notice-bar-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+.notice-slot { margin: 0 0 12px; }

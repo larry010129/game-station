@@ -4,7 +4,10 @@ import { useBoot } from "./boot/useBoot";
 import type { BootState } from "./boot/types";
 import { appVersionOf } from "./content/contentSettings";
 import { useExeUpdate } from "./state/useExeUpdate";
-import { useUpdateGate } from "./state/useUpdateGate";
+import { useContentStatus, useUpdateGate } from "./state/useUpdateGate";
+import { runContentUpdate } from "./content/updateContent";
+import { CONTENT } from "./boot/bootSteps";
+import { openNewsBoard } from "./state/useNewsRead";
 import { Dashboard } from "./layout/Dashboard";
 import { EditBar } from "./layout/EditBar";
 import { LayoutManager } from "./layout/LayoutManager";
@@ -41,7 +44,7 @@ import { TopBar } from "./components/TopBar";
 import { refreshPatreon } from "./state/patreon";
 import { trackQuest, useQuestTracking } from "./state/useQuests";
 import { ProfilePanel } from "./components/ProfilePanel";
-import { UpdateBanner, UpdateGate } from "./components/UpdateGate";
+import { UpdateBanner, UpdateGate, WhatsNewBanner } from "./components/UpdateGate";
 import { AchievementWatcher } from "./state/useAchievements";
 import { PassWatcher } from "./state/useSeasonPass";
 import { PlayerLevelWatcher } from "./state/usePlayerLevel";
@@ -85,23 +88,35 @@ export function App() {
   const onInfo = useCallback((p: StationInfo) => setInfo(p), []);
   const boot = useBoot({ cards, onInfo });
 
-  // A content release went live: the loading screen comes back with a Reload button and the app stays locked under it
-  // (the app is not loaded in until the page reloads). A new exe (the other update) has its own popup and wins.
+  // A release went live: the loading screen comes back and runs the update (the app is not loaded in meanwhile).
+  // When it is installed the button only restarts the app. A new exe (the other update) has its own popup and wins.
   const T = useT();
   const gate = useUpdateGate();
   const exe = useExeUpdate();
+  const { status } = useContentStatus();
   const updating = gate.mustReload && !exe.blocking;
+  const [tries, setTries] = useState(0);
+  useEffect(() => {
+    if (updating) void runContentUpdate();
+  }, [updating, tries]);
+  const installed = gate.installed;
+  const failedUpdate = !installed && (status.state === "failed" || status.state === "rejected");
+  const version = gate.number != null ? appVersionOf(gate.number) : null;
   const cover: BootState = updating
     ? {
         ...boot,
         phase: "update",
-        progress: 1,
+        progress: installed ? 1 : 0.6,
         problem: null,
+        steps: boot.steps.map((st) => (st.id === CONTENT ? { ...st, status: installed ? "online" : failedUpdate ? "failed" : "linking" } : st)),
         update: {
-          line: gate.number != null ? `${T("update.title")} · ${T("update.badge", { n: appVersionOf(gate.number) })}` : T("update.title"),
-          hint: T("update.body"),
-          action: T("update.reload"),
-          onReload: () => window.location.reload(),
+          line: installed ? (version ? `${T("update.title")} · ${T("update.badge", { n: version })}` : T("update.title")) : failedUpdate ? T("update.failed") : T("update.applying"),
+          hint: installed ? T("update.restartBody") : failedUpdate ? T("update.failedHint") : T("update.applyingHint"),
+          action: installed
+            ? { label: T("update.restart"), onClick: () => window.location.reload() }
+            : failedUpdate
+              ? { label: T("update.retry"), onClick: () => setTries((n) => n + 1) }
+              : undefined,
         },
       }
     : boot;
@@ -524,6 +539,7 @@ function StationApp({
           onTrim={trimMemory}
           trimming={trimming}
         />
+        <WhatsNewBanner onOpen={() => { openNewsBoard("notices"); selectTab("news"); }} />
         {stopped && (
           <NoticeBar tone="alert">Monitoring is stopped. Nothing is being sampled until you press the power button again.</NoticeBar>
         )}

@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { getContentGate, noticeDue, scheduledDue, subscribeContentGate, UPDATE_NOTICE_LEAD_MS } from "../content/updateContent.ts";
+import { readAppliedRelease } from "../content/contentStore.ts";
+import {
+  getContentGate,
+  getContentRev,
+  getLastContentUpdateStatus,
+  noticeDue,
+  scheduledDue,
+  subscribeContentGate,
+  UPDATE_NOTICE_LEAD_MS,
+  type ContentUpdateStatus,
+} from "../content/updateContent.ts";
 
 export interface UpdateGateView {
   /** Go-live time (ms) of the next scheduled release, once it is 30 minutes or less away. Null otherwise. */
   noticeAt: number | null;
   /** The player must reload. Sticky: the popup stays until the page reloads. */
   mustReload: boolean;
+  /** The release is installed (applied while the app was open): a restart is all that is left. */
+  installed: boolean;
   number: number | null;
 }
 
@@ -45,6 +57,13 @@ export function useUpdateGate(): UpdateGateView {
   return {
     noticeAt: at != null && noticeDue(gate, now) ? at : null,
     mustReload: due || !!gate.reload,
+    installed: !!gate.reload,
     number: current ?? last.current,
   };
+}
+
+/** Re-renders after every finished update check: the latest status, and the number of the release in use (0 = bundled). */
+export function useContentStatus(): { status: ContentUpdateStatus; applied: number } {
+  useSyncExternalStore(subscribeContentGate, getContentRev, getContentRev);
+  return { status: getLastContentUpdateStatus(), applied: readAppliedRelease()?.number ?? 0 };
 }

@@ -226,3 +226,18 @@ test("gate: heads-up from 30 minutes before go-live, popup at go-live", () => {
   assert.equal(scheduledDue(g, at), true);
   assert.equal(noticeDue(none, at), false);
 });
+
+test("two update checks at once share one run, and the screen can see each finished check", async () => {
+  const { getContentRev, getLastContentUpdateStatus } = await import("../../src/content/updateContent.ts");
+  const host = await fixtureHost(2);
+  try {
+    const rev = getContentRev();
+    const [a, b] = await Promise.all([runContentUpdate(undefined, host.url), runContentUpdate(undefined, host.url)]);
+    assert.equal(a, b);
+    assert.equal(a.state, "updated");
+    assert.equal(getContentRev(), rev + 1);
+    assert.equal(getLastContentUpdateStatus().state, "updated");
+  } finally {
+    await host.close();
+  }
+});

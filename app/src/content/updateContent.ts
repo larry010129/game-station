@@ -253,12 +253,29 @@ export async function runContentUpdate(
   signal?: AbortSignal,
   host?: string | readonly string[] | null,
 ): Promise<ContentUpdateStatus> {
-  const status = host === undefined ? await runContentUpdateInner(signal) : await runContentUpdateInner(signal, host);
-  const next = gateAfter(gate, status, firstRunDone);
-  firstRunDone = true;
-  if (next !== gate) {
-    gate = next;
+  // One check at a time: a go-live check and the timer's own check must not apply the same release twice.
+  if (inFlight) return inFlight;
+  const run = (async () => {
+    const status = host === undefined ? await runContentUpdateInner(signal) : await runContentUpdateInner(signal, host);
+    const next = gateAfter(gate, status, firstRunDone);
+    firstRunDone = true;
+    if (next !== gate) gate = next;
+    contentRev++;
     gateListeners.forEach((f) => f());
+    return status;
+  })();
+  inFlight = run;
+  try {
+    return await run;
+  } finally {
+    inFlight = null;
   }
-  return status;
+}
+
+let inFlight: Promise<ContentUpdateStatus> | null = null;
+let contentRev = 0;
+
+/** Changes after every finished check, so a screen can show the latest status (see getLastContentUpdateStatus). */
+export function getContentRev(): number {
+  return contentRev;
 }

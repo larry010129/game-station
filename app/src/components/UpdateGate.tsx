@@ -2,9 +2,12 @@ import { useEffect, useRef } from "react";
 import { clockTime } from "../lib/format";
 import { useT } from "../lib/i18n";
 import { useClock } from "../state/useEnvironment";
+import { appVersionOf } from "../content/contentSettings";
+import { isUnread } from "../state/newsRead";
+import { listNotices, useNewsRead } from "../state/useNewsRead";
 import { NoticeBar } from "./NoticeBar";
 import { useExeUpdate } from "../state/useExeUpdate";
-import { useUpdateGate } from "../state/useUpdateGate";
+import { useContentStatus, useUpdateGate } from "../state/useUpdateGate";
 
 /**
  * Forced popup for a new exe (update type 2). No close button: it downloads, installs and restarts the app by itself.
@@ -84,5 +87,23 @@ export function UpdateBanner() {
     <NoticeBar wide>
       {T("update.banner", { at: clockTime(noticeAt).slice(0, 5) })} <b>{T("update.bannerIn", { time: `${mm}:${ss}` })}</b>
     </NoticeBar>
+  );
+}
+
+/**
+ * Under the tabs: the app was updated and its notes are not read yet. "See what's new" opens the Notices board; the
+ * bar goes away once the notes are read.
+ */
+export function WhatsNewBanner({ onOpen }: { onOpen: () => void }) {
+  const T = useT();
+  const { applied } = useContentStatus();
+  const { state: read } = useNewsRead();
+  // Opening the Notices board marks its first entry read, so the first release entry decides whether the bar shows.
+  const head = listNotices().find((n) => n.id.startsWith("release-"));
+  if (applied <= 0 || !head || !isUnread(read, head.id)) return null;
+  return (
+    <div className="notice-slot">
+      <NoticeBar action={{ label: T("update.see"), onClick: onOpen }}>{T("update.new", { v: appVersionOf(applied) })}</NoticeBar>
+    </div>
   );
 }

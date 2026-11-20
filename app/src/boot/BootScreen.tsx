@@ -89,7 +89,7 @@ export function BootScreen({
       {line}
     </StationAlert>
   ) : updating && state.update ? (
-    <StationAlert className="boot-stopped boot-update" tone="notice" action={{ label: state.update.action, onClick: state.update.onReload }}>
+    <StationAlert className="boot-stopped boot-update" tone="notice" action={state.update.action}>
       {state.update.hint}
     </StationAlert>
   ) : null;

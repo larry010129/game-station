@@ -29,9 +29,8 @@ export interface BootUpdate {
   line: string;
   /** One line under the headline. */
   hint: string;
-  /** The button's label. */
-  action: string;
-  onReload: () => void;
+  /** The button. Absent while the update is still installing. */
+  action?: { label: string; onClick: () => void };
 }
 
 export interface BootState {
