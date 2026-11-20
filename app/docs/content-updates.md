@@ -4,8 +4,9 @@ At start-up the app can download a signed content release from a CMS host, verif
 
 ## Where releases come from
 
-- Dev run (Vite): `http://localhost:1430/releases` (local CMS), trusts the dev key and the production key.
-- Built app / installer: `https://command-station-releases.yuzi010129.workers.dev/releases` (read-only Cloudflare Worker fed by the CMS Worker), trusts the production key only.
+- Every run reads `https://command-station-releases.yuzi010129.workers.dev/releases` (read-only Cloudflare Worker fed by the web CMS at `https://command-station-cms.yuzi010129.workers.dev`).
+- A dev run can use another host with `VITE_RELEASES_BASE` (for example the local CMS, `http://localhost:1430/releases`).
+- Built app / installer trusts the production key only. A dev run also trusts the dev key.
 - Both live in `app/src/content/contentSettings.ts`; keys in `app/src/content/devPublicKey.ts`. The installer's CSP (`src-tauri/tauri.conf.json`, `connect-src`) must list the release host.
 
 ## Contract (with CMS)

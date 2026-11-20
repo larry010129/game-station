@@ -1,7 +1,8 @@
 /**
  * Content delivery settings: where the app downloads signed releases from.
  *
- * Dev run (Vite): the local CMS. Real build / installed app: the Cloudflare release host.
+ * Every run (dev and real builds) reads the Cloudflare release host, which the web CMS publishes to.
+ * Set VITE_RELEASES_BASE to point a dev run at another host (for example a local CMS on localhost:1430).
  * Every release is checked against the matching public key before it is used (see verifyRelease.ts).
  */
 import { DEV_CONTENT_PUBLIC_KEY_SPKI_B64, PROD_CONTENT_PUBLIC_KEY_SPKI_B64 } from "./devPublicKey.ts";
@@ -30,7 +31,13 @@ export function contentUpdatesEnabled(): boolean {
 
 /** Base URL for release fetches. */
 export function releasesBaseUrl(): string | null {
-  return isDevLike() ? DEV_RELEASES_BASE : PROD_RELEASES_BASE;
+  try {
+    const override = import.meta.env?.VITE_RELEASES_BASE;
+    if (isDevLike() && typeof override === "string" && override) return override;
+  } catch {
+    /* not Vite */
+  }
+  return PROD_RELEASES_BASE;
 }
 
 /** Public keys (SPKI, base64) a release may be signed with. The dev key is trusted in dev runs only. */
