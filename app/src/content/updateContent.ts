@@ -60,10 +60,10 @@ export function getLastContentUpdateStatus(): ContentUpdateStatus {
 export async function runContentUpdate(signal?: AbortSignal, host: string | null = releasesBaseUrl()): Promise<ContentUpdateStatus> {
   try {
     hydrateContentFromStore();
-    // `host` defaults to the dev release host (null outside a dev build); tests pass a stand-in.
+    // `host` defaults to the release host for this build; tests pass a stand-in.
     const base = host;
     if (!base) {
-      lastStatus = { state: "skipped", detail: "content updates disabled (not a dev build)" };
+      lastStatus = { state: "skipped", detail: "content updates disabled (no release host configured)" };
       return lastStatus;
     }
 

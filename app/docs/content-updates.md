@@ -2,11 +2,11 @@
 
 At start-up the app can download a signed content release from a CMS host, verify it, and swap gacha tables without rebuilding the EXE.
 
-## Dev only
+## Where releases come from
 
-- Enabled only when Vite `import.meta.env.DEV` is true (never in `vite build` / Tauri release).
-- Release host: `http://localhost:1430/releases` (`app/src/content/contentSettings.ts`).
-- Trust: Ed25519 public key in `app/src/content/devPublicKey.ts` (mirrors `cms/data/keys/ed25519-public.pem`).
+- Dev run (Vite): `http://localhost:1430/releases` (local CMS), trusts the dev key and the production key.
+- Built app / installer: `https://command-station-releases.yuzi010129.workers.dev/releases` (read-only Cloudflare Worker fed by the CMS Worker), trusts the production key only.
+- Both live in `app/src/content/contentSettings.ts`; keys in `app/src/content/devPublicKey.ts`. The installer's CSP (`src-tauri/tauri.conf.json`, `connect-src`) must list the release host.
 
 ## Contract (with CMS)
 
@@ -41,7 +41,7 @@ Types: `cms/shared/releaseTypes.ts` / `app/src/content/releaseTypes.ts`.
 
 ## Production
 
-**Host and production public key are TBD.** Do not point a shipped build at localhost; ship a production key separate from the CMS throwaway key.
+Host and production public key are set (see above). The private key signs releases in the CMS Worker (secret `SIGNING_KEY`). Rotating it means shipping a new app build with the new public key.
 
 ## Local check
 

@@ -1,4 +1,4 @@
-import { DEV_CONTENT_PUBLIC_KEY_SPKI_B64 } from "./devPublicKey.ts";
+import { trustedPublicKeys } from "./contentSettings.ts";
 import { canonicalJson, type SignedManifest } from "./releaseTypes.ts";
 
 function b64ToBytes(b64: string): Uint8Array {
@@ -26,10 +26,8 @@ function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
-async function importDevPublicKey(): Promise<CryptoKey> {
-  return subtle().importKey("spki", asArrayBuffer(b64ToBytes(DEV_CONTENT_PUBLIC_KEY_SPKI_B64)), { name: "Ed25519" }, false, [
-    "verify",
-  ]);
+function importPublicKey(spkiB64: string): Promise<CryptoKey> {
+  return subtle().importKey("spki", asArrayBuffer(b64ToBytes(spkiB64)), { name: "Ed25519" }, false, ["verify"]);
 }
 
 /** SHA-256 hex of UTF-8 text or raw bytes. */
@@ -38,13 +36,16 @@ export async function sha256Hex(data: string | Uint8Array): Promise<string> {
   return hexOf(await subtle().digest("SHA-256", asArrayBuffer(bytes)));
 }
 
-/** True when the SignedManifest Ed25519 signature matches with the embedded dev public key. */
+/** True when the SignedManifest Ed25519 signature matches one of the trusted public keys (production; dev too in dev runs). */
 export async function verifySignedManifest(signed: SignedManifest): Promise<boolean> {
   if (!signed || signed.alg !== "ed25519" || !signed.signature || !signed.manifest) return false;
   try {
-    const key = await importDevPublicKey();
     const payload = new TextEncoder().encode(canonicalJson(signed.manifest));
-    return subtle().verify({ name: "Ed25519" }, key, asArrayBuffer(b64ToBytes(signed.signature)), payload);
+    const sig = asArrayBuffer(b64ToBytes(signed.signature));
+    for (const spki of trustedPublicKeys()) {
+      if (await subtle().verify({ name: "Ed25519" }, await importPublicKey(spki), sig, payload)) return true;
+    }
+    return false;
   } catch {
     return false;
   }
