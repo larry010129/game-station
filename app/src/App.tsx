@@ -60,7 +60,7 @@ import { useSample, useStation } from "./state/useStation";
 import { useLeakAlerts } from "./state/useLeakAlerts";
 import { useTheme } from "./state/useTheme";
 import { useToasts } from "./state/useToasts";
-import { StationAlert } from "./components/StationAlert";
+import { NoticeBar } from "./components/NoticeBar";
 import { useMonitor } from "./state/useMonitor";
 import { useWindowView } from "./state/useWindowView";
 import type { FeedItem, StationInfo } from "./lib/types";
@@ -525,9 +525,7 @@ function StationApp({
           trimming={trimming}
         />
         {stopped && (
-          <StationAlert tone="alert" role="status">
-            Monitoring is stopped. Nothing is being sampled until you press the power button again.
-          </StationAlert>
+          <NoticeBar tone="alert">Monitoring is stopped. Nothing is being sampled until you press the power button again.</NoticeBar>
         )}
 
         {splitting ? (
@@ -656,9 +654,7 @@ function TabBody({
   return (
     <div>
       {shown.length === 0 && (
-        <StationAlert tone="notice" role="status">
-          No cards on this page. Press Edit layout, then add the ones that belong here.
-        </StationAlert>
+        <NoticeBar>No cards on this page. Press Edit layout, then add the ones that belong here.</NoticeBar>
       )}
       <CardCtxContext.Provider value={ctx}>
         <MemoDashboard

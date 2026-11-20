@@ -961,17 +961,8 @@ button.credits-item:focus-visible .credits-url { color: var(--orange); }
 .themes-head h2 { font-size: 28px; font-weight: 400; letter-spacing: -0.02em; }
 .themes-head p, .themes .hint { color: var(--dim); font-size: 13px; }
 .themes .err { color: var(--orange); font-size: 12.5px; }
-.themes-whats-new {
-  max-width: 68ch;
-  padding: 10px 12px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r);
-  background: var(--glass);
-}
-.themes-whats-new h3 { font-size: 13px; font-weight: 500; margin: 0 0 6px; }
-.themes-whats-new ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.themes-whats-new li { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--dim); }
-.themes-whats-new strong { font-weight: 500; color: var(--text); }
+.themes-whats-new { max-width: 68ch; display: flex; flex-direction: column; gap: 8px; }
+.themes-whats-new h3 { font-size: 13px; font-weight: 500; margin: 0; }
 .theme-pick-past { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px; opacity: 0.88; pointer-events: none; }
 .theme-pick-past .theme-pick-meta small { white-space: normal; line-height: 1.35; }
 

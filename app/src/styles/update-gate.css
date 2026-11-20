@@ -20,8 +20,16 @@
   .ug-scrim, .ug-card { animation: none; }
 }
 
-/* Heads-up banner: a slim dark bar, full width, mark + one line + underlined countdown. */
-.ug-banner { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 -20px; padding: 18px 20px; background: #19191b; color: #f4f4f5; border-bottom: 1px solid var(--edge); }
-.ug-banner .i { flex: none; width: 24px; height: 24px; color: #9a9a9e; }
-.ug-banner p { margin: 0; font-size: 15px; line-height: 1.4; text-wrap: balance; }
-.ug-banner b { margin-left: 6px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Notice bar (components/NoticeBar.tsx): slim dark bar, mark + one message + underlined action. */
+.notice-bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 16px 20px; border-radius: 4px; background: #19191b; color: #f4f4f5; border: 1px solid var(--edge); }
+.notice-bar.wide { margin: 0 -20px; padding: 18px 20px; border-radius: 0; border-width: 0 0 1px; }
+.notice-bar.left { justify-content: flex-start; text-align: left; }
+.notice-bar-mark { flex: none; width: 24px; height: 24px; color: #9a9a9e; }
+.notice-bar.tone-caution .notice-bar-mark { color: var(--orange); }
+.notice-bar.tone-alert .notice-bar-mark { color: var(--red); }
+.notice-bar p { margin: 0; min-width: 0; font-size: 15px; line-height: 1.45; text-wrap: pretty; }
+.notice-bar b { font-weight: 500; }
+.notice-bar.wide b { margin-left: 6px; text-decoration: underline; text-underline-offset: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.notice-bar-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.notice-bar-link:hover { opacity: 0.8; }
+.notice-bar-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }

@@ -17,6 +17,7 @@ import {
   spendCredits,
 } from "../state/stationCredits";
 import { getWhatsNewEntries } from "../content/contentStore.ts";
+import { NoticeBar } from "../components/NoticeBar";
 import { LOOK_COST } from "../state/gachaEngine";
 import {
   CONTENT_CHANGELOG,
@@ -670,14 +671,11 @@ export function ThemesPage({ look, onOpenDraw }: { look: Look; onOpenDraw: () =>
       {whatsNew.length > 0 && (
         <aside className="themes-whats-new" aria-label="What's new">
           <h3>What&apos;s new</h3>
-          <ul>
-            {whatsNew.map((entry) => (
-              <li key={entry.id}>
-                <strong>{entry.title}</strong>
-                <span>{entry.body}</span>
-              </li>
-            ))}
-          </ul>
+          {whatsNew.map((entry) => (
+            <NoticeBar key={entry.id} left>
+              <b>{entry.title}</b> {entry.body}
+            </NoticeBar>
+          ))}
         </aside>
       )}
 
