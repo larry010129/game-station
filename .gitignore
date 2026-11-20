@@ -1,4 +1,4 @@
-﻿# dependencies and build output
+# dependencies and build output
 node_modules/
 dist/
 app/src-tauri/target/
@@ -18,9 +18,13 @@ CommandStation-v0.2/
 !.env.example
 !**/.env.example
 .freebuff/
-# CMS local releases + signing secrets (see cms/data/.gitignore)
-cms/data/keys/*.pem
-cms/data/releases/by-number/
-cms/data/releases/blobs/
-cms/data/releases/current.json
-cms/data/assets/
+# The CMS moved to its own repo (command-station-cms); ignore any leftover local folder
+/cms/
+# Generated graph cache and local Cloudflare tool state
+graphify-out/cache/
+graphify-out/.graphify_partial.txt
+.wrangler/
+.dev.vars
+.claude/settings.local.json
+.claude/worktrees/
+!.env.production

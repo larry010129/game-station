@@ -34,7 +34,7 @@
     {
       "name": "cms",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "cms", "run", "dev"],
+      "runtimeArgs": ["--prefix", "../command-station-cms", "run", "dev"],
       "port": 1430
     }
   ]
